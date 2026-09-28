@@ -1,5 +1,7 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
 
 function makeJWT(header, payload) {
   const h = Buffer.from(JSON.stringify(header)).toString("base64url");
@@ -85,6 +87,23 @@ test.describe("Page load", () => {
 });
 
 test.describe("JWT decoding", () => {
+  test("decodes a trust-list JWT and displays its payload", async ({ page }) => {
+    const jwt = readFileSync(
+      path.join(__dirname, "../internal/web/testdata/trust-list.jwt"),
+      "utf8"
+    ).trim();
+    await page.goto("/");
+    await page.locator("#input").fill(jwt);
+    await expect(page.locator("#format-badge")).toHaveText("JWT");
+    await expect(page.locator('#output .section[data-section="header"]')).toContainText("ES256");
+    const payload = page.locator('#output .section[data-section="payload"]');
+    await expect(payload).toContainText("LoTE");
+    await expect(payload).toContainText("EUDI Dev Wallet PID Provider");
+    await expect(payload).toContainText("PID Issuance Service");
+    await expect(payload).toContainText("PID Revocation Service");
+    await expect(page.locator(".validity-banner")).toContainText("Unverified");
+  });
+
   test("decodes and shows format badge, banner, and sections", async ({
     page,
   }) => {

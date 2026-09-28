@@ -183,6 +183,32 @@ func TestDetect_OID4_JSON(t *testing.T) {
 	}
 }
 
+func TestDetectEncoding(t *testing.T) {
+	jwt := EncodeBase64URL([]byte(`{"alg":"ES256","typ":"custom+jwt"}`)) + "." +
+		EncodeBase64URL([]byte(`{"LoTE":{"TrustedEntitiesList":[]},"client_id":"anything"}`)) + ".sig"
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  CredentialFormat
+	}{
+		{"JWT with specialized claims", jwt, FormatJWT},
+		{"whitespace", " \n" + jwt + "\n ", FormatJWT},
+		{"SD-JWT", jwt + "~", FormatSDJWT},
+		{"mdoc", EncodeBase64URL([]byte{0xa1, 0x01, 0x02}), FormatMDOC},
+		{"JSON with dots", `{"url":"https://issuer.example.com"}`, FormatUnknown},
+		{"JSON with tilde", `{"value":"a~b"}`, FormatUnknown},
+		{"URL with dots", "https://issuer.example.com", FormatUnknown},
+		{"OpenID URI", "openid4vp://authorize?client_id=example", FormatUnknown},
+		{"empty", "", FormatUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DetectEncoding(tc.input); got != tc.want {
+				t.Errorf("DetectEncoding() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDetect_TrustList_JWT(t *testing.T) {
 	encHeader := EncodeBase64URL([]byte(`{"alg":"ES256"}`))
 	payload := EncodeBase64URL([]byte(`{"LoTE":{"TrustedEntitiesList":[{"TrustedEntityInformation":{"TEName":[{"value":"Test"}]}}]}}`))

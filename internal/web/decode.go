@@ -16,13 +16,12 @@ package web
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
 
 func Decode(input string) (map[string]any, error) {
-	detected := detectCredentialFormat(input)
+	detected := format.DetectEncoding(input)
 
 	switch detected {
 	case format.FormatSDJWT:
@@ -37,23 +36,4 @@ func Decode(input string) (map[string]any, error) {
 	default:
 		return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mDOC)")
 	}
-}
-
-// Credential JWTs can contain fields such as client_id that resemble OID4 requests.
-// Prefer their structural JWT or SD-JWT format here.
-func detectCredentialFormat(input string) format.CredentialFormat {
-	detected := format.Detect(input)
-
-	if detected == format.FormatOID4VCI || detected == format.FormatOID4VP {
-		trimmed := strings.TrimSpace(input)
-		if strings.Contains(trimmed, "~") {
-			return format.FormatSDJWT
-		}
-		parts := strings.Split(trimmed, ".")
-		if len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0 {
-			return format.FormatJWT
-		}
-	}
-
-	return detected
 }

@@ -78,6 +78,49 @@
     details.advanced { margin-top: 8px; }
     details.advanced summary { font-size: 11px; color: var(--text-dim); cursor: pointer; }
     textarea { width: 100%; min-height: 68px; margin-bottom: 6px; resize: vertical; white-space: pre; }
+    .sponsor-info {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      margin-top: 14px;
+      gap: 4px 8px;
+      padding: 3px 0;
+      color: var(--text-dim);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .sponsor-info a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .sponsor-info a:hover {
+      text-decoration: underline;
+    }
+
+    .sponsor-info a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .sponsor-info svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      color: #de87ad;
+    }
+
+    @media (prefers-color-scheme: light) {
+      .sponsor-info svg { color: #a63367; }
+    }
   </style>
 </head>
 <body>
@@ -172,6 +215,15 @@
       <a href="../decoder/">Decoder</a>
       <a href="../imprint" id="imprint-link" hidden>Imprint</a>
     </div>
+    <footer>
+      <div class="sponsor-info">
+        <span>Enjoying eudi-dev?</span>
+        <a href="https://github.com/sponsors/dominikschlosser" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+          Support its development
+        </a>
+      </div>
+    </footer>
     <div class="disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
   </div>
   <script src="verifier.js"></script>

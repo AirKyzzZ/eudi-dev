@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -130,6 +132,77 @@ func TestHandleDecode_JWTResponseStructure(t *testing.T) {
 	header := result["header"].(map[string]any)
 	if header["kid"] != "key-1" {
 		t.Errorf("header.kid = %v, want key-1", header["kid"])
+	}
+}
+
+func TestHandleJWTRegardlessOfClaims(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		header  map[string]any
+		payload map[string]any
+	}{
+		{"empty claims", map[string]any{"alg": "none"}, map[string]any{}},
+		{"custom type and claims", map[string]any{"alg": "none", "typ": "custom+jwt"}, map[string]any{"custom": map[string]any{"items": []any{"a", true, nil}}}},
+		{"credential offer", map[string]any{"alg": "none"}, map[string]any{"credential_issuer": "https://issuer.example"}},
+		{"authorization request", map[string]any{"alg": "none"}, map[string]any{"client_id": "https://verifier.example", "response_type": "vp_token"}},
+		{"trust list", map[string]any{"alg": "none"}, map[string]any{"LoTE": map[string]any{"TrustedEntitiesList": []any{}}}},
+	} {
+		for _, endpoint := range []string{"/api/decode", "/api/validate"} {
+			t.Run(tc.name+endpoint, func(t *testing.T) {
+				body, err := json.Marshal(map[string]string{"input": " \n" + makeJWT(tc.header, tc.payload) + "\n "})
+				if err != nil {
+					t.Fatal(err)
+				}
+				w := apiPostTo(t, endpoint, string(body))
+				if w.Code != http.StatusOK {
+					t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+				}
+				result := decodeResponse(t, w)
+				if result["format"] != "jwt" || !reflect.DeepEqual(result["header"], tc.header) || !reflect.DeepEqual(result["payload"], tc.payload) {
+					t.Errorf("JWT header or claims not preserved: %v", result)
+				}
+			})
+		}
+	}
+}
+
+func TestHandleTrustListJWT(t *testing.T) {
+	raw, err := os.ReadFile("testdata/trust-list.jwt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwt := strings.TrimSpace(string(raw))
+	parts := strings.Split(jwt, ".")
+	var expectedHeader, expectedPayload map[string]any
+	for i, target := range []*map[string]any{&expectedHeader, &expectedPayload} {
+		decoded, err := base64.RawURLEncoding.DecodeString(parts[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(decoded, target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, endpoint := range []string{"/api/decode", "/api/validate"} {
+		t.Run(endpoint, func(t *testing.T) {
+			w := apiPostTo(t, endpoint, `{"input":"`+jwt+`"}`)
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+			result := decodeResponse(t, w)
+			if result["format"] != "jwt" {
+				t.Errorf("format = %v, want jwt", result["format"])
+			}
+			if !reflect.DeepEqual(result["header"], expectedHeader) {
+				t.Errorf("header = %v, want %v", result["header"], expectedHeader)
+			}
+			if !reflect.DeepEqual(result["payload"], expectedPayload) {
+				t.Error("decoded payload differs from the trust-list JWT payload")
+			}
+			if result["validation"] == nil {
+				t.Error("missing validation results")
+			}
+		})
 	}
 }
 

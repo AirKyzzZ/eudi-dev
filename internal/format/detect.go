@@ -57,6 +57,26 @@ func Detect(input string) CredentialFormat {
 		return FormatUnknown
 	}
 
+	if strings.HasPrefix(input, "{") {
+		return detectJSONOID4(input)
+	}
+
+	detected := DetectEncoding(input)
+	if detected == FormatJWT {
+		if f := detectJWTPayloadOID4(strings.Split(input, ".")[1]); f != FormatUnknown {
+			return f
+		}
+	}
+	return detected
+}
+
+// DetectEncoding identifies the token encoding without classifying its claims.
+func DetectEncoding(input string) CredentialFormat {
+	input = strings.TrimSpace(input)
+	if input == "" || strings.HasPrefix(input, "{") || strings.Contains(input, "://") {
+		return FormatUnknown
+	}
+
 	if strings.Contains(input, "~") {
 		return FormatSDJWT
 	}
@@ -72,18 +92,8 @@ func Detect(input string) CredentialFormat {
 		return FormatMDOC
 	}
 
-	if strings.HasPrefix(input, "{") {
-		if f := detectJSONOID4(input); f != FormatUnknown {
-			return f
-		}
-		return FormatUnknown
-	}
-
 	parts := strings.Split(input, ".")
 	if len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0 {
-		if f := detectJWTPayloadOID4(parts[1]); f != FormatUnknown {
-			return f
-		}
 		return FormatJWT
 	}
 

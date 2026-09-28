@@ -46,7 +46,7 @@ type ValidateOpts struct {
 
 // Validate adds a validation object to the decoded result.
 func Validate(input string, opts ValidateOpts) (map[string]any, error) {
-	detected := detectCredentialFormat(input)
+	detected := format.DetectEncoding(input)
 
 	var checks []CheckResult
 
