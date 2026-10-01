@@ -201,7 +201,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	logRequestObjectFetchRequest(w, "POST", requestURI, map[string]any{
 		"wallet_metadata": walletMeta,
 		"wallet_nonce":    walletNonce,
-	})
+	}, &LogPayload{Label: "Request", Body: form.Encode()})
 
 	req, err := http.NewRequest("POST", requestURI, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -283,7 +283,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	return result, nil
 }
 
-func logRequestObjectFetchRequest(w *Wallet, method, requestURI string, details map[string]any) {
+func logRequestObjectFetchRequest(w *Wallet, method, requestURI string, details map[string]any, payloads ...*LogPayload) {
 	if w == nil {
 		return
 	}
@@ -293,7 +293,7 @@ func logRequestObjectFetchRequest(w *Wallet, method, requestURI string, details 
 	details["direction"] = "outbound"
 	details["method"] = method
 	details["url"] = requestURI
-	w.addProtocolLog("presentation", "request_object_fetch_request", fmt.Sprintf("Fetch request object %s %s", method, requestURI), true, details)
+	w.addProtocolLog("presentation", "request_object_fetch_request", fmt.Sprintf("Fetch request object %s %s", method, requestURI), true, details, firstLogPayload(payloads))
 }
 
 func logRequestObjectFetchResponse(w *Wallet, method, requestURI string, result map[string]any, err error) {
@@ -315,7 +315,17 @@ func logRequestObjectFetchResponse(w *Wallet, method, requestURI string, result 
 	if statusCode, ok := details["status_code"].(int); ok && (statusCode < 200 || statusCode >= 300) {
 		success = false
 	}
-	w.addProtocolLog("presentation", "request_object_fetch_response", fmt.Sprintf("Request object fetch response %s %s", method, requestURI), success, details)
+	var payload *LogPayload
+	if body, ok := details["response_body"].(string); ok {
+		payload = &LogPayload{Label: "Response", Body: body}
+		if isJWE(body) {
+			payload.Encrypted, payload.Wire, payload.Body = true, body, nil
+			if plain, decryptErr := DecryptRequestObjectJWE(body, w.RequestEncryptionKey); decryptErr == nil {
+				payload.Body = plain
+			}
+		}
+	}
+	w.addProtocolLog("presentation", "request_object_fetch_response", fmt.Sprintf("Request object fetch response %s %s", method, requestURI), success, details, payload)
 }
 
 func responseLogResult(statusCode int, details map[string]any) map[string]any {

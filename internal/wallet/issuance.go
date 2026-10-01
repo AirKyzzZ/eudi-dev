@@ -15,11 +15,13 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -337,11 +339,12 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		"tx_code":             txCode,
 		"client_attestation":  attestor != nil,
 		"dpop":                dpopKey != nil,
-	})
-	tokenResp, err := postFormWithDPoP(tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor)
+	}, &LogPayload{Label: "Request", Body: tokenForm.Encode()})
+	tokenPayload := &LogPayload{}
+	tokenResp, err := postFormWithDPoP(tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor, tokenPayload)
 	if err != nil {
 		w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", tokenEndpoint), false,
-			responseMapLogDetails(tokenEndpoint, "token", nil, err))
+			responseMapLogDetails(tokenEndpoint, "token", nil, err), tokenPayload)
 		return nil, fmt.Errorf("token exchange: %w", err)
 	}
 	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", tokenEndpoint), true, map[string]any{
@@ -349,7 +352,7 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		"url":       tokenEndpoint,
 		"endpoint":  "token",
 		"response":  tokenResp,
-	})
+	}, tokenPayload)
 
 	accessToken, _ := tokenResp["access_token"].(string)
 	if accessToken == "" {
@@ -537,7 +540,7 @@ type metadataFetch struct {
 	responseLabel string // reads as "<responseLabel> response from <issuer>"
 	wellKnown     string // the .well-known suffix, for the logged URL
 	issuer        string
-	fetch         func(string) (map[string]any, error)
+	fetch         func(string, ...*LogPayload) (map[string]any, error)
 }
 
 func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
@@ -549,7 +552,8 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 		"issuer":    f.issuer,
 	})
 
-	metadata, err := f.fetch(f.issuer)
+	payload := &LogPayload{Label: "Response"}
+	metadata, err := f.fetch(f.issuer, payload)
 
 	details := map[string]any{
 		"direction": "inbound",
@@ -561,12 +565,12 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 	} else {
 		details["metadata"] = metadata
 	}
-	w.addProtocolLog("issuance", f.event+"_response", fmt.Sprintf("%s response from %s", f.responseLabel, f.issuer), err == nil, details)
+	w.addProtocolLog("issuance", f.event+"_response", fmt.Sprintf("%s response from %s", f.responseLabel, f.issuer), err == nil, details, payload)
 
 	return metadata, err
 }
 
-func fetchIssuerMetadata(issuer string) (map[string]any, error) {
+func fetchIssuerMetadata(issuer string, payloads ...*LogPayload) (map[string]any, error) {
 	metadataURL, err := wellKnownURL(issuer, "openid-credential-issuer")
 	if err != nil {
 		return nil, fmt.Errorf("building issuer metadata URL: %w", err)
@@ -591,12 +595,18 @@ func fetchIssuerMetadata(issuer string) (map[string]any, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := format.ReadRemoteBody(resp.Body, "issuer response")
+		if payload := firstLogPayload(payloads); payload != nil {
+			payload.Body = string(body)
+		}
 		return nil, fmt.Errorf("metadata request failed (%d): %s", resp.StatusCode, string(body))
 	}
 
 	body, err := format.ReadRemoteBody(resp.Body, "issuer response")
 	if err != nil {
 		return nil, fmt.Errorf("reading metadata: %w", err)
+	}
+	if payload := firstLogPayload(payloads); payload != nil {
+		payload.Body = string(body)
 	}
 	return parseIssuerMetadataResponse(body, resp.Header.Get("Content-Type"), issuer)
 }
@@ -1029,7 +1039,7 @@ func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[str
 
 // fetchOAuthMetadata reads the OAuth 2.0 Authorization Server Metadata
 // (RFC 8414) the server publishes at /.well-known/oauth-authorization-server.
-func fetchOAuthMetadata(authServer string) (map[string]any, error) {
+func fetchOAuthMetadata(authServer string, payloads ...*LogPayload) (map[string]any, error) {
 	oauthURL, err := wellKnownURL(authServer, "oauth-authorization-server")
 	if err != nil {
 		return nil, err
@@ -1046,12 +1056,28 @@ func fetchOAuthMetadata(authServer string) (map[string]any, error) {
 		return nil, fmt.Errorf("no OAuth metadata found at %s: %w", authServer, err)
 	}
 	defer resp.Body.Close()
+	payload := firstLogPayload(payloads)
 	if resp.StatusCode != http.StatusOK {
+		if payload != nil {
+			body, _ := format.ReadRemoteBody(resp.Body, "OAuth metadata")
+			payload.Body = string(body)
+		}
 		return nil, fmt.Errorf("no OAuth metadata found at %s: HTTP %d", authServer, resp.StatusCode)
 	}
+	var captured bytes.Buffer
+	var reader io.Reader = resp.Body
+	if payload != nil {
+		reader = io.TeeReader(resp.Body, &captured)
+	}
 	var meta map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return nil, fmt.Errorf("parsing OAuth metadata from %s: %w", authServer, err)
+	decodeErr := json.NewDecoder(reader).Decode(&meta)
+	if payload != nil {
+		// Logging must not change the streaming decoder's result.
+		_, _ = io.Copy(&captured, resp.Body)
+		payload.Body = captured.String()
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("parsing OAuth metadata from %s: %w", authServer, decodeErr)
 	}
 	return meta, nil
 }
@@ -1459,8 +1485,12 @@ func (w *Wallet) requestCredentialWithNonceRetry(a credentialRequestAttempt, pro
 }
 
 func (w *Wallet) sendCredentialRequest(a credentialRequestAttempt, proofs credentialProofs) (map[string]any, error) {
-	w.addProtocolLog("issuance", "credential_request", fmt.Sprintf("Request credential from %s", a.endpoint), true,
-		credentialRequestLogDetails(a.endpoint, a.accessToken, proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption))
+	trace := &credentialExchangeLog{
+		Request: func(payload *LogPayload) {
+			w.addProtocolLog("issuance", "credential_request", fmt.Sprintf("Request credential from %s", a.endpoint), true,
+				credentialRequestLogDetails(a.endpoint, a.accessToken, proofs, a.credentialIdentifier, a.credentialConfigurationID, a.responseEncryption), payload)
+		},
+	}
 	credResp, err := requestCredentialWithDPoP(
 		w.Mode(),
 		a.metadata,
@@ -1474,13 +1504,18 @@ func (w *Wallet) sendCredentialRequest(a credentialRequestAttempt, proofs creden
 		a.dpopKey,
 		w.HolderKey,
 		a.nonce,
+		trace,
 	)
 	w.addProtocolLog("issuance", "credential_response", fmt.Sprintf("Credential response from %s", a.endpoint), err == nil,
-		credentialResponseLogDetails(a.endpoint, credResp, err))
+		credentialResponseLogDetails(a.endpoint, credResp, err), trace.Response)
 	return credResp, err
 }
 
-func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey) (map[string]any, error) {
+func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey, payloads ...*LogPayload) (map[string]any, error) {
+	payload := firstLogPayload(payloads)
+	if payload != nil {
+		payload.Label, payload.Body = "Response", string(body)
+	}
 	trimmed := strings.TrimSpace(string(body))
 	var out map[string]any
 	if err := json.Unmarshal([]byte(trimmed), &out); err == nil {
@@ -1489,9 +1524,15 @@ func parseCredentialResponseBody(body []byte, holderKey *ecdsa.PrivateKey) (map[
 	if holderKey == nil {
 		return nil, fmt.Errorf("credential response is not valid JSON")
 	}
+	if payload != nil && isJWE(trimmed) {
+		payload.Encrypted, payload.Wire, payload.Body = true, string(body), nil
+	}
 	decrypted, err := DecryptCompactJWE(trimmed, holderKey)
 	if err != nil {
 		return nil, fmt.Errorf("credential response is neither valid JSON nor decryptable compact JWE: %w", err)
+	}
+	if payload != nil {
+		payload.Body = decrypted
 	}
 	if err := json.Unmarshal([]byte(decrypted), &out); err != nil {
 		return nil, fmt.Errorf("parsing decrypted credential response JSON: %w", err)

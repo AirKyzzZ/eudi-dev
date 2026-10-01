@@ -208,7 +208,7 @@ test.describe("Wallet loading states", () => {
       await credentialsReady;
       await route.continue();
     });
-    await page.route("**/api/log", async (route) => {
+    await page.route("**/api/log*", async (route) => {
       await activityReady;
       await route.fulfill({ json: [{ time: "2026-09-13T05:00:00Z", action: "issue", detail: "Credential issued", success: true }] });
     });
@@ -243,7 +243,7 @@ test.describe("Wallet loading states", () => {
       await ready;
       await route.fulfill({ json: [] });
     });
-    await page.route("**/api/log", async (route) => {
+    await page.route("**/api/log*", async (route) => {
       await ready;
       await route.fulfill({ contentType: "application/json", body: "null" });
     });
@@ -277,7 +277,7 @@ test.describe("Wallet loading states", () => {
       if (refreshing) await refreshReady;
       await route.continue();
     });
-    await page.route("**/api/log", async (route) => {
+    await page.route("**/api/log*", async (route) => {
       if (refreshing) await refreshReady;
       await route.fulfill({ json: [{ time: "2026-09-13T05:00:00Z", action: "issue", detail: refreshing ? "Updated activity" : "Original activity", success: true }] });
     });
@@ -312,7 +312,7 @@ test.describe("Wallet loading states", () => {
         else await route.fulfill({ status: 503, json: { error: "Unavailable" } });
       };
       await page.route("**/api/credentials?*", fail);
-      await page.route("**/api/log", fail);
+      await page.route("**/api/log*", fail);
       await page.goto(WALLET_URL);
       await expect(page.getByText("Could not load credentials.")).toBeVisible();
       await expect(page.getByText("Could not load activity.")).toBeVisible();
@@ -325,7 +325,7 @@ test.describe("Wallet loading states", () => {
       const ready = new Promise((resolve) => { release = resolve; });
       const retry = async (route) => { await ready; await route.continue(); };
       await page.route("**/api/credentials?*", retry);
-      await page.route("**/api/log", retry);
+      await page.route("**/api/log*", retry);
       try {
         await page.locator("#credentials").getByRole("button", { name: "Retry" }).click();
         await page.locator("#log").getByRole("button", { name: "Retry" }).click();
@@ -1247,4 +1247,46 @@ test.describe("A credential bound to a key the wallet does not hold", () => {
       method: "DELETE",
     });
   });
+});
+
+
+test("activity shows protocol payload once with optional credential summary", async ({ page }) => {
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Sending presentation response", success: true,
+    details: {
+      event: "presentation_response", direction: "outbound", vp_token: { pid: ["presented-token"] },
+      sent_credentials: [{ id: "cred-1", query_id: "pid", format: "dc+sd-jwt", disclosed: ["given_name"] }],
+      presented_credentials: [{ id: "cred-1", query_id: "pid", format: "dc+sd-jwt", disclosed: ["given_name"],
+        presentation: "presented-token", raw_credential: "private-stored-token", credential: { claims: { family_name: "NOT DISCLOSED" } } }],
+    },
+    payload: { label: "Response", body: { vp_token: { pid: ["presented-token"] } } },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.locator(".log-entry");
+  await expect(entry.locator(".log-payload pre")).toBeVisible();
+  await expect(entry.locator(".log-payload pre")).toContainText("presented-token");
+  await expect(entry).not.toContainText("sent_credentials");
+  await expect(entry).not.toContainText("presented_credentials");
+  await expect(entry).not.toContainText("private-stored-token");
+  await expect(entry).not.toContainText("NOT DISCLOSED");
+  await entry.getByText("Presented credentials", { exact: true }).click();
+  await expect(entry.locator(".log-summary").first()).toContainText("given_name");
+});
+
+test("encrypted activity keeps plaintext visible and ciphertext expandable at phone width", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Credential response", success: true,
+    details: { event: "credential_response", response: { credential: "test-credential" } },
+    payload: { label: "Response", body: '{"credential":"test-credential"}', encrypted: true, wire: "encrypted-wire-value".repeat(30) },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.locator(".log-entry");
+  await expect(entry.locator(".log-encrypted")).toHaveText("Encrypted");
+  await expect(entry.locator(".log-payload > pre")).toBeVisible();
+  await expect(entry.locator(".log-payload > pre")).toContainText("test-credential");
+  await expect(entry.locator(".log-wire pre")).toBeHidden();
+  await entry.getByText("Encrypted wire value", { exact: true }).click();
+  await expect(entry.locator(".log-wire pre")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

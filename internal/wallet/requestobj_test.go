@@ -406,6 +406,7 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 		RequestEncryptionKey:    walletKey,
 	}
 
+	var transmitted string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		walletNonce := r.Form.Get("wallet_nonce")
@@ -435,6 +436,7 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 			t.Fatalf("encrypting request object: %v", err)
 		}
 
+		transmitted = jweStr
 		w.Header().Set("Content-Type", "application/oauth-authz-req+jwt")
 		w.Write([]byte(jweStr))
 	}))
@@ -448,6 +450,13 @@ func TestMakeFetchRequestURI_POST_Encrypted(t *testing.T) {
 
 	if !isJWT(result) {
 		t.Error("expected decrypted JWT result")
+	}
+	entry := findLogEntry(wallet.GetLog(), "request_object_fetch_response")
+	if entry == nil || entry.Payload == nil || !entry.Payload.Encrypted {
+		t.Fatal("encrypted request object missing from activity")
+	}
+	if entry.Payload.Body != result || entry.Payload.Wire != transmitted {
+		t.Fatal("request object activity differs from the received response")
 	}
 
 	_, payload, _, err := format.ParseJWTParts(result)

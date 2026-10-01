@@ -426,6 +426,15 @@ type LogEntry struct {
 	Success  bool           `json:"success"`
 	Severity string         `json:"severity,omitempty"`
 	Details  map[string]any `json:"details,omitempty"`
+	// The CLI and default log endpoint omit the additional activity-view payload.
+	Payload *LogPayload `json:"payload,omitempty"`
+}
+
+type LogPayload struct {
+	Label     string `json:"label"`
+	Body      any    `json:"body"`
+	Encrypted bool   `json:"encrypted,omitempty"`
+	Wire      any    `json:"wire,omitempty"`
 }
 
 const severityWarning = "warning"
@@ -979,12 +988,17 @@ func (w *Wallet) AddLog(action, detail string, success bool) {
 }
 
 func (w *Wallet) AddLogDetails(action, detail string, success bool, details map[string]any) {
+	w.AddLogPayload(action, detail, success, details, nil)
+}
+
+func (w *Wallet) AddLogPayload(action, detail string, success bool, details map[string]any, payload *LogPayload) {
 	w.appendLogEntry(LogEntry{
 		Time:    time.Now(),
 		Action:  action,
 		Detail:  detail,
 		Success: success,
 		Details: cloneLogDetails(details),
+		Payload: payload,
 	})
 }
 

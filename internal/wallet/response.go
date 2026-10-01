@@ -26,7 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
 
-func SubmitDirectPostObject(responseURI string, payload map[string]any) (*DirectPostResult, error) {
+func directPostForm(payload map[string]any) (url.Values, error) {
 	form := url.Values{}
 	for key, value := range payload {
 		switch key {
@@ -42,7 +42,14 @@ func SubmitDirectPostObject(responseURI string, payload map[string]any) (*Direct
 			}
 		}
 	}
+	return form, nil
+}
 
+func SubmitDirectPostObject(responseURI string, payload map[string]any) (*DirectPostResult, error) {
+	form, err := directPostForm(payload)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := format.HTTPClientForURL(responseURI).PostForm(responseURI, form)
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
@@ -59,7 +66,7 @@ func SubmitDirectPostObject(responseURI string, payload map[string]any) (*Direct
 		Body:       string(body),
 	}
 	if err := applyVerifierResponse(result, resp.Header, body); err != nil {
-		return nil, err
+		return nil, &verifierResponseError{err: err, body: string(body)}
 	}
 
 	return result, nil
@@ -78,6 +85,14 @@ type DirectPostResult struct {
 	Body        string `json:"body"`
 	RedirectURI string `json:"redirect_uri,omitempty"`
 }
+
+type verifierResponseError struct {
+	err  error
+	body string
+}
+
+func (e *verifierResponseError) Error() string { return e.err.Error() }
+func (e *verifierResponseError) Unwrap() error { return e.err }
 
 // SubmitDirectPostJWT exposes a supplied CEK in X-Debug-JWE-CEK for proxy debugging.
 func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte) (*DirectPostResult, error) {
@@ -112,7 +127,7 @@ func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte) (*D
 		Body:       string(body),
 	}
 	if err := applyVerifierResponse(result, resp.Header, body); err != nil {
-		return nil, err
+		return nil, &verifierResponseError{err: err, body: string(body)}
 	}
 
 	return result, nil

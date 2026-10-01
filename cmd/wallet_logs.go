@@ -100,6 +100,12 @@ func walletLogsCleanCmd() *cobra.Command {
 
 func printWalletLogs(w io.Writer, entries []wallet.LogEntry, opts walletLogPrintOptions) error {
 	if opts.JSON {
+		if entries != nil {
+			entries = append([]wallet.LogEntry{}, entries...)
+			for i := range entries {
+				entries[i].Payload = nil
+			}
+		}
 		data, err := json.MarshalIndent(entries, "", "  ")
 		if err != nil {
 			return fmt.Errorf("marshaling wallet logs: %w", err)

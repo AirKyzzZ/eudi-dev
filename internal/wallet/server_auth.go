@@ -171,6 +171,7 @@ type preparedPresentation struct {
 	Params      PresentationParams
 	VPResult    *VPTokenMapResult
 	IDToken     string
+	Response    *AuthorizationResponseEnvelope
 }
 
 func (s *Server) handleAuthFlow(w http.ResponseWriter, authReq *AuthorizationRequestParams) {
@@ -441,6 +442,7 @@ func (s *Server) buildBrowserPresentationResult(authReq *AuthorizationRequestPar
 	if err != nil {
 		return nil, nil, err
 	}
+	prepared.Response = response
 	return result, prepared, nil
 }
 
@@ -504,12 +506,12 @@ func (s *Server) deliverAuthorizationError(authReq *AuthorizationRequestParams, 
 	if authReq.Source != "" {
 		errorDetails["source"] = authReq.Source
 	}
-	s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails)
-
-	result, err := s.wallet.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, params)
+	result, err := s.wallet.SubmitAuthorizationError(errorCode, errorDescription, authReq.State, responseURI, params, func(response *AuthorizationResponseEnvelope) {
+		s.wallet.addProtocolLog("presentation", "presentation_error_response", fmt.Sprintf("Sending authorization error to %s", authReq.ClientID), true, errorDetails, PresentationLogPayload(response))
+	})
 	if err != nil {
 		s.log("  ERROR: Error submission failed: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Error submission failed: %v", err), false)
+		s.wallet.AddLogPayload("presentation", fmt.Sprintf("Error submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		return nil, err
 	}
 
@@ -587,12 +589,12 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 		s.log("  id_token:      created (SIOPv2)")
 	}
 
-	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, s.wallet, matches, prepared))
-
-	result, err := s.wallet.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, responseURI, prepared.Params)
+	result, err := s.wallet.SubmitPresentation(prepared.VPResult, prepared.IDToken, authReq.State, responseURI, prepared.Params, func(response *AuthorizationResponseEnvelope) {
+		s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Sending presentation response to %s", authReq.ClientID), true, presentationResponseLogDetails(authReq, s.wallet, matches, prepared), PresentationLogPayload(response))
+	})
 	if err != nil {
 		s.log("  ERROR: Submission failed: %v", err)
-		s.wallet.AddLog("presentation", fmt.Sprintf("Submission failed: %v", err), false)
+		s.wallet.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, VerifierResponseErrorPayload(err))
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return SubmissionResult{Error: err.Error()}
 	}

@@ -94,6 +94,11 @@ func (s *Server) handleLog(w http.ResponseWriter, r *http.Request) {
 	if s.demo != nil && len(log) > demoLogLimit {
 		log = log[len(log)-demoLogLimit:]
 	}
+	if r.URL.Query().Get("view") != "activity" {
+		for i := range log {
+			log[i].Payload = nil
+		}
+	}
 	writeJSON(w, http.StatusOK, log)
 }
 

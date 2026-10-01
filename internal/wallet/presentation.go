@@ -381,6 +381,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 			ResponseMode: responseMode,
 			ResponseJWT:  jwe,
 			CEK:          cek,
+			Plain:        authorizationResponsePlaintext(plain, responseMode),
 		}, nil
 	case "fragment":
 		redirectURI := params.RedirectURI
@@ -395,6 +396,7 @@ func (w *Wallet) BuildAuthorizationResponse(vpResult *VPTokenMapResult, idToken,
 		return &AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			RedirectURI:  redirectURL,
+			Plain:        plain,
 		}, nil
 	case "direct_post", "dc_api", "ia_post":
 		return &AuthorizationResponseEnvelope{
@@ -435,6 +437,7 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 			ResponseMode: responseMode,
 			ResponseJWT:  jwe,
 			CEK:          cek,
+			Plain:        buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state),
 		}, nil
 	case "fragment":
 		redirectURI := params.RedirectURI
@@ -444,6 +447,7 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 		return &AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
 			RedirectURI:  BuildFragmentErrorRedirect(redirectURI, state, errorCode, errorDescription),
+			Plain:        buildPlainAuthorizationErrorResponse(errorCode, errorDescription, state),
 		}, nil
 	case "direct_post", "dc_api", "ia_post":
 		return &AuthorizationResponseEnvelope{
@@ -455,8 +459,11 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 	}
 }
 
-func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params PresentationParams) (*DirectPostResult, error) {
+func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, responseURI string, params PresentationParams, observe ...func(*AuthorizationResponseEnvelope)) (*DirectPostResult, error) {
 	response, err := w.BuildAuthorizationResponse(vpResult, idToken, state, params)
+	for _, fn := range observe {
+		fn(response)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -490,8 +497,11 @@ func (w *Wallet) SubmitPresentation(vpResult *VPTokenMapResult, idToken, state, 
 	}
 }
 
-func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, responseURI string, params PresentationParams) (*DirectPostResult, error) {
+func (w *Wallet) SubmitAuthorizationError(errorCode, errorDescription, state, responseURI string, params PresentationParams, observe ...func(*AuthorizationResponseEnvelope)) (*DirectPostResult, error) {
 	response, err := w.BuildAuthorizationErrorResponse(errorCode, errorDescription, state, params)
+	for _, fn := range observe {
+		fn(response)
+	}
 	if err != nil {
 		return nil, err
 	}

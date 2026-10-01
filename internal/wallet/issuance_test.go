@@ -292,12 +292,16 @@ func TestParseCredentialResponseBody_EncryptedJWE(t *testing.T) {
 		t.Fatalf("EncryptJWE: %v", err)
 	}
 
-	got, err := parseCredentialResponseBody([]byte(jwe), holderKey)
+	payload := &LogPayload{}
+	got, err := parseCredentialResponseBody([]byte(jwe), holderKey, payload)
 	if err != nil {
 		t.Fatalf("parseCredentialResponseBody: %v", err)
 	}
 	if got["credential"] != "encrypted-credential" {
 		t.Fatalf("expected decrypted credential, got %v", got["credential"])
+	}
+	if !payload.Encrypted || payload.Wire != jwe || payload.Body != `{"credential":"encrypted-credential"}` {
+		t.Fatalf("incorrect encrypted activity payload: %+v", payload)
 	}
 }
 

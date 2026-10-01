@@ -193,6 +193,8 @@ eudi wallet logs --json       # JSON array of log entries
 
 `wallet serve` runs the web UI, protocol endpoints, trust lists and management API. It loads credentials from the selected storage backend and handles consent for interactive requests. On macOS it can also register URL scheme handlers.
 
+The activity view shows protocol payloads first, with routing and status alongside them. Encrypted exchanges show an **Encrypted** label and the unencrypted payload, with the encrypted wire value in expandable details. Credential summaries list the selected disclosure paths without copying the wallet's full stored credential into the presentation view. The web UI requests this additional payload data through `/api/log?view=activity`; the default endpoint and CLI log output keep their existing format.
+
 ```bash
 eudi wallet serve                      # web UI on http://localhost:8085
 eudi wallet serve --auto-accept --pid  # headless, with default PIDs, for tests

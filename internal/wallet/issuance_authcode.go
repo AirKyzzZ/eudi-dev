@@ -187,9 +187,10 @@ func (w *Wallet) processAuthorizationCodeOffer(
 	}
 
 	if requestURI == "" && parEndpoint != "" {
-		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm))
-		parResp, err := postFormWithDPoP(parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.attestorFor(clientAuth))
-		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err))
+		w.addProtocolLog("issuance", "par_request", fmt.Sprintf("Request PAR from %s", parEndpoint), true, formRequestLogDetails(parEndpoint, "par", parForm), &LogPayload{Label: "Request", Body: parForm.Encode()})
+		parPayload := &LogPayload{}
+		parResp, err := postFormWithDPoP(parEndpoint, parForm, dpopKey, "", &nonces.authzServer, w.attestorFor(clientAuth), parPayload)
+		w.addProtocolLog("issuance", "par_response", fmt.Sprintf("PAR response from %s", parEndpoint), err == nil, responseMapLogDetails(parEndpoint, "par", parResp, err), parPayload)
 		if err != nil {
 			return nil, fmt.Errorf("PAR request: %w", err)
 		}
@@ -199,6 +200,7 @@ func (w *Wallet) processAuthorizationCodeOffer(
 		}
 	}
 
+	authURL, _ := authorizationRequestURL(authorizationEndpoint, clientID, requestURI, parForm)
 	w.addProtocolLog("issuance", "authorization_request", fmt.Sprintf("Start authorization request at %s", authorizationEndpoint), true, map[string]any{
 		"direction":    "outbound",
 		"method":       "GET",
@@ -208,7 +210,7 @@ func (w *Wallet) processAuthorizationCodeOffer(
 		"request_uri":  requestURI,
 		"redirect_uri": redirectURI,
 		"state":        state,
-	})
+	}, &LogPayload{Label: "Request URL", Body: authURL})
 	callbackValues, err := runAuthorizationCodeRequest(w, authorizationEndpoint, clientID, requestURI, parForm, redirectURI, state, oauthIssuer(oauthMeta, ""), opts.Owner, issAdvertised(oauthMeta))
 	authorizationResponseDetails := map[string]any{
 		"direction": "inbound",
@@ -221,7 +223,7 @@ func (w *Wallet) processAuthorizationCodeOffer(
 	if err != nil {
 		authorizationResponseDetails["error"] = err.Error()
 	}
-	w.addProtocolLog("issuance", "authorization_response", fmt.Sprintf("Authorization response for %s", authorizationEndpoint), err == nil, authorizationResponseDetails)
+	w.addProtocolLog("issuance", "authorization_response", fmt.Sprintf("Authorization response for %s", authorizationEndpoint), err == nil, authorizationResponseDetails, &LogPayload{Label: "Response parameters", Body: callbackValues.Encode()})
 	if err != nil {
 		return nil, fmt.Errorf("authorization request: %w", err)
 	}
@@ -306,9 +308,10 @@ func (w *Wallet) completeAuthorizationCodeIssuance(ctx authorizationCodeIssuance
 	tokenDetails := formRequestLogDetails(tokenEndpoint, "token", tokenForm)
 	tokenDetails["client_attestation"] = attestor != nil
 	tokenDetails["dpop"] = dpopKey != nil
-	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", tokenEndpoint), true, tokenDetails)
-	tokenResp, err := postFormWithDPoP(tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor)
-	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", tokenEndpoint), err == nil, responseMapLogDetails(tokenEndpoint, "token", tokenResp, err))
+	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", tokenEndpoint), true, tokenDetails, &LogPayload{Label: "Request", Body: tokenForm.Encode()})
+	tokenPayload := &LogPayload{}
+	tokenResp, err := postFormWithDPoP(tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor, tokenPayload)
+	w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", tokenEndpoint), err == nil, responseMapLogDetails(tokenEndpoint, "token", tokenResp, err), tokenPayload)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange: %w", err)
 	}
@@ -1204,9 +1207,12 @@ type serverRefusal struct {
 
 func (e *serverRefusal) Error() string { return e.Message }
 
-func postFormWithDPoP(target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, attestor *clientAttestor) (map[string]any, error) {
+func postFormWithDPoP(target string, form url.Values, key *ecdsa.PrivateKey, accessToken string, nonce *string, attestor *clientAttestor, payloads ...*LogPayload) (map[string]any, error) {
 	body := []byte(form.Encode())
 	respBody, status, err := doDPoPRequest("POST", target, "application/x-www-form-urlencoded", "", body, "", accessToken, key, nonce, attestor)
+	if payload := firstLogPayload(payloads); payload != nil {
+		payload.Label, payload.Body = "Response", string(respBody)
+	}
 	if err != nil {
 		message := oauthErrorMessage(respBody)
 		if message == "" {
@@ -1279,14 +1285,35 @@ func credentialRequestBody(proofs credentialProofs, credentialIdentifier, creden
 	return reqBody
 }
 
-func requestCredentialWithDPoP(mode ValidationMode, metadata map[string]any, endpoint, accessToken, authScheme string, proofs credentialProofs, credentialIdentifier, credentialConfigurationID string, credentialResponseEncryption map[string]any, dpopKey, holderKey *ecdsa.PrivateKey, nonce *string) (map[string]any, error) {
+type credentialExchangeLog struct {
+	Request  func(*LogPayload)
+	Response *LogPayload
+}
+
+func requestCredentialWithDPoP(mode ValidationMode, metadata map[string]any, endpoint, accessToken, authScheme string, proofs credentialProofs, credentialIdentifier, credentialConfigurationID string, credentialResponseEncryption map[string]any, dpopKey, holderKey *ecdsa.PrivateKey, nonce *string, traces ...*credentialExchangeLog) (map[string]any, error) {
 	reqBody := credentialRequestBody(proofs, credentialIdentifier, credentialConfigurationID, credentialResponseEncryption)
 	body, contentType, err := prepareCredentialRequestBody(mode, metadata, reqBody)
+	var responsePayload *LogPayload
+	if len(traces) > 0 && traces[0] != nil {
+		trace := traces[0]
+		payload := &LogPayload{Label: "Request", Body: string(body)}
+		if contentType == "application/jwt" {
+			payload.Body, payload.Wire, payload.Encrypted = reqBody, string(body), true
+		}
+		if err != nil {
+			payload.Label, payload.Body = "Request (not sent)", reqBody
+		}
+		if trace.Request != nil {
+			trace.Request(payload)
+		}
+		trace.Response = &LogPayload{Label: "Response"}
+		responsePayload = trace.Response
+	}
 	if err != nil {
 		return nil, err
 	}
 	respBody, _, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(credentialResponseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil)
-	out, parseErr := parseCredentialResponseBody(respBody, holderKey)
+	out, parseErr := parseCredentialResponseBody(respBody, holderKey, responsePayload)
 	if parseErr == nil {
 		// The code decides what happens next, so it is reported instead of the
 		// HTTP failure: §8.3.1.2 retries on invalid_nonce and stops on
@@ -1456,7 +1483,7 @@ func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, acc
 		"endpoint":           "notification",
 		"notification_id":    notificationID,
 		"notification_event": "credential_accepted",
-	})
+	}, &LogPayload{Label: "Request", Body: notificationRequestBody(notificationID)})
 	status, respBody, err := sendNotificationWithDPoP(notificationEndpoint, accessToken, authScheme, notificationID, dpopKey, nonce)
 	if err != nil {
 		w.addProtocolLog("issuance", "notification_response", fmt.Sprintf("Notification response from %s", notificationEndpoint), false, map[string]any{
@@ -1464,7 +1491,7 @@ func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, acc
 			"url":       notificationEndpoint,
 			"endpoint":  "notification",
 			"error":     err.Error(),
-		})
+		}, &LogPayload{Label: "Response", Body: string(respBody)})
 		reading, code := readNotificationRefusal(status, respBody)
 		details := map[string]any{
 			"url":             notificationEndpoint,
@@ -1484,7 +1511,7 @@ func (w *Wallet) notifyCredentialAccepted(metadata, credResp map[string]any, acc
 		"direction": "inbound",
 		"url":       notificationEndpoint,
 		"endpoint":  "notification",
-	})
+	}, &LogPayload{Label: "Response", Body: string(respBody)})
 }
 
 // readNotificationRefusal says what an answer from the Notification Endpoint
@@ -1522,11 +1549,12 @@ func readNotificationRefusal(status int, body []byte) (string, string) {
 	}
 }
 
+func notificationRequestBody(notificationID string) map[string]any {
+	return map[string]any{"notification_id": notificationID, "event": "credential_accepted"}
+}
+
 func sendNotificationWithDPoP(endpoint, accessToken, authScheme, notificationID string, dpopKey *ecdsa.PrivateKey, nonce *string) (int, []byte, error) {
-	body, err := json.Marshal(map[string]any{
-		"notification_id": notificationID,
-		"event":           "credential_accepted",
-	})
+	body, err := json.Marshal(notificationRequestBody(notificationID))
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshaling notification request: %w", err)
 	}
@@ -1560,10 +1588,11 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 		"endpoint":  "nonce",
 	})
 
-	cNonce, status, err := nonceRequest("POST", ep, nonce)
+	noncePayload := &LogPayload{}
+	cNonce, status, err := nonceRequest("POST", ep, nonce, noncePayload)
 	reason := nonceFailureReason(status, err)
 	if cNonce == "" && status == http.StatusMethodNotAllowed && w.Mode() == ValidationModeDebug {
-		if getNonce, getStatus, getErr := nonceRequest("GET", ep, nonce); getNonce != "" {
+		if getNonce, getStatus, getErr := nonceRequest("GET", ep, nonce, noncePayload); getNonce != "" {
 			w.AddWarning("issuance", fmt.Sprintf("The nonce endpoint %s answered the HTTP POST that OID4VCI 1.0 §7.1 requires with 405 and serves a c_nonce only over GET. Debug mode uses GET as a workaround.", ep), nil)
 			cNonce, reason = getNonce, ""
 		} else {
@@ -1580,15 +1609,18 @@ func (w *Wallet) fetchNonce(metadata map[string]any, nonce *string) string {
 	if cNonce == "" {
 		details["error"] = reason
 	}
-	w.addProtocolLog("issuance", "nonce_response", fmt.Sprintf("Nonce response from %s", ep), cNonce != "", details)
+	w.addProtocolLog("issuance", "nonce_response", fmt.Sprintf("Nonce response from %s", ep), cNonce != "", details, noncePayload)
 	return cNonce
 }
 
 // nonceRequest sends one Nonce Endpoint request and reads the c_nonce out of a
 // 2xx response (§7.2). It returns the HTTP status so the caller can tell a 405
 // apart from other failures.
-func nonceRequest(method, ep string, nonce *string) (string, int, error) {
+func nonceRequest(method, ep string, nonce *string, payloads ...*LogPayload) (string, int, error) {
 	respBody, status, err := doDPoPRequest(method, ep, "", "", nil, "", "", nil, nonce, nil)
+	if payload := firstLogPayload(payloads); payload != nil {
+		payload.Label, payload.Body = "Response", string(respBody)
+	}
 	if err != nil {
 		return "", status, err
 	}

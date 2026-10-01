@@ -15,10 +15,51 @@
 package wallet
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
 )
+
+func VerifierResponseErrorPayload(err error) *LogPayload {
+	var responseErr *verifierResponseError
+	if errors.As(err, &responseErr) {
+		return &LogPayload{Label: "Response", Body: responseErr.body}
+	}
+	return nil
+}
+
+func authorizationResponsePlaintext(plain map[string]any, responseMode string) map[string]any {
+	if isDCAPIResponseMode(responseMode) {
+		out := make(map[string]any, len(plain))
+		for key, value := range plain {
+			if key != "state" {
+				out[key] = value
+			}
+		}
+		return out
+	}
+	return plain
+}
+
+func PresentationLogPayload(response *AuthorizationResponseEnvelope) *LogPayload {
+	if response == nil {
+		return nil
+	}
+	payload := &LogPayload{Label: "Response", Body: authorizationResponsePlaintext(response.Plain, response.ResponseMode)}
+	if response.ResponseJWT != "" {
+		payload.Encrypted = true
+		payload.Wire = url.Values{"response": {response.ResponseJWT}}.Encode()
+	} else if response.RedirectURI != "" {
+		payload.Wire = response.RedirectURI
+	} else if response.ResponseMode == "direct_post" {
+		if form, err := directPostForm(response.Plain); err == nil {
+			payload.Wire = form.Encode()
+		}
+	}
+	return payload
+}
 
 func (s *Server) addPresentationRequestLog(authReq *AuthorizationRequestParams, source string) {
 	clientID := authReq.ClientID
@@ -31,11 +72,24 @@ func (s *Server) addPresentationRequestLog(authReq *AuthorizationRequestParams, 
 	if source != "" {
 		details["source"] = source
 	}
-	s.wallet.AddLogDetails("presentation", fmt.Sprintf("Received presentation request from %s", clientID), true, details)
+	var payload *LogPayload
+	if authReq.RequestObject != nil {
+		payload = &LogPayload{Label: "Request object", Body: authReq.RequestObject.Raw}
+	} else if authReq.RequestPayload != nil {
+		payload = &LogPayload{Label: "Request", Body: authReq.RequestPayload}
+	}
+	s.wallet.AddLogPayload("presentation", fmt.Sprintf("Received presentation request from %s", clientID), true, details, payload)
 }
 
-func (w *Wallet) addProtocolLog(action, event, detail string, success bool, details map[string]any) {
-	w.AddLogDetails(action, detail, success, protocolLogDetails(event, details))
+func (w *Wallet) addProtocolLog(action, event, detail string, success bool, details map[string]any, payloads ...*LogPayload) {
+	w.AddLogPayload(action, detail, success, protocolLogDetails(event, details), firstLogPayload(payloads))
+}
+
+func firstLogPayload(payloads []*LogPayload) *LogPayload {
+	if len(payloads) == 0 {
+		return nil
+	}
+	return payloads[0]
 }
 
 func (w *Wallet) addProtocolWarning(action, event, detail string, details map[string]any) {

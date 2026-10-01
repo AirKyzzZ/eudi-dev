@@ -802,6 +802,40 @@ func TestBrowserPresentationAPI_DCAPISignedJWT(t *testing.T) {
 	if !ok || len(pidEntries) != 1 {
 		t.Fatalf("expected encrypted vp_token.pid with one entry, got %v", vpToken["pid"])
 	}
+	entry := findLogEntry(srv.wallet.GetLog(), "presentation_response")
+	if entry == nil || entry.Payload == nil || !entry.Payload.Encrypted {
+		t.Fatal("encrypted activity payload missing")
+	}
+	loggedPlain, err := json.Marshal(entry.Payload.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualPlain, err := json.Marshal(decrypted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(loggedPlain) != string(actualPlain) {
+		t.Fatalf("logged plaintext differs from transmitted JWE: %s != %s", loggedPlain, actualPlain)
+	}
+	loggedWire, err := json.Marshal(entry.Payload.Wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var loggedWireValue map[string]any
+	if err := json.Unmarshal(loggedWire, &loggedWireValue); err != nil {
+		t.Fatal(err)
+	}
+	loggedWire, err = json.Marshal(loggedWireValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualWire, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(loggedWire) != string(actualWire) {
+		t.Fatal("activity does not contain the exact browser response")
+	}
 }
 
 // OID4VP 1.0 Appendix A.2 requires ignoring expected_origins in unsigned requests. The

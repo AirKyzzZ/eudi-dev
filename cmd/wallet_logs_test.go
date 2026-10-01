@@ -152,6 +152,24 @@ func TestWalletLogsJSON(t *testing.T) {
 	}
 }
 
+func TestActivityPayloadDoesNotChangeCLIOutput(t *testing.T) {
+	entry := wallet.LogEntry{Time: time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC), Action: "presentation", Detail: "Sending presentation", Success: true, Details: map[string]any{"vp_token": "token"}}
+	for _, opts := range []walletLogPrintOptions{{}, {Verbose: true}, {JSON: true}} {
+		var before, after bytes.Buffer
+		if err := printWalletLogs(&before, []wallet.LogEntry{entry}, opts); err != nil {
+			t.Fatal(err)
+		}
+		withPayload := entry
+		withPayload.Payload = &wallet.LogPayload{Label: "Response", Body: "plaintext", Encrypted: true, Wire: "ciphertext"}
+		if err := printWalletLogs(&after, []wallet.LogEntry{withPayload}, opts); err != nil {
+			t.Fatal(err)
+		}
+		if before.String() != after.String() {
+			t.Fatalf("CLI output changed for %+v:\nbefore: %s\nafter: %s", opts, before.String(), after.String())
+		}
+	}
+}
+
 func TestWalletLogsCommandClean(t *testing.T) {
 	tmpDir := t.TempDir()
 	wDir := filepath.Join(tmpDir, "wallet")

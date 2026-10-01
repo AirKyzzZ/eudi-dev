@@ -2,6 +2,27 @@
 
 Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
 
+## Run of 2026-10-01 (2.4.5 activity logs)
+
+The activity-log changes were checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran on file, memory and Postgres storage: 78 configurations per backend, covering 36 Final presentation configurations, 32 Final issuance configurations and 10 HAIP configurations. The demo issuer and verifier also ran their full nine-plan matrix.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `FAILED` |
+|---|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 736 | 524 | 178 | 34 |
+| Wallet, memory | 78 | 736 | 524 | 178 | 34 |
+| Wallet, Postgres | 78 | 736 | 524 | 178 | 34 |
+| Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 |
+
+These totals include focused reruns of seven modules with transient failures. One had a `PASSED` verdict despite a failing authorization-code condition. All seven reruns passed or reached the expected `REVIEW` result with zero failing conditions. The request monitor timeout was raised from 20 to 60 seconds to reduce duplicate submissions during slow flows. No modules were skipped. The remaining failures are:
+
+- **32 mdoc pre-authorized issuance failures per backend.** Four modules fail in each of eight Final configurations. All 32 were reproduced on unchanged commit `5098a0d`, with identical failing conditions. The token response identifies SD-JWT configuration `eu.europa.ec.eudi.pid.1`, while the offer selects an mdoc configuration requiring an attestation proof. The suite rejects that proof for the token's configuration and then throws a NullPointerException. The scope-based module passes in all eight configurations.
+- **Two presentation suite failures per backend.** These are the previously documented `AddInvalidClientIdPrefixToRequestObject` NullPointerExceptions in multisigned `dc_api.jwt` plans. They occur before the suite contacts the wallet.
+- **Four demo issuer metadata failures.** These were also reproduced on unchanged commit `5098a0d`, with identical failing conditions. The mdoc metadata advertises JOSE signing-algorithm strings where the suite expects COSE algorithm integers. All 36 demo verifier verdicts matched their expected outcome.
+
+No new conformance regression was found. The baseline failures remain unresolved; this is not a fully passing conformance result.
+
+Local evidence is summarized in `/tmp/eudi-activity-conformance-verification.json`. Wallet exports are under `/tmp/eudi-activity-wallet-file-final`, `/tmp/eudi-activity-wallet-memory`, `/tmp/eudi-activity-wallet-postgres`, and their `-remaining*` continuation directories. Focused reruns are in `wallet-<backend>-rerun*` directories under the same `/tmp/eudi-activity-` prefix. Baseline comparisons are in `/tmp/eudi-activity-wallet-mdoc-baseline*` and `/tmp/eudi-activity-demo-baseline`. Demo exports combine `/tmp/eudi-activity-demo-file` and `/tmp/eudi-activity-demo-final-haip`. Each run directory contains `runner.log` and exported ZIP archives in `results/`.
+
 ## Demo Issuer and Verifier (2026-08-31)
 
 The demo issuer and demo verifier are tested with the suite acting as the wallet. Use [the demo runbook](./conformance-run-demorp.md) to reproduce. Suite `release-v5.2.4` (revision `ab35a8d`), 9 plans (4 issuer, 5 verifier), 101 modules: **61 `PASSED`, 36 `REVIEW`, 4 `WARNING`, 0 `FAILED`, 0 `SKIPPED`**, 7645 condition successes against 0 condition failures.

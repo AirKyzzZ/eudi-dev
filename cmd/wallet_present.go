@@ -525,11 +525,11 @@ func submitPresentation(w *wallet.Wallet, store *wallet.WalletStore, matches []w
 	authReq := authorizationRequestParamsFromParsed(parsed, responseURI, "cli")
 	responseDetails := wallet.PresentationResponseLogDetails(authReq, w, matches, vpResult, idToken, responseURI)
 	responseDetails["event"] = "presentation_response"
-	w.AddLogDetails("presentation", fmt.Sprintf("Sending presentation response to %s", parsed.ClientID), true, responseDetails)
-
-	result, err := w.SubmitPresentation(vpResult, idToken, parsed.State, responseURI, params)
+	result, err := w.SubmitPresentation(vpResult, idToken, parsed.State, responseURI, params, func(response *wallet.AuthorizationResponseEnvelope) {
+		w.AddLogPayload("presentation", fmt.Sprintf("Sending presentation response to %s", parsed.ClientID), true, responseDetails, wallet.PresentationLogPayload(response))
+	})
 	if err != nil {
-		w.AddLog("presentation", fmt.Sprintf("Submission failed: %v", err), false)
+		w.AddLogPayload("presentation", fmt.Sprintf("Submission failed: %v", err), false, nil, wallet.VerifierResponseErrorPayload(err))
 		if submissionCh != nil {
 			submissionCh <- wallet.SubmissionResult{Error: err.Error()}
 		}

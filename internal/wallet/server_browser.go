@@ -261,7 +261,13 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	details := presentationResponseLogDetails(authReq, s.wallet, matches, prepared)
 	details["status_code"] = http.StatusOK
 	details["browser_api_result"] = result
-	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned Browser API presentation to %s", authReq.ClientID), true, details)
+	payload := PresentationLogPayload(prepared.Response)
+	if payload.Encrypted {
+		payload.Wire = result
+	} else {
+		payload.Body = result
+	}
+	s.wallet.addProtocolLog("presentation", "presentation_response", fmt.Sprintf("Returned Browser API presentation to %s", authReq.ClientID), true, details, payload)
 	writeJSON(w, http.StatusOK, result)
 	return SubmissionResult{StatusCode: http.StatusOK}
 }

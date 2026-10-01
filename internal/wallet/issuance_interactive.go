@@ -230,7 +230,7 @@ func (w *Wallet) initialAuthorizationChallengeForm(setup authorizationCodeSetup,
 func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, setup authorizationCodeSetup) (map[string]any, error) {
 	w.addProtocolLog("issuance", "authorization_challenge_request",
 		fmt.Sprintf("Authorization challenge request to %s", endpoint), true,
-		formRequestLogDetails(endpoint, "authorization_challenge", form))
+		formRequestLogDetails(endpoint, "authorization_challenge", form), &LogPayload{Label: "Request", Body: form.Encode()})
 
 	body := []byte(form.Encode())
 	respBody, status, reqErr := doDPoPRequest("POST", endpoint, "application/x-www-form-urlencoded", "", body,
@@ -249,7 +249,7 @@ func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, se
 		}
 		w.addProtocolLog("issuance", "authorization_challenge_response",
 			fmt.Sprintf("Authorization challenge response from %s", endpoint), false,
-			responseMapLogDetails(endpoint, "authorization_challenge", nil, err))
+			responseMapLogDetails(endpoint, "authorization_challenge", nil, err), &LogPayload{Label: "Response", Body: string(respBody)})
 		return nil, fmt.Errorf("authorization challenge request: %w", err)
 	}
 
@@ -260,7 +260,7 @@ func (w *Wallet) postAuthorizationChallenge(endpoint string, form url.Values, se
 	errorCode := jsonutil.GetString(response, "error")
 	w.addProtocolLog("issuance", "authorization_challenge_response",
 		fmt.Sprintf("Authorization challenge response from %s", endpoint),
-		errorCode == "" || errorCode == errorInsufficientAuthorization, details)
+		errorCode == "" || errorCode == errorInsufficientAuthorization, details, &LogPayload{Label: "Response", Body: string(respBody)})
 	return response, nil
 }
 
@@ -408,12 +408,16 @@ func (w *Wallet) runPresentationInteraction(endpoint string, response map[string
 		return nil, err
 	}
 
-	w.AddLogDetails("issuance", fmt.Sprintf("Presented %d credential(s) to satisfy interactive authorization", len(matches)), true, map[string]any{
+	payload := PresentationLogPayload(envelope)
+	if payload.Encrypted {
+		payload.Wire = encoded
+	}
+	w.AddLogPayload("issuance", fmt.Sprintf("Presented %d credential(s) to satisfy interactive authorization", len(matches)), true, map[string]any{
 		"event":                            "interactive_authorization_presentation",
 		"authorization_challenge_endpoint": endpoint,
 		"response_mode":                    params.ResponseMode,
 		"query_ids":                        vpResult.QueryIDs(),
-	})
+	}, payload)
 
 	form := url.Values{}
 	form.Set("openid4vp_response", encoded)

@@ -1272,7 +1272,7 @@
     logLoading.hidden = logLoaded;
     logError.hidden = true;
     try {
-      const resp = await fetch('/api/log');
+      const resp = await fetch('/api/log?view=activity');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const log = await resp.json();
       if (loadId !== logLoadId) return;
@@ -1325,8 +1325,9 @@
 
     log.slice().reverse().forEach(entry => {
       const el = document.createElement('div');
-      const hasDetails = entry.details && Object.keys(entry.details).length > 0;
-      el.className = 'log-entry' + (hasDetails ? ' has-details' : '');
+      const view = activityView(entry);
+      const hasDetails = view.payload || view.credentials.length > 0 || Object.keys(view.details).length > 0;
+      el.className = 'log-entry' + (hasDetails ? ' has-details' : '') + (view.payload ? ' expanded' : '');
       const time = new Date(entry.time).toLocaleTimeString();
       // Profile violations accepted in debug mode are warnings, separate from success and
       // failure.
@@ -1341,7 +1342,25 @@
         '<span class="log-status ' + statusClass + '">' + statusLabel + '</span>' +
         '</div>';
       if (hasDetails) {
-        html += '<div class="log-details">' + renderLogDetails(entry.details) + '</div>';
+        html += '<div class="log-details">';
+        const context = {};
+        for (const key of ['direction', 'method', 'url', 'submission_uri', 'status_code']) {
+          if (view.details[key] !== undefined) {
+            context[key] = view.details[key];
+            delete view.details[key];
+          }
+        }
+        if (Object.keys(context).length) html += renderLogDetails(context);
+        if (view.payload) html += renderLogPayload(view.payload);
+        if (view.credentials.length) {
+          html += '<details class="log-summary"><summary>Presented credentials</summary>' +
+            renderLogDetails({ credentials: view.credentials }) + '</details>';
+        }
+        if (Object.keys(view.details).length) {
+          const fields = renderLogDetails(view.details);
+          html += view.payload ? '<details class="log-summary"><summary>Details</summary>' + fields + '</details>' : fields;
+        }
+        html += '</div>';
       }
       el.innerHTML = html;
       if (hasDetails) {
@@ -1354,6 +1373,100 @@
   const logKeyOrder = ['event', 'direction', 'source', 'method', 'url', 'status_code',
     'client_id', 'response_type', 'response_mode', 'response_uri', 'redirect_uri',
     'submission_uri', 'state', 'nonce'];
+
+  function activityView(entry) {
+    const details = { ...entry.details };
+    const credentials = (details.sent_credentials || details.presented_credentials || []).map(c => ({
+      id: c.id, query_id: c.query_id, format: c.format,
+      ...(c.vct ? { vct: c.vct } : {}), ...(c.doc_type ? { doc_type: c.doc_type } : {}),
+      disclosed: c.disclosed,
+    }));
+    delete details.sent_credentials;
+    delete details.presented_credentials;
+    let payload = entry.payload;
+    const event = details.event;
+    if (event === 'presentation_response' || event === 'presentation_error_response') {
+      if (!payload && details.browser_api_result) {
+        const result = details.browser_api_result;
+        if (typeof result.data?.response === 'string') {
+          const body = {};
+          for (const key of ['vp_token', 'id_token']) {
+            if (details[key] !== undefined) body[key] = details[key];
+          }
+          payload = { label: 'Response', body: Object.keys(body).length ? body : null, encrypted: true, wire: result };
+        } else {
+          payload = { label: 'Response', body: result };
+        }
+      }
+      if (!payload) {
+        const body = {};
+        for (const key of ['vp_token', 'id_token', 'state', 'error', 'error_description']) {
+          if (details[key] !== undefined) body[key] = details[key];
+        }
+        if (Object.keys(body).length) payload = { label: 'Response parameters', body };
+      }
+      for (const key of ['vp_token', 'id_token', 'state', 'browser_api_result', 'error', 'error_description']) delete details[key];
+    } else if (event === 'presentation_request' || event === 'interactive_authorization_presentation_request') {
+      if (details.request_object) {
+        if (payload && typeof payload.body === 'string') details.decoded_request = details.request_object;
+        payload ||= { label: 'Request object (decoded)', body: details.request_object };
+        for (const key of Object.keys(details.request_object)) delete details[key];
+        delete details.request_object;
+      }
+    }
+    for (const [key, label] of [['response_body', 'Response'], ['request', 'Request'], ['response', 'Response'], ['metadata', 'Response']]) {
+      if (details[key] !== undefined) {
+        if (payload && !entry.payload) continue;
+        payload ||= { label, body: details[key] };
+        if (key === 'request' && typeof details[key] === 'object' && details[key] !== null) {
+          for (const field of Object.keys(details[key])) delete details[field];
+          delete details.proof_jwt;
+          delete details.proof_attestation;
+        }
+        delete details[key];
+      }
+    }
+    if (event === 'credential_imported' && details.credential) {
+      const { raw, ...summary } = details.credential;
+      payload ||= { label: 'Credential', body: details.raw_credential || raw };
+      for (const key of ['credential_id', 'format', 'vct', 'doc_type', 'raw_credential']) delete details[key];
+      details.credential = summary;
+    }
+    if (!payload && event === 'verifier_response') payload = { label: 'Response', body: '' };
+    if (!payload && details.method && details.url) {
+      payload = { label: 'Request', body: details.method + ' ' + details.url };
+    }
+    if (payload && event === 'token_request') {
+      for (const key of ['grant_type', 'pre-authorized_code', 'tx_code']) delete details[key];
+    }
+    if (payload && event === 'nonce_response') delete details.c_nonce;
+    if (payload && event === 'notification_request') {
+      delete details.notification_id;
+      delete details.notification_event;
+    }
+    if (payload && event === 'authorization_response') delete details.callback_values;
+    return { payload, details, credentials };
+  }
+
+  function logPayloadText(value) {
+    return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  }
+
+  function renderLogPayload(payload) {
+    let html = '<section class="log-payload"><div class="log-payload-label">' + escHtml(payload.label);
+    if (payload.encrypted) {
+      html += ' <span class="log-encrypted">Encrypted</span>';
+      if (payload.body != null) html += ' <span class="log-plaintext">Unencrypted payload</span>';
+    }
+    const missing = payload.encrypted ? 'Plaintext unavailable' : 'No response body available';
+    const body = payload.body == null ? missing : (payload.body === '' ? '(empty body)' : logPayloadText(payload.body));
+    html += '</div><pre>' + escHtml(body) + '</pre>';
+    if (payload.wire !== undefined) {
+      html += '<details class="log-wire"><summary>' + (payload.encrypted ? 'Encrypted wire value' : 'Wire value') +
+        '</summary><pre>' + escHtml(logPayloadText(payload.wire)) + '</pre></details>';
+    }
+    return html + '</section>';
+  }
 
   function renderLogDetails(details) {
     const isObj = v => typeof v === 'object' && v !== null;
