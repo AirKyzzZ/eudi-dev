@@ -16,13 +16,11 @@ package format
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -52,17 +50,7 @@ func resolveRemoteTimeout(raw string) time.Duration {
 	return value
 }
 
-var httpClient = &http.Client{
-	Timeout:   remoteTimeout,
-	Transport: newPolicyTransport(),
-}
-
-// Reuse connections to avoid exhausting local ports during rapid fetches. Local
-// endpoints bypass proxies and accept self-signed certificates.
-var localHTTPClient = &http.Client{
-	Timeout:   remoteTimeout,
-	Transport: newLocalPolicyTransport(),
-}
+var httpClient = NewHTTPClient(nil, nil)
 
 func newPolicyTransport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -77,8 +65,6 @@ func newPolicyTransport() *http.Transport {
 func newLocalPolicyTransport() *http.Transport {
 	transport := newPolicyTransport()
 	transport.Proxy = nil
-	//nolint:gosec // Local dev endpoints use self-signed certificates on localhost/host.docker.internal.
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	// On the host, host.docker.internal may not resolve. Fall back to localhost so
 	// URLs issued for Docker clients also work locally.
 	dialer := &net.Dialer{Timeout: 10 * time.Second, Control: dialControl}
@@ -96,16 +82,11 @@ func newLocalPolicyTransport() *http.Transport {
 	return transport
 }
 
-// HTTPClientForURL returns a shared fetch client configured for the target URL.
-// Local developer endpoints bypass proxies and accept self-signed HTTPS certs.
-// The clients are reused so connections pool instead of a new socket per fetch.
-func HTTPClientForURL(rawURL string) *http.Client {
-	u, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil {
-		return httpClient
-	}
-	if isLocalFetchHost(u.Hostname()) {
-		return localHTTPClient
+// HTTPClientForURL uses the supplied client's TLS policy, or the shared developer
+// client. Transport selection runs for each request, including redirects.
+func HTTPClientForURL(rawURL string, clients ...*http.Client) *http.Client {
+	if len(clients) > 0 && clients[0] != nil {
+		return clients[0]
 	}
 	return httpClient
 }
@@ -226,7 +207,7 @@ const fetchAttempts = 3
 
 var fetchRetryDelay = 500 * time.Millisecond
 
-func FetchURL(url string) (string, error) {
+func FetchURL(url string, clients ...*http.Client) (string, error) {
 	var resp *http.Response
 	for attempt := 1; ; attempt++ {
 		req, err := http.NewRequest("GET", url, nil)
@@ -237,7 +218,7 @@ func FetchURL(url string) (string, error) {
 		req.Header.Set("Accept", "*/*")
 
 		var doErr error
-		resp, doErr = HTTPClientForURL(url).Do(req)
+		resp, doErr = HTTPClientForURL(url, clients...).Do(req)
 		if doErr == nil {
 			break
 		}

@@ -41,47 +41,47 @@ Flags shared by all three subcommands:
 |------|---------|-------------|
 | `--wallet-dir` | `~/.eudi-dev/wallet/` | Wallet storage directory used by `--wallet` |
 | `--templates-dir` | `<wallet-dir>/templates/` | Credential template directory used by `--template` and `--save-template` |
-| `--remote` | — | With `--wallet`: issue on the remote wallet server at this URL (`local` forces the local store) |
+| `--remote` | None | With `--wallet`: issue on the remote wallet server at this URL (`local` forces the local store) |
 
 ### `issue sdjwt`
 
 | Flag       | Default                   | Description                                    |
 |------------|---------------------------|------------------------------------------------|
-| `--claims` | —                         | Claims as JSON string or `@filepath`           |
-| `--key`    | —                         | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`   | —                         | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--claims` | None                      | Claims as JSON string or `@filepath`           |
+| `--key`    | None                      | Private key file (PEM or JWK). Ephemeral if omitted |
+| `--cert`   | None                      | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
 | `--iss`    | `https://issuer.example`  | Issuer URL                                     |
 | `--vct`    | `urn:eudi:pid:1`       | Verifiable Credential Type                     |
 | `--exp`    | `720h` (30 days)          | Expiration duration                            |
-| `--nbf`    | —                         | Not-before time (RFC3339 or duration, e.g. `-1h`) |
+| `--nbf`    | None                      | Not-before time (RFC3339 or duration, e.g. `-1h`) |
 | `--pid`    | `false`                   | Use full EUDI PID Rulebook claims              |
-| `--omit`   | —                         | Comma-separated claim names to exclude         |
-| `--template` | —                       | Credential template name or file (see [templates](templates.md)) |
-| `--always-disclosed` | —               | Claims issued plainly instead of selectively disclosable (dotted paths for nested claims) |
-| `--save-template` | —                  | Save the issued claims and settings as a template with this name |
+| `--omit`   | None                      | Comma-separated claim names to exclude         |
+| `--template` | None                    | Credential template name or file (see [templates](templates.md)) |
+| `--always-disclosed` | None            | Claims issued plainly instead of selectively disclosable (dotted paths for nested claims) |
+| `--save-template` | None               | Save the issued claims and settings as a template with this name |
 | `--wallet` | `false`                   | Import the issued credential into the wallet   |
 | `--batch`  | `0`                       | With `--wallet`: issue this many copies with separate holder keys, so the wallet presents an unused one each time |
 | `--unbound` | `false`                  | With `--wallet`: issue without a holder key (a bearer credential with no cnf). The default binds it to the wallet |
-| `--status-list-uri` | —              | Status list URI to embed in credential         |
+| `--status-list-uri` | None           | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`            | Status list index to embed in credential       |
 
 ### `issue jwt`
 
 | Flag       | Default                   | Description                                    |
 |------------|---------------------------|------------------------------------------------|
-| `--claims` | —                         | Claims as JSON string or `@filepath`           |
-| `--key`    | —                         | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`   | —                         | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--claims` | None                      | Claims as JSON string or `@filepath`           |
+| `--key`    | None                      | Private key file (PEM or JWK). Ephemeral if omitted |
+| `--cert`   | None                      | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
 | `--iss`    | `https://issuer.example`  | Issuer URL                                     |
 | `--vct`    | `urn:eudi:pid:1`       | Verifiable Credential Type                     |
 | `--exp`    | `720h` (30 days)          | Expiration duration                            |
-| `--nbf`    | —                         | Not-before time (RFC3339 or duration, e.g. `-1h`) |
+| `--nbf`    | None                      | Not-before time (RFC3339 or duration, e.g. `-1h`) |
 | `--pid`    | `false`                   | Use full EUDI PID Rulebook claims              |
-| `--omit`   | —                         | Comma-separated claim names to exclude         |
-| `--template` | —                       | Credential template name or file (see [templates](templates.md)) |
-| `--save-template` | —                  | Save the issued claims and settings as a template with this name |
+| `--omit`   | None                      | Comma-separated claim names to exclude         |
+| `--template` | None                    | Credential template name or file (see [templates](templates.md)) |
+| `--save-template` | None               | Save the issued claims and settings as a template with this name |
 | `--wallet` | `false`                   | Import the issued credential into the wallet   |
-| `--status-list-uri` | —              | Status list URI to embed in credential         |
+| `--status-list-uri` | None           | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`            | Status list index to embed in credential       |
 
 The JWT subcommand produces a standard JWT with all claims directly in the payload (no `_sd` or `_sd_alg` fields).
@@ -90,28 +90,28 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 
 | Flag          | Default                        | Description                                    |
 |---------------|--------------------------------|------------------------------------------------|
-| `--claims`    | —                              | Claims as JSON string or `@filepath`           |
-| `--key`       | —                              | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`      | —                              | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--claims`    | None                           | Claims as JSON string or `@filepath`           |
+| `--key`       | None                           | Private key file (PEM or JWK). Ephemeral if omitted |
+| `--cert`      | None                           | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
 | `--doc-type`  | `eu.europa.ec.eudi.pid.1`      | Document type                                  |
 | `--namespace` | `eu.europa.ec.eudi.pid.1`      | Namespace                                      |
 | `--exp`       | `720h` (30 days)               | Expiration duration                            |
-| `--nbf`       | —                              | Not-before time (RFC3339 or duration, e.g. `-1h`) |
+| `--nbf`       | None                           | Not-before time (RFC3339 or duration, e.g. `-1h`) |
 | `--pid`       | `false`                        | Use full EUDI PID Rulebook claims              |
-| `--omit`      | —                              | Comma-separated claim names to exclude         |
-| `--template`  | —                              | Credential template name or file (see [templates](templates.md)) |
-| `--save-template` | —                          | Save the issued claims and settings as a template with this name |
+| `--omit`      | None                           | Comma-separated claim names to exclude         |
+| `--template`  | None                           | Credential template name or file (see [templates](templates.md)) |
+| `--save-template` | None                       | Save the issued claims and settings as a template with this name |
 | `--wallet`    | `false`                        | Import the issued credential into the wallet   |
 | `--batch`     | `0`                            | With `--wallet`: issue this many copies with separate holder keys, so the wallet presents an unused one each time |
 | `--unbound`   | `false`                        | With `--wallet`: issue without an MSO device key (a malformed mdoc for testing verifier rejection). The default binds it to the wallet |
-| `--status-list-uri` | —                       | Status list URI to embed in credential         |
+| `--status-list-uri` | None                    | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`                     | Status list index to embed in credential       |
 
 Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set: fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements, matching the [EUDI PID Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md) (version 1.7).
 
 `issue jwt --pid` puts the same claim set in a plain JWT VC for verifier testing.
 
-`--vct urn:eudi:pid:de:1` selects the German PID: fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the pre-defined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names changes what `--pid` issues. See [templates](templates.md).
+`--vct urn:eudi:pid:de:1` selects the German PID: fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the predefined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names changes what `--pid` issues. See [templates](templates.md).
 
 `--template` supplies the claim set and defaults for type, namespace, and expiry. Explicit flags override the template. `--claims` overrides individual top level claims. `--omit` removes claims from the result. See [templates](templates.md) for the file format and the `templates` commands.
 
@@ -132,37 +132,37 @@ A supplied chain that includes its self-signed root produces a warning in debug 
 - `/api/trustlist`
 - `/api/trustlists`
 
-Without explicit status-list flags, `--wallet` registers the credential in the wallet's own status list.
+Without explicit status list flags, `--wallet` registers the credential in the wallet's own status list.
 
 If a wallet server is running for the same wallet directory, `--wallet` issues through its REST API (see [remote control](wallet/http-api.md#automatic-routing-single-writer)). Otherwise the command writes directly into the store and the embedded URLs resolve once `wallet serve` runs.
 
 Trust lists come from the wallet's issued-attestation registry:
 
 - each issued or imported credential type contributes one registry entry
-- entries with the same trust-list profile fields are grouped into one trust list
+- entries with the same trust list profile fields are grouped into one trust list
 - the legacy `/api/trustlist` endpoint serves the PID trust list first
 - `/api/trustlists` lists every group with its ID (`pid`, `local`), a relative `path`, and an optional `advertised_url`
 
 Without trust-metadata flags, the defaults follow the credential type:
 
-- PID attestation types default to the PID trust-list and entitlement profile
-- other attestation types default to `Non_Q_EAA_Provider` plus the local ETSI-shaped trust-list profile
+- PID attestation types default to the PID trust list and entitlement profile
+- other attestation types default to `Non_Q_EAA_Provider` plus the local ETSI-shaped trust list profile
 
 These flags set the stored trust and issuer metadata for the credential type:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--trust-profile` | `auto` | Built-in trust-list profile for `--wallet` metadata: `auto`, `pid`, or `local` |
-| `--entitlement` | — | Registrar entitlement URI to store for the credential type. Repeatable |
-| `--trust-list-type` | — | LoTE type URI to store for the credential type |
-| `--status-determination-approach` | — | Trust-list status determination approach URI to store |
-| `--scheme-community-rule` | — | Trust-list scheme community rule URI to store |
-| `--scheme-territory` | — | Trust-list scheme territory to store |
-| `--trust-entity-name` | — | Trust-list entity name to store |
-| `--issuance-service-type` | — | Issuance service type identifier to store |
-| `--revocation-service-type` | — | Revocation service type identifier to store |
-| `--issuance-service-name` | — | Issuance service name to store |
-| `--revocation-service-name` | — | Revocation service name to store |
+| `--trust-profile` | `auto` | Built-in trust list profile for `--wallet` metadata: `auto`, `pid`, or `local` |
+| `--entitlement` | None | Registrar entitlement URI to store for the credential type. Repeatable |
+| `--trust-list-type` | None | LoTE type URI to store for the credential type |
+| `--status-determination-approach` | None | Trust list status determination approach URI to store |
+| `--scheme-community-rule` | None | Trust list scheme community rule URI to store |
+| `--scheme-territory` | None | Trust list scheme territory to store |
+| `--trust-entity-name` | None | Trust list entity name to store |
+| `--issuance-service-type` | None | Issuance service type identifier to store |
+| `--revocation-service-type` | None | Revocation service type identifier to store |
+| `--issuance-service-name` | None | Issuance service name to store |
+| `--revocation-service-name` | None | Revocation service name to store |
 
 ### Display metadata
 
@@ -170,10 +170,10 @@ These flags set the card appearance of the imported credential and apply with `-
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--display-name` | — | The credential's display name |
-| `--display-description` | — | The credential's display description (shown behind the card's About control) |
-| `--background-color` | — | The card background color, a CSS color (e.g. `#3d59a1`) |
-| `--text-color` | — | The card text color, a CSS color |
-| `--logo` | — | The card logo, a file path, a data URI, or an http(s) URL |
-| `--logo-alt` | — | The logo's alt text |
-| `--background-image` | — | The card background image, a file path, a data URI, or an http(s) URL |
+| `--display-name` | None | The credential's display name |
+| `--display-description` | None | The credential's display description (shown behind the card's About control) |
+| `--background-color` | None | The card background color, a CSS color (e.g. `#3d59a1`) |
+| `--text-color` | None | The card text color, a CSS color |
+| `--logo` | None | The card logo, a file path, a data URI, or an http(s) URL |
+| `--logo-alt` | None | The logo's alt text |
+| `--background-image` | None | The card background image, a file path, a data URI, or an http(s) URL |

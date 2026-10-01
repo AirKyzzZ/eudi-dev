@@ -143,6 +143,28 @@ test.describe("Wallet Dashboard", () => {
     await expect.poll(configMode).toBe(before);
   });
 
+  test("HTTPS verification overrides the validation mode and resets to its default", async ({ page }) => {
+    await page.goto(WALLET_URL);
+    await page.click("#conformance-link");
+    const tlsConfig = async () => await page.evaluate(async () => await (await fetch("/api/config")).json());
+    try {
+      await page.selectOption("#conf-mode-select", "strict");
+      await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(true);
+      await page.selectOption("#conf-tls-select", "false");
+      await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(false);
+      await page.selectOption("#conf-mode-select", "debug");
+      await expect.poll(async () => (await tlsConfig()).validation_mode).toBe("debug");
+      await page.selectOption("#conf-tls-select", "true");
+      await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(true);
+      await page.selectOption("#conf-tls-select", "auto");
+      await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(false);
+      expect((await tlsConfig()).tls_verify_override).toBeNull();
+    } finally {
+      await page.click("#conf-reset");
+      await expect.poll(async () => (await tlsConfig()).tls_verify_override).toBeNull();
+    }
+  });
+
   test("shows PID credentials", async ({ page }) => {
     await page.goto(WALLET_URL);
     await expect(page.locator(".credential-card")).toHaveCount(2, {

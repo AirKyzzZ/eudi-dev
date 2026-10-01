@@ -748,7 +748,7 @@
       '<input type="text" class="form-input claim-ns" id="issue-claim-ns-' + idx + '" placeholder="namespace (default: doc type)">' +
       '<input type="text" class="form-input" id="issue-claim-key-' + idx + '" placeholder="claim name">' +
       '<input type="text" class="form-input" id="issue-claim-value-' + idx + '" placeholder="value (text or JSON)">' +
-      '<label class="claim-sd" title="Selectively disclosable (uncheck to embed the claim plainly in the payload)"><input type="checkbox" id="issue-claim-sd-' + idx + '" checked> SD</label>' +
+      '<label class="claim-sd" title="Allow selective disclosure. Uncheck to always disclose this claim."><input type="checkbox" id="issue-claim-sd-' + idx + '" checked> SD</label>' +
       '<button type="button" class="btn btn-sm" id="issue-claim-remove-' + idx + '" title="Remove claim">&times;</button>';
     row.querySelector('input[id^="issue-claim-ns-"]').value = ns || '';
     row.querySelector('input[id^="issue-claim-key-"]').value = key || '';
@@ -1806,8 +1806,8 @@
     }
 
     if (details.resolve_error) {
-      html += '<p class="dialog-hint" id="offer-resolve-error">This offer could not be retrieved, ' +
-        'so only the issuer it names is shown. Approving will try again.</p>';
+      html += '<p class="dialog-hint" id="offer-resolve-error">Could not retrieve the offer. ' +
+        'Showing only its issuer. Approve to retry.</p>';
       return html;
     }
 
@@ -1824,8 +1824,8 @@
     credentials.forEach(cred => { html += offerCardHtml(cred); });
 
     if (details.metadata_error) {
-      html += '<p class="dialog-hint" id="offer-metadata-error">The issuer published no readable metadata, ' +
-        'so only what the offer itself carries is shown.</p>';
+      html += '<p class="dialog-hint" id="offer-metadata-error">Issuer metadata unavailable. ' +
+        'Showing only offer details.</p>';
     }
     return html;
   }
@@ -1928,8 +1928,8 @@
         const auth = req.client_auth;
         if (auth) {
           chip = auth.signed
-            ? '<span class="who-chip who-ok" title="The request object is signed and the signature verifies against the key material it carries. Self-consistent, not checked against any trust anchor.">✓ Signed</span>'
-            : '<span class="who-chip who-bad" title="' + escHtml(auth.detail || 'The request object is not signed, so the wallet cannot check who sent it. On a shared demo anyone can send a request.') + '">✗ Not authenticated</span>';
+            ? '<span class="who-chip who-ok" title="Signature matches the supplied key. Signer trust is unchecked.">✓ Signed</span>'
+            : '<span class="who-chip who-bad" title="' + escHtml(auth.detail || 'Unsigned request. The sender cannot be authenticated. Anyone can send requests to a shared demo.') + '">✗ Not authenticated</span>';
         }
       }
       const idLine = '<span class="mono">' + escHtml(cid) + '</span>';
@@ -2020,9 +2020,9 @@
     // before consent.
     function untrustedAuthorityNote(mc) {
       if (!mc || !mc.untrusted_authority) return '';
-      return '<div class="consent-untrusted" role="note">⚠ Trusted authorities do not match. ' +
-        'The verifier limited this request to specific issuers and this credential could not be matched to them. ' +
-        'It is offered because debug mode ignores the restriction.</div>';
+      return '<div class="consent-untrusted" role="note">⚠ Could not match this issuer to the verifier\'s trusted authorities. ' +
+        'This credential is allowed ' +
+        'because debug mode ignores that restriction.</div>';
     }
 
 
@@ -2354,7 +2354,7 @@
       demoMode = !!(config.demo && config.demo.enabled);
       renderAutoAccept(!!config.auto_accept);
       renderConformance(config);
-      ['conf-mode-select', 'conf-haip-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select'].forEach((id) => {
+      ['conf-mode-select', 'conf-tls-select', 'conf-haip-input', 'conf-encrypted-input', 'conf-vci-version-select', 'conf-key-attestation-select'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.wired) {
           el.dataset.wired = '1';
@@ -2443,6 +2443,7 @@
   function effectiveConformance() {
     return {
       mode: conformanceDefaults.validation_mode === 'strict' ? 'strict' : 'debug',
+      tls: conformanceDefaults.tls_verify_override == null ? 'auto' : String(conformanceDefaults.tls_verify_override),
       haip: !!conformanceDefaults.require_haip,
       encrypted: !!conformanceDefaults.require_encrypted_request,
       vciVersion: conformanceDefaults.vci_version === '1.1' ? '1.1' : '1.0',
@@ -2453,10 +2454,12 @@
   function applyConformanceToControls() {
     const eff = effectiveConformance();
     const mode = document.getElementById('conf-mode-select');
+    const tls = document.getElementById('conf-tls-select');
     const haip = document.getElementById('conf-haip-input');
     const enc = document.getElementById('conf-encrypted-input');
     const vci = document.getElementById('conf-vci-version-select');
     const level = document.getElementById('conf-key-attestation-select');
+    if (tls) { tls.value = eff.tls; tls.disabled = demoMode; }
     if (mode) { mode.value = eff.mode === 'strict' ? 'strict' : 'debug'; mode.disabled = demoMode; }
     if (haip) { haip.checked = eff.haip; haip.disabled = demoMode; }
     if (enc) { enc.checked = eff.encrypted; enc.disabled = demoMode; }
@@ -2466,12 +2469,14 @@
 
   function currentControlValues() {
     const mode = document.getElementById('conf-mode-select');
+    const tls = document.getElementById('conf-tls-select');
     const haip = document.getElementById('conf-haip-input');
     const enc = document.getElementById('conf-encrypted-input');
     const vci = document.getElementById('conf-vci-version-select');
     const level = document.getElementById('conf-key-attestation-select');
     return {
       mode: mode ? mode.value : undefined,
+      tls_verify: !tls || tls.value === 'auto' ? null : tls.value === 'true',
       haip: haip ? haip.checked : undefined,
       encrypted: enc ? enc.checked : undefined,
       vci_version: vci ? vci.value : undefined,
@@ -2519,8 +2524,8 @@
       config.preferred_format ? 'neutral' : 'off');
     const intro = document.getElementById('conf-intro');
     if (intro) {
-      const base = 'How this wallet checks incoming requests, and which OpenID4VCI version it uses when it asks an issuer for a credential. A failed check is a warning in debug mode and rejects the request in strict mode.';
-      intro.textContent = demoMode ? base + ' These are fixed on the public demo.' : base;
+      const base = 'Debug mode reports failed checks. Strict mode rejects invalid requests. HTTPS verification is on by default in strict mode and off in debug mode. You can override it in either mode.';
+      intro.textContent = demoMode ? base + ' Settings are fixed on the public demo.' : base;
     }
     const reset = document.getElementById('conf-reset');
     if (reset) reset.hidden = demoMode;

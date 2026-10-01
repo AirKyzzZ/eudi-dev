@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -102,9 +103,11 @@ type Wallet struct {
 	// BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// The zero value uses the default template directory.
-	Templates credtemplate.Location `json:"-"`
-	Log       []LogEntry
-	mu        sync.RWMutex
+	Templates    credtemplate.Location `json:"-"`
+	Log          []LogEntry
+	mu           sync.RWMutex
+	tlsVerify    *bool
+	outboundHTTP *http.Client
 	// Entity backends track the last loaded or saved snapshot and section revisions.
 	// File storage leaves these nil.
 	persisted stateSnapshot
@@ -426,7 +429,7 @@ type LogEntry struct {
 	Success  bool           `json:"success"`
 	Severity string         `json:"severity,omitempty"`
 	Details  map[string]any `json:"details,omitempty"`
-	// The CLI and default log endpoint omit the additional activity-view payload.
+	// The CLI and default log endpoint omit the additional payload used by the activity view.
 	Payload *LogPayload `json:"payload,omitempty"`
 }
 

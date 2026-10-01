@@ -17,6 +17,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -32,14 +33,14 @@ import (
 // The terminal prompt fetches the offer to learn whether a transaction code is
 // required. Return that copy so issuance can reuse it if the issuer serves the URI
 // only once. Prompt failures leave the code empty for the flow to report.
-func resolveTxCode(uri, given string) (string, *oid4vc.CredentialOffer) {
+func resolveTxCode(uri, given string, client *http.Client) (string, *oid4vc.CredentialOffer) {
 	if strings.TrimSpace(given) != "" {
 		return given, nil
 	}
 	if !isCredentialOfferURI(uri) || !stdinIsTerminal() {
 		return given, nil
 	}
-	reqType, parsed, err := oid4vc.Parse(uri)
+	reqType, parsed, err := oid4vc.ParseWithOptions(uri, oid4vc.ParseOptions{HTTPClient: client})
 	if err != nil || reqType != oid4vc.TypeVCI {
 		return given, nil
 	}
@@ -102,11 +103,22 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 		return err
 	}
 	if c != nil {
+		if err := checkRemoteTLSFlags(); err != nil {
+			return err
+		}
 		// The selected wallet fetches the offer and collects the transaction code.
 		// Some offers can be fetched only once.
 		return remoteAccept(c, uri, opts.txCode, !opts.autoAccept)
 	}
-	opts.txCode, opts.resolvedOffer = resolveTxCode(uri, opts.txCode)
+	w := &wallet.Wallet{}
+	if err := applyValidationMode(w, opts.mode); err != nil {
+		return err
+	}
+	if err := applyWalletTLS(w); err != nil {
+		return err
+	}
+	defer w.HTTPClient().CloseIdleConnections()
+	opts.txCode, opts.resolvedOffer = resolveTxCode(uri, opts.txCode, w.HTTPClient())
 	return dispatchURI(uri, opts)
 }
 

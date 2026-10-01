@@ -34,7 +34,7 @@ sequenceDiagram
 |-----------------|--------------------------------|
 | `credential_offer` or `credential_offer_uri` | One of these starts the issuance flow. |
 | `credential_issuer` | Used to fetch `/.well-known/openid-credential-issuer` and resolve the token and credential endpoints. |
-| `credential_configuration_ids` | The first configuration ID resolves the format and, in the authorization-code flow, the scope. |
+| `credential_configuration_ids` | The first configuration ID resolves the format and, in the authorization code flow, the scope. |
 | Issuer metadata `nonce_endpoint` | The source of the challenge the key proof is signed over (OpenID4VCI 1.0 §8.2). The wallet calls it whenever the metadata advertises it. |
 | `authorization_details[].credential_identifiers` | When present in the token response, the wallet sends `credential_identifier` at the credential endpoint instead of `credential_configuration_id`. |
 | Issuer metadata `credential_response_encryption` support | When advertised, the wallet requests encrypted credential responses and decrypts compact JWE responses. |
@@ -121,7 +121,7 @@ sequenceDiagram
 
 | Field / setting | Used how |
 |-----------------|----------|
-| `eudi wallet serve --vci-client-id ...` | Required for the authorization-code flow. |
+| `eudi wallet serve --vci-client-id ...` | Required for the authorization code flow. |
 | `eudi wallet serve --vci-redirect-uri ...` | Required for the redirect flow. Interactive authorization (below) runs without one. |
 | OAuth metadata `pushed_authorization_request_endpoint` | Used when published (RFC 9126 makes publishing it a SHOULD). Otherwise the request goes straight to the authorization endpoint. `--haip` requires PAR unless the server publishes an `authorization_challenge_endpoint`. |
 | OAuth metadata `authorization_endpoint` | Required for the browser redirect. |

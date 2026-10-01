@@ -24,7 +24,7 @@ The callback is matched by `state` alone, so the sign-in can happen in any brows
 
 ## Renewing a credential
 
-An issuer that returns a refresh token at issuance can be asked for a new copy of the credential later. The wallet stores what the request needs (token and credential endpoints, configuration id, refresh token) with the credential.
+If an issuer returns a refresh token, the wallet can request a new copy of the credential later. It stores the endpoints, configuration ID and refresh token with the credential.
 
 ```bash
 eudi wallet refresh <credential-id>
@@ -33,7 +33,7 @@ curl -X POST http://localhost:8085/api/credentials/<id>/refresh
 
 The credential keeps its id, so a verifier query or a UI selection that referred to it keeps working. A rotated refresh token replaces the stored one. Credentials that can be renewed report `can_renew` in listings, alongside `expires_at` (read from `exp` for SD-JWT and from the MSO validity for mdoc).
 
-A refresh is a token request (`grant_type=refresh_token`) at the endpoint that issued the credential, with the same client authentication. The wallet stores how it authenticated (wallet attestation or `private_key_jwt`, with the audience and the challenge endpoint) alongside the refresh token and rebuilds it per request. The attestation challenge is fetched fresh each time.
+Renewal uses `grant_type=refresh_token` at the original token endpoint, with the original client authentication method. The wallet stores the method, audience and challenge endpoint with the refresh token. It rebuilds authentication proofs and fetches a fresh attestation challenge for each request.
 
 The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait ten minutes before retrying. The wallet also attempts renewal before presenting a credential that close to expiry, including without a running server. If renewal fails, it presents the stored credential.
 
@@ -72,7 +72,9 @@ Deferred issuances are saved in the selected storage backend. With file or Postg
 
 ## Wallet attestation
 
-On OID4VCI token requests the wallet authenticates itself with a wallet attestation ([OAuth 2.0 Attestation-Based Client Authentication](https://datatracker.ietf.org/doc/draft-ietf-oauth-attestation-based-client-auth/)), sent as the `OAuth-Client-Attestation` and `OAuth-Client-Attestation-PoP` headers. The attestation is signed by the wallet's own CA and carries only the leaf in `x5c`, so an issuer verifying it needs the CA from `wallet ca-cert` as its trust anchor. The same client authentication applies at every authorization server endpoint the wallet calls: the PAR endpoint, the token endpoint, and the Authorization Challenge Endpoint of interactive authorization (OpenID4VCI 1.1 section 6).
+The wallet supports [OAuth 2.0 Attestation-Based Client Authentication](https://datatracker.ietf.org/doc/draft-ietf-oauth-attestation-based-client-auth/). It sends `OAuth-Client-Attestation` and `OAuth-Client-Attestation-PoP` headers to the PAR, token and Authorization Challenge endpoints.
+
+The attestation is signed by the wallet's issuer key, whose certificate chains to the wallet CA. Its `x5c` contains only the leaf certificate. An issuer needs the CA from `wallet ca-cert` as its trust anchor.
 
 The wallet supports three drafts of the attestation specification ([ADR-0014](../adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md)). Outgoing JWTs use the draft-07 claims required by OpenID4VCI 1.0 section 14.7. Both the attestation and its PoP include `iss` and `nbf`, regardless of `--vci-version`. Draft-08 allows these additional claims under sections 5.1 and 5.2 rule 1, so the same JWTs work across the supported drafts.
 
@@ -151,7 +153,9 @@ The presentation asks for consent like any other, since receiving a credential a
 
 Challenge requests carry the same wallet attestation headers as token requests, and the built-in demo issuer requires them there unless started with `--demo-issuer-client-auth optional`.
 
-The presentation interaction works without `--vci-redirect-uri`. An issuer that sets `require_interactive_authorization` issues only through interactive authorization. The presentation is bound to the challenge endpoint itself. An SD-JWT key binding JWT carries it as `ia:<endpoint>` in `aud`, and an mdoc signs over the `OpenID4VCIIAEHandover` session transcript. An `expected_origins` in the request must contain the challenge endpoint's own origin, which stops one authorization server from forwarding another's request.
+The presentation interaction works without `--vci-redirect-uri`. An issuer that sets `require_interactive_authorization` requires this flow.
+
+The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT uses `ia:<endpoint>` as `aud`. An mdoc uses the `OpenID4VCIIAEHandover` session transcript. If the request contains `expected_origins`, it must name the challenge endpoint's own origin. This prevents one authorization server from forwarding another's request.
 
 The wallet offers two interactions and advertises only what it can complete (§6.2.1):
 

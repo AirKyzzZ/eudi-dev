@@ -79,6 +79,7 @@ type Server struct {
 	ShutdownFunc func()
 	// DELETE /api/config/conformance restores these startup settings. Demo mode
 	// disables that endpoint.
+	defaultTLSVerify               *bool
 	defaultValidationMode          ValidationMode
 	defaultRequireHAIP             bool
 	defaultRequireEncryptedRequest bool
@@ -93,6 +94,7 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 		wallet:                         w,
 		port:                           port,
 		onSave:                         onSave,
+		defaultTLSVerify:               w.tlsVerify,
 		defaultValidationMode:          w.ValidationMode,
 		defaultRequireHAIP:             w.RequireHAIP,
 		defaultRequireEncryptedRequest: w.RequireEncryptedRequest,

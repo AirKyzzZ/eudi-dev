@@ -32,7 +32,7 @@ func ParseWithOptions(raw string, opts ParseOptions) (RequestType, any, error) {
 	raw = strings.TrimSpace(raw)
 
 	if strings.HasPrefix(raw, "openid-credential-offer://") || strings.HasPrefix(raw, "haip-vci://") {
-		return parseVCIURI(raw)
+		return parseVCIURI(raw, opts)
 	}
 	if strings.HasPrefix(raw, "openid4vp://") || strings.HasPrefix(raw, "haip-vp://") || strings.HasPrefix(raw, "eudi-openid4vp://") {
 		return parseVPURI(raw, opts)
@@ -105,12 +105,12 @@ func EncodeURIQuery(values url.Values) string {
 	return strings.ReplaceAll(values.Encode(), "+", "%20")
 }
 
-func parseVCIURI(raw string) (RequestType, any, error) {
+func parseVCIURI(raw string, opts ParseOptions) (RequestType, any, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return TypeVCI, nil, fmt.Errorf("parsing VCI URI: %w", err)
 	}
-	return parseVCIParams(URIQueryValues(u))
+	return parseVCIParams(URIQueryValues(u), opts)
 }
 
 func parseVPURI(raw string, opts ParseOptions) (RequestType, any, error) {
@@ -128,18 +128,18 @@ func parseHTTPURL(raw string, opts ParseOptions) (RequestType, any, error) {
 	}
 	q := URIQueryValues(u)
 	if q.Has("credential_offer") || q.Has("credential_offer_uri") {
-		return parseVCIParams(q)
+		return parseVCIParams(q, opts)
 	}
 	return parseVPParams(q, opts)
 }
 
-func parseVCIParams(q url.Values) (RequestType, any, error) {
+func parseVCIParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 	var offerJSON []byte
 
 	if inline := q.Get("credential_offer"); inline != "" {
 		offerJSON = []byte(inline)
 	} else if uri := q.Get("credential_offer_uri"); uri != "" {
-		fetched, err := format.FetchURL(uri)
+		fetched, err := format.FetchURL(uri, opts.HTTPClient)
 		if err != nil {
 			return TypeVCI, nil, fmt.Errorf("fetching credential_offer_uri: %w", err)
 		}
@@ -232,7 +232,7 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 		if opts.FetchRequestURI != nil {
 			fetched, err = opts.FetchRequestURI(requestURI, method, req.ClientID)
 		} else {
-			fetched, err = format.FetchURL(requestURI)
+			fetched, err = format.FetchURL(requestURI, opts.HTTPClient)
 		}
 		if err != nil {
 			return TypeVP, nil, fmt.Errorf("fetching request_uri: %w", err)

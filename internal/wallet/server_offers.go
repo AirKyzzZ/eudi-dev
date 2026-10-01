@@ -405,7 +405,7 @@ func (w *Wallet) prepareIssuanceConsentRequest(raw, owner string) (*ConsentReque
 
 	// Resolve referenced offers before consent so the dialog can describe the
 	// credentials. The specification permits fetching the offer again after approval.
-	reqType, parsed, err := oid4vc.Parse(trimmed)
+	reqType, parsed, err := oid4vc.ParseWithOptions(trimmed, oid4vc.ParseOptions{HTTPClient: w.HTTPClient()})
 	if err != nil {
 		// If the offer cannot be fetched, show its host in the consent dialog.
 		if offerURI := extractCredentialOfferURI(trimmed); offerURI != "" {

@@ -9,7 +9,7 @@ docker pull ghcr.io/dominikschlosser/eudi-dev:latest
 docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
 ```
 
-The default CMD starts the wallet server headless with pre-loaded PID credentials. The container keeps its state in memory and derives its keys from a fixed seed, so it needs no volume and serves the same keys and CA on every start (see [Storage](#storage)). Stopping the container discards the credentials issued or imported meanwhile.
+The default command starts a headless wallet with PID credentials. It stores state in memory and derives keys from a fixed seed, so each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during that run.
 
 Override the command to use any CLI feature:
 
@@ -31,13 +31,15 @@ docker run -d --name eudi-demo -p 8085:8085 -p 8086:8086 \
 
 The demo persists its state in files on the volume and generates its own keys, so its CA stays private and stable across restarts.
 
-`--demo` starts with the four-PID baseline, runs HAIP in debug mode at OpenID4VCI feature level 1.1, disables the process and filesystem endpoints, and resets the wallet hourly (`--demo-reset` changes the schedule). The wallet UI is at `http://localhost:8085`, the demo issuer at `/issuer/`, the demo verifier at `/verifier/` and the decoder at `/decoder/`. The HTTPS issuer endpoints answer on port 8086 with a self-signed certificate.
+`--demo` starts with four PID credentials, HAIP checks in debug mode and OpenID4VCI 1.1 support. It disables administrative operations and resets the wallet hourly. Change the schedule with `--demo-reset`.
+
+Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 
 The full deployment (TLS termination, rate limiting, usage statistics, persistence) is the compose example in [examples/public-demo](../examples/public-demo/), described in [public demo hosting](public-demo.md).
 
 ## Storage
 
-The image defaults to `EUDI_DEV_STORAGE=memory` and `EUDI_DEV_SEED=eudi-dev`. It needs no volume, database or writable filesystem. With `--read-only`, startup warns that the wallet instance could not be registered, but the server still runs.
+The image defaults to `EUDI_DEV_STORAGE=memory` and `EUDI_DEV_SEED=eudi-dev`. It needs no volume, database or writable filesystem. With `--read-only`, the server runs and logs a warning because it cannot register the wallet instance.
 
 To store state on a volume at `/home/app/.eudi-dev`, set `EUDI_DEV_STORAGE=file`.
 
@@ -72,7 +74,7 @@ The database stores private keys unencrypted, just like the file backend (see [S
 
 ## How it works
 
-1. The container starts with `--pid` (two pre-loaded EUDI PID credentials, one SD-JWT and one mDoc) and `--auto-accept` (presents matching credentials without user consent)
+1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mDoc) and `--auto-accept` (presents matching credentials without user consent)
 2. Your verifier sends an OID4VP authorization request to the wallet's `/authorize` endpoint
 3. The wallet evaluates the DCQL query, finds matching credentials, creates a VP token, and POSTs it to your verifier's `response_uri`
 
@@ -81,9 +83,9 @@ The database stores private keys unencrypted, just like the file backend (see [S
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/authorize` | GET/POST | OID4VP authorization endpoint, accepting the standard OID4VP query parameters (`client_id`, `response_type`, `dcql_query`, `nonce`, `state`, `response_uri`, `response_mode`, `request_uri`) |
-| `/api/trustlist` | GET | Legacy trust-list endpoint. Returns the PID trust list when one is registered, otherwise the first available trust-list profile |
-| `/api/trustlists` | GET | JSON index of all trust-list profiles registered in the wallet. Each entry includes a relative `path` plus optional `advertised_url` / legacy `url` |
-| `/api/trustlists/<id>` | GET | ETSI trust list JWT for one trust-list profile |
+| `/api/trustlist` | GET | Legacy trust list endpoint. Returns the PID trust list when one is registered, otherwise the first available trust list profile |
+| `/api/trustlists` | GET | JSON index of all trust list profiles registered in the wallet. Each entry includes a relative `path` plus optional `advertised_url` / legacy `url` |
+| `/api/trustlists/<id>` | GET | ETSI trust list JWT for one trust list profile |
 | `https://<wallet>:8086/.well-known/openid-credential-issuer` | GET | OpenID Credential Issuer metadata with `issuer_info` / `registrar_dataset` authorization data. JSON by default, the signed JWT form (`application/jwt`) when the Accept header asks for only that |
 | `https://<wallet>:8086/.well-known/jwt-vc-issuer` | GET | JWT VC issuer metadata for wallet-issued SD-JWTs. Exposes the signing key by `kid` and leaf `x5c` chain |
 | `/api/registrar/wrp` | GET | Registrar-style signed dataset for provider entitlements and `providesAttestations`. Supports query filters such as `identifier`, `entitlement`, and `providesattestation` |
@@ -177,7 +179,7 @@ walletURL, _ := wallet.Endpoint(ctx, "http")
 
 ## Custom PID claims
 
-The default CMD loads two EUDI PID credentials (SD-JWT + mDoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the pre-defined PID templates (or adds your own):
+The default CMD loads two EUDI PID credentials (SD-JWT + mDoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates (or adds your own):
 
 ```bash
 # my-templates/pid-sdjwt.json overrides the pre-defined PID template
@@ -227,7 +229,7 @@ Or set it at startup: `--preferred-format dc+sd-jwt`
 
 ### Credential import
 
-The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mDoc (`mso_mdoc`). Plain JWT VCs are presented as-is.
+The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mDoc (`mso_mdoc`). Plain JWT VCs are presented without changes.
 
 ```bash
 curl -X POST http://localhost:8085/api/credentials -d 'eyJhbGci...'
@@ -281,21 +283,6 @@ curl -X POST http://localhost:8085/api/credentials/<id>/status \
 curl -X POST http://localhost:8085/api/credentials/<id>/status \
   -H 'Content-Type: application/json' -d '{"status": 0}'
 ```
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/next-error` | POST/DELETE | Set or clear one-shot error override |
-| `/api/config/preferred-format` | PUT | Set credential format preference |
-| `/api/credentials` | GET/POST/DELETE | List, import, or remove all credentials |
-| `/api/credentials/<id>` | GET/DELETE | Show or remove a single credential |
-| `/api/credentials/<id>/status` | GET/POST | Resolve or set revocation status |
-| `/api/issue` | POST | Issue a credential into the wallet (supports templates and always disclosed claims) |
-| `/api/generate-pid` | POST | Regenerate default PID credentials (deprecated, use `/api/issue` with a template) |
-| `/api/templates`, `/api/templates/<name>` | GET/PUT/DELETE | List and manage credential templates |
-| `/api/certificates/ca`, `/api/certificates/tls` | GET | Export wallet CA / TLS certificate |
-| `/api/statuslist` | GET | Status List Token, JWT by default and CWT under `Accept: application/statuslist+cwt` |
-| `/api/config` | GET | Instance introspection document |
-| `/api/shutdown` | POST | Stop the wallet server process |
 
 > See [wallet HTTP API](wallet/http-api.md) for the full API and an end-to-end example. The API has no authentication. Keep it inside isolated test networks, or use the `--demo` profile for internet-facing deployments (see [public demo hosting](public-demo.md)).
 

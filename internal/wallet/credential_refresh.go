@@ -49,7 +49,7 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 		return nil, err
 	}
 	nonce := ""
-	tokenResp, err := postFormWithDPoP(renewal.TokenEndpoint, form, dpopKey, "", &nonce, w.attestorFor(renewal.ClientAuth))
+	tokenResp, err := postFormWithDPoP(w.HTTPClient(), renewal.TokenEndpoint, form, dpopKey, "", &nonce, w.attestorFor(renewal.ClientAuth))
 	if err != nil {
 		return nil, fmt.Errorf("renewing the access token: %w", err)
 	}
@@ -63,7 +63,7 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	// Endpoint the challenge comes from (§8.2) and the encryption the issuer
 	// requires. Both live in the Credential Issuer Metadata, read again from
 	// the identifier the credential was stored with (§12.2.2).
-	metadata, metadataErr := fetchIssuerMetadata(renewal.Issuer)
+	metadata, metadataErr := fetchIssuerMetadata(w.HTTPClient(), renewal.Issuer)
 	if metadataErr != nil {
 		return nil, fmt.Errorf("fetching the issuer metadata of %s: %w", renewal.Issuer, metadataErr)
 	}

@@ -510,18 +510,23 @@ func TestWalletRegisterInheritedServeArgs(t *testing.T) {
 	parent.PersistentFlags().String("wallet-dir", "", "")
 	parent.PersistentFlags().String("mode", "debug", "")
 	parent.PersistentFlags().String("storage", "", "")
+	parent.PersistentFlags().Bool("tls-verify", true, "")
+	parent.PersistentFlags().String("tls-ca", "", "")
 	var got []string
 	parent.AddCommand(&cobra.Command{Use: "register", Run: func(cmd *cobra.Command, _ []string) {
 		got = walletRegisterInheritedServeArgs(cmd)
 	}})
-	parent.SetArgs([]string{"register", "--wallet-dir", "/tmp/isolated-wallet", "--mode", "strict", "--storage", "memory"})
+	parent.SetArgs([]string{"register", "--wallet-dir", "/tmp/isolated-wallet", "--mode", "strict", "--storage", "memory", "--tls-verify=false", "--tls-ca", "/tmp/ca.pem"})
 	if err := parent.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, pair := range [][2]string{{"--wallet-dir", "/tmp/isolated-wallet"}, {"--mode", "strict"}, {"--storage", "memory"}} {
+	for _, pair := range [][2]string{{"--wallet-dir", "/tmp/isolated-wallet"}, {"--mode", "strict"}, {"--storage", "memory"}, {"--tls-ca", "/tmp/ca.pem"}} {
 		if !argPairPresent(got, pair[0], pair[1]) {
 			t.Fatalf("walletRegisterInheritedServeArgs() = %#v, missing %s", got, pair[0])
 		}
+	}
+	if !slices.Contains(got, "--tls-verify=false") {
+		t.Fatalf("explicit false TLS override lost: %#v", got)
 	}
 }
 

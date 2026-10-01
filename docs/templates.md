@@ -2,7 +2,7 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. Use the same templates from the CLI, HTTP API and wallet UI.
 
-Four pre-defined templates ship with the binary:
+Four predefined templates ship with the binary:
 
 | Name | Format | Contents |
 |------|--------|----------|
@@ -11,21 +11,26 @@ Four pre-defined templates ship with the binary:
 | `german-pid-sdjwt` | sdjwt | German PID (`urn:eudi:pid:de:1`), which extends the EUDI PID |
 | `german-pid-mdoc` | mdoc | German PID (ISO 18013-5 elements, `eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.de.1`) |
 
-The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md) (version 1.7) and carry its Jan Wijnand ('t Hart) example identity. The `german-pid-*` templates follow the claim table of the [German PID Rulebook](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) (version 1.0.0) and carry the ERIKA MUSTERMANN specimen. Each pre-defined PID links its rulebook in its display description.
+The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md) (version 1.7) and carry its Jan Wijnand ('t Hart) example identity. The `german-pid-*` templates follow the claim table of the [German PID Rulebook](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) (version 1.0.0) and carry the ERIKA MUSTERMANN specimen. Each predefined PID links its rulebook in its display description.
 
 The German rulebook adds national attributes (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, and the age thresholds in `age_equal_or_over`). The EU rulebook carries attributes the German eID lacks (`sex`, `document_number`, `personal_administrative_number`, `date_of_issuance`, `birth_family_name`). Some shared attributes differ in encoding. The birth name is `birth_name` in the German PID and `birth_family_name` in the EU PID. The German street address includes the house number where the EU PID has `address.house_number`.
 
 The German SD-JWT PID carries an `aka_vcts` claim naming `urn:eudi:pid:1` ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2), so it matches a request for the country-independent PID. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
-The German mdoc PID spans two namespaces: the European elements in `eu.europa.ec.eudi.pid.1` and the national additions (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, `age_over_*`) in `eu.europa.ec.eudi.pid.de.1`. Its doctype is `eu.europa.ec.eudi.pid.1` like every PID. An mdoc claim key with a `namespace:element` prefix goes into that namespace. Other keys go into the template's namespace. Dates get the ISO 18013-5 CBOR tags: full-date (tag 1004) for a calendar day and tdate (tag 0) for a timestamp.
+The German mdoc PID uses two namespaces:
+
+- `eu.europa.ec.eudi.pid.1` for European elements
+- `eu.europa.ec.eudi.pid.de.1` for national additions: `birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date` and `age_over_*`
+
+Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Dates use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp.
 
 Regenerating a PID replaces the mdoc PID with the same namespaces. Give an overridden `german-pid-mdoc` at least one `eu.europa.ec.eudi.pid.de.1` element so it stays distinguishable from `pid-mdoc`.
 
-`issue ... --pid` uses these templates: the `pid-*` pair by default, the `german-pid-*` pair for `--vct urn:eudi:pid:de:1`. So do the deprecated `wallet generate-pid` and `POST /api/generate-pid`. Saving a user template under the same name overrides the pre-defined version everywhere. Delete the override to restore the original.
+`issue ... --pid` uses these templates: the `pid-*` pair by default, the `german-pid-*` pair for `--vct urn:eudi:pid:de:1`. So do the deprecated `wallet generate-pid` and `POST /api/generate-pid`. Saving a user template under the same name overrides the predefined version everywhere. Delete the override to restore the original.
 
 ## Template files and storage
 
-Pre-defined templates are compiled into the binary. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name comes from its `name` field, falling back to the file name without its extension.
+Predefined templates are compiled into the binary. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name comes from its `name` field, falling back to the file name without its extension.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -62,10 +67,10 @@ All fields except `claims` are optional:
 | `exp` | Default expiry as a Go duration (for example `720h`) |
 | `claims` | The default claim set |
 | `always_disclosed` | Claims issued plainly instead of selectively disclosable (see below) |
-| `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take a data URI or an http(s) URL. The pre-defined PID templates set it |
-| `predefined` | Set on pre-defined templates in listings and exports. Ignored on import |
+| `display` | Card appearance for credentials issued from the template (`name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image`). Image fields take a data URI or an http(s) URL. The predefined PID templates set it |
+| `predefined` | Set on predefined templates in listings and exports. Ignored on import |
 
-A template reference (`--template`, `--from`) with a path separator or a `.json` or `.template` extension loads that file. Any other value is looked up in the template directory (both extensions), then among the pre-defined templates.
+A template reference (`--template`, `--from`) with a path separator or a `.json` or `.template` extension loads that file. Any other value is looked up in the template directory (both extensions), then among the predefined templates.
 
 To share a template, share the file (or the output of `templates show`).
 
@@ -87,13 +92,15 @@ The two image fields (`logo`, `background_image`) take one of three sources:
 
 - a `data:` URI, embedded directly
 - an `https://` URL, fetched once at issuance
-- `embedded:<file>`, a bundled asset (pre-defined templates only)
+- `embedded:<file>`, a bundled asset (predefined templates only)
 
 A fetched image goes through the wallet's size-capped cache and is embedded as a `data:` URI on the issued credential.
 
-The pre-defined PID templates set `display`: `background_color` `#3d59a1`, `text_color` `#ffffff`, and `logo` `embedded:logo.svg`. The German PID adds `background_image` `embedded:german-id-specimen.jpg` (the public Personalausweis specimen).
+The predefined PID templates set `display`: `background_color` `#3d59a1`, `text_color` `#ffffff`, and `logo` `embedded:logo.svg`. The German PID adds `background_image` `embedded:german-id-specimen.jpg` (the public Personalausweis specimen).
 
-Display values given at issue time override the template's field by field: the `issue` flags `--display-name`, `--display-description`, `--background-color`, `--text-color`, `--logo`, `--logo-alt` and `--background-image`, and the same fields in the Issue dialog and `POST /api/issue`. Setting only a name keeps the template's images.
+Display values supplied during issuance override individual template fields. Setting only a name keeps the template's images.
+
+The CLI accepts `--display-name`, `--display-description`, `--background-color`, `--text-color`, `--logo`, `--logo-alt` and `--background-image`. The Issue dialog and `POST /api/issue` offer the same fields.
 
 ```json
 {
@@ -174,10 +181,10 @@ The wallet server exposes the same template store:
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/templates` | List all templates (pre-defined and user), including claims |
+| `GET /api/templates` | List all templates (predefined and user), including claims |
 | `GET /api/templates/{name}` | Get one template |
 | `PUT /api/templates/{name}` | Create or replace a user template (body is a full template document, so this is also the import endpoint) |
-| `DELETE /api/templates/{name}` | Delete a user template (deleting an override of a pre-defined template restores the pre-defined version) |
+| `DELETE /api/templates/{name}` | Delete a user template (deleting an override of a predefined template restores the predefined version) |
 
 `POST /api/issue` accepts `template`, `always_disclosed`, and `save_as_template` fields. See the [wallet HTTP API](wallet/http-api.md#issuing-credentials).
 

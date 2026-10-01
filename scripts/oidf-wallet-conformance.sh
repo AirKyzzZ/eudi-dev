@@ -128,6 +128,17 @@ if [ "$WALLET_MANAGED" = "1" ]; then
     else
       set --
     fi
+    # The local suite's self-signed certificate has no subject alternative names.
+    tls_verify=${OIDF_TLS_VERIFY:-}
+    if [ -z "$tls_verify" ] && [ "$CONFORMANCE_MODE" = "local" ]; then
+      tls_verify=false
+    fi
+    if [ -n "$tls_verify" ]; then
+      set -- "$@" "--tls-verify=$tls_verify"
+    fi
+    if [ -n "${OIDF_TLS_CA:-}" ]; then
+      set -- "$@" --tls-ca "$OIDF_TLS_CA"
+    fi
     exec "$LOCAL_OID4VC_DEV" wallet serve "$@" \
       --mode "$OIDF_WALLET_MODE" \
       --auto-accept \

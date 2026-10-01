@@ -20,8 +20,9 @@ cd examples/keycloak-web-wallet
 
 `start.sh` downloads the verifier extension, exports the wallet CA for Keycloak's truststore, starts everything, configures the verifier's wallet links, and runs both headless demos. Then open the **demo UI** at <http://localhost:9090>:
 
-- **Issuance**: creates a credential offer in Keycloak and shows a clickable `http://localhost:9085/credential-offer?...` link (plus the equivalent custom-scheme URI). Clicking it delivers the offer to the wallet and lands in the wallet UI, which shows the consent request. Approving imports the membership credential.
-- **Verification**: "Login with wallet" is a plain OIDC login: the browser goes to Keycloak, whose login page links directly to `http://localhost:9085/authorize?...` (the identity provider's `walletScheme` is configured with the wallet URL). The link lands in the wallet UI showing the consent request. Approving presents the PID credential, sends the browser back to Keycloak, and the login completes at the app's `/callback` with the ID-token claims on screen. **Logout** ends the session via OIDC RP-initiated logout against Keycloak's `end_session_endpoint` (`post.logout.redirect.uris` is configured on the `wallet-mock` client), so the next login requires the wallet again.
+- **Issuance**: create an offer, open its wallet link and approve it in the wallet UI. The wallet imports the membership credential. The app also shows the equivalent custom-scheme URI.
+- **Verification**: choose "Login with wallet", follow Keycloak's wallet link and approve the PID presentation. The browser returns through Keycloak to the app's `/callback`, which displays the ID-token claims.
+- **Logout**: end the Keycloak session so the next login requires the wallet again. This uses OIDC RP-initiated logout through `end_session_endpoint`. The `wallet-mock` client allows the return URL through `post.logout.redirect.uris`.
 
 Browser flows open the wallet UI and wait for consent. The headless scripts request interactive handling explicitly and approve through the consent API.
 

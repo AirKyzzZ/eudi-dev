@@ -15,6 +15,8 @@
 // Package oid4vc parses OID4VCI credential offers and OID4VP authorization requests.
 package oid4vc
 
+import "net/http"
+
 type RequestType int
 
 const (
@@ -65,6 +67,7 @@ type RequestObjectJWT struct {
 }
 
 type ParseOptions struct {
+	HTTPClient *http.Client
 	// FetchRequestURI is called to retrieve the request object from request_uri.
 	// url is the request_uri value, method is "get" or "post".
 	// If nil, format.FetchURL (HTTP GET) is used regardless of method.

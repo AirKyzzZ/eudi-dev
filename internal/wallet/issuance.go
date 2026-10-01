@@ -50,9 +50,9 @@ var defaultHTTPClient HTTPClient = http.DefaultClient
 // tests to inject mock servers.
 var httpClient HTTPClient = defaultHTTPClient
 
-func doIssuanceRequest(req *http.Request) (*http.Response, error) {
+func doIssuanceRequest(req *http.Request, clients ...*http.Client) (*http.Response, error) {
 	if httpClient == defaultHTTPClient {
-		return format.HTTPClientForURL(req.URL.String()).Do(req)
+		return format.HTTPClientForURL(req.URL.String(), clients...).Do(req)
 	}
 	return httpClient.Do(req)
 }
@@ -63,14 +63,14 @@ var metadataRetryDelay = 500 * time.Millisecond
 
 // Retry transport failures and 5xx responses. A 4xx response describes a request error
 // and is not retried.
-func fetchMetadataDocument(newRequest func() (*http.Request, error)) (*http.Response, error) {
+func fetchMetadataDocument(newRequest func() (*http.Request, error), clients ...*http.Client) (*http.Response, error) {
 	var lastErr error
 	for attempt := 1; attempt <= metadataFetchAttempts; attempt++ {
 		req, err := newRequest()
 		if err != nil {
 			return nil, err
 		}
-		resp, err := doIssuanceRequest(req)
+		resp, err := doIssuanceRequest(req, clients...)
 		if err == nil && resp.StatusCode < 500 {
 			return resp, nil
 		}
@@ -135,7 +135,7 @@ type OfferOptions struct {
 // answers the second with an error, and the flow then continues with what was
 // approved.
 func (w *Wallet) resolveOffer(offerURI string, approved *oid4vc.CredentialOffer) (*oid4vc.CredentialOffer, error) {
-	reqType, result, err := oid4vc.Parse(offerURI)
+	reqType, result, err := oid4vc.ParseWithOptions(offerURI, oid4vc.ParseOptions{HTTPClient: w.HTTPClient()})
 	if err != nil {
 		return w.keepApprovedOffer(offerURI, approved, err)
 	}
@@ -341,7 +341,7 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		"dpop":                dpopKey != nil,
 	}, &LogPayload{Label: "Request", Body: tokenForm.Encode()})
 	tokenPayload := &LogPayload{}
-	tokenResp, err := postFormWithDPoP(tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor, tokenPayload)
+	tokenResp, err := postFormWithDPoP(w.HTTPClient(), tokenEndpoint, tokenForm, dpopKey, "", &nonces.authzServer, attestor, tokenPayload)
 	if err != nil {
 		w.addProtocolLog("issuance", "token_response", fmt.Sprintf("Token response from %s", tokenEndpoint), false,
 			responseMapLogDetails(tokenEndpoint, "token", nil, err), tokenPayload)
@@ -499,7 +499,7 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		credFormat = imported.Format
 	}
 
-	verificationStatus, verificationDetail := verifyImportedJWTMetadataSignature(credential)
+	verificationStatus, verificationDetail := verifyImportedJWTMetadataSignature(credential, w.HTTPClient())
 	return &IssuanceResult{
 		CredentialID:       imported.ID,
 		Format:             credFormat,
@@ -510,12 +510,12 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 	}, nil
 }
 
-func verifyImportedJWTMetadataSignature(raw string) (string, string) {
+func verifyImportedJWTMetadataSignature(raw string, clients ...*http.Client) (string, string) {
 	token, err := sdjwt.Parse(raw)
 	if err != nil {
 		return "", ""
 	}
-	result, source, err := validate.VerifyJWTSignature(token, nil, nil)
+	result, source, err := validate.VerifyJWTSignature(token, nil, nil, clients...)
 	if err != nil {
 		return "fail", err.Error()
 	}
@@ -540,7 +540,7 @@ type metadataFetch struct {
 	responseLabel string // reads as "<responseLabel> response from <issuer>"
 	wellKnown     string // the .well-known suffix, for the logged URL
 	issuer        string
-	fetch         func(string, ...*LogPayload) (map[string]any, error)
+	fetch         func(*http.Client, string, ...*LogPayload) (map[string]any, error)
 }
 
 func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
@@ -553,7 +553,7 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 	})
 
 	payload := &LogPayload{Label: "Response"}
-	metadata, err := f.fetch(f.issuer, payload)
+	metadata, err := f.fetch(w.HTTPClient(), f.issuer, payload)
 
 	details := map[string]any{
 		"direction": "inbound",
@@ -570,7 +570,7 @@ func (w *Wallet) fetchLoggedMetadata(f metadataFetch) (map[string]any, error) {
 	return metadata, err
 }
 
-func fetchIssuerMetadata(issuer string, payloads ...*LogPayload) (map[string]any, error) {
+func fetchIssuerMetadata(client *http.Client, issuer string, payloads ...*LogPayload) (map[string]any, error) {
 	metadataURL, err := wellKnownURL(issuer, "openid-credential-issuer")
 	if err != nil {
 		return nil, fmt.Errorf("building issuer metadata URL: %w", err)
@@ -587,7 +587,7 @@ func fetchIssuerMetadata(issuer string, payloads ...*LogPayload) (map[string]any
 		// media type: that string is the signed form's typ header (§12.2.3).
 		req.Header.Set("Accept", "application/json, application/jwt")
 		return req, nil
-	})
+	}, client)
 	if err != nil {
 		return nil, fmt.Errorf("fetching metadata: %w", err)
 	}
@@ -1039,7 +1039,7 @@ func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[str
 
 // fetchOAuthMetadata reads the OAuth 2.0 Authorization Server Metadata
 // (RFC 8414) the server publishes at /.well-known/oauth-authorization-server.
-func fetchOAuthMetadata(authServer string, payloads ...*LogPayload) (map[string]any, error) {
+func fetchOAuthMetadata(client *http.Client, authServer string, payloads ...*LogPayload) (map[string]any, error) {
 	oauthURL, err := wellKnownURL(authServer, "oauth-authorization-server")
 	if err != nil {
 		return nil, err
@@ -1051,7 +1051,7 @@ func fetchOAuthMetadata(authServer string, payloads ...*LogPayload) (map[string]
 		}
 		req.Header.Set("Accept", "application/json")
 		return req, nil
-	})
+	}, client)
 	if err != nil {
 		return nil, fmt.Errorf("no OAuth metadata found at %s: %w", authServer, err)
 	}
@@ -1492,7 +1492,7 @@ func (w *Wallet) sendCredentialRequest(a credentialRequestAttempt, proofs creden
 		},
 	}
 	credResp, err := requestCredentialWithDPoP(
-		w.Mode(),
+		w.HTTPClient(), w.Mode(),
 		a.metadata,
 		a.endpoint,
 		a.accessToken,

@@ -20,6 +20,7 @@ package statuslist
 import (
 	"crypto"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -93,6 +94,7 @@ type StatusResult struct {
 }
 
 type CheckOptions struct {
+	HTTPClient *http.Client
 	// TrustListCerts are the CA certificates the token's chain must validate
 	// against. When empty the key comes from the token itself and the result
 	// is marked as not trust anchored, but the signature is still verified:

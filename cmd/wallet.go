@@ -46,6 +46,8 @@ var storageSpec string
 
 var keySeed string
 var walletValidationMode string
+var walletTLSVerify bool
+var walletTLSCA string
 
 // noOpen suppresses the browser this CLI opens on the user's behalf. The URL
 // is printed instead.
@@ -66,6 +68,8 @@ func init() {
 	walletCmd.PersistentFlags().StringVar(&storageSpec, "storage", "", storageFlagUsage)
 	walletCmd.PersistentFlags().StringVar(&keySeed, "seed", "", seedFlagUsage)
 	walletCmd.PersistentFlags().StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: 'debug' (default) or 'strict'")
+	walletCmd.PersistentFlags().BoolVar(&walletTLSVerify, "tls-verify", false, "Verify certificates for every outbound HTTPS request (default: true in strict mode, false in debug mode)")
+	walletCmd.PersistentFlags().StringVar(&walletTLSCA, "tls-ca", "", "PEM CA bundle added to system trust for outbound HTTPS")
 	walletCmd.PersistentFlags().BoolVar(&noOpen, "no-open", false, "Never open a browser, only print the URL")
 	walletCmd.AddCommand(walletServeCmd())
 	walletCmd.AddCommand(walletListCmd())
@@ -166,6 +170,9 @@ func loadWallet() (*wallet.Wallet, *wallet.WalletStore, error) {
 		w.Templates = credtemplate.FileLocation(templatesDir)
 	}
 	if err := applyValidationMode(w, walletValidationMode); err != nil {
+		return nil, nil, err
+	}
+	if err := applyWalletTLS(w); err != nil {
 		return nil, nil, err
 	}
 	return w, store, nil
@@ -384,7 +391,9 @@ func walletRegisterInheritedServeArgs(cmd *cobra.Command) []string {
 	args := []string{}
 	cmd.Flags().Visit(func(flag *pflag.Flag) {
 		switch flag.Name {
-		case "wallet-dir", "mode", "storage":
+		case "tls-verify":
+			args = append(args, "--tls-verify="+flag.Value.String())
+		case "wallet-dir", "mode", "storage", "tls-ca":
 			args = append(args, "--"+flag.Name, flag.Value.String())
 		}
 	})
@@ -821,4 +830,33 @@ server renews on its own shortly before expiry. This asks now.`,
 			return nil
 		},
 	}
+}
+
+func applyWalletTLS(w *wallet.Wallet) error {
+	var verify *bool
+	if walletCmd.PersistentFlags().Changed("tls-verify") {
+		verify = &walletTLSVerify
+	}
+	var caPEM []byte
+	if walletTLSCA != "" {
+		var err error
+		caPEM, err = os.ReadFile(walletTLSCA)
+		if err != nil {
+			return fmt.Errorf("--tls-ca: %w", err)
+		}
+		if len(caPEM) == 0 {
+			return fmt.Errorf("--tls-ca: CA bundle is empty")
+		}
+	}
+	if err := w.ConfigureTLS(verify, caPEM); err != nil {
+		return fmt.Errorf("configuring outbound TLS: %w", err)
+	}
+	return nil
+}
+
+func checkRemoteTLSFlags() error {
+	if walletCmd.PersistentFlags().Changed("tls-verify") || walletCmd.PersistentFlags().Changed("tls-ca") {
+		return fmt.Errorf("a running wallet uses its own TLS settings; configure --tls-verify and --tls-ca on 'wallet serve', or set tls_verify through PUT /api/config/conformance")
+	}
+	return nil
 }

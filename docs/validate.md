@@ -7,7 +7,9 @@ Signature keys are resolved in this order:
 1. The credential's x5c (SD-JWT/JWT) or x5chain (mDOC) certificate chain, validated against `--trust-list` when given
 2. An explicitly provided `--key`
 3. The embedded leaf certificate alone, when no trust list is given. This works offline. The output notes that the chain was not validated
-4. JWT VC Issuer Metadata, for credentials without an embedded certificate. SD-JWT VC §3 puts `/.well-known/jwt-vc-issuer` between the host and the path of `iss`, so `https://example.com/tenant/1234` is read from `https://example.com/.well-known/jwt-vc-issuer/tenant/1234`. The document's `issuer` must equal `iss`, and the keys come from `jwks` or `jwks_uri` (never both)
+4. JWT VC Issuer Metadata, for credentials without an embedded certificate
+
+SD-JWT VC §3 inserts `/.well-known/jwt-vc-issuer` between the host and path of `iss`. For example, `https://example.com/tenant/1234` resolves to `https://example.com/.well-known/jwt-vc-issuer/tenant/1234`. The metadata's `issuer` must equal `iss`, and its keys must come from either `jwks` or `jwks_uri`.
 
 A credential with its certificate chain validates without network access. Credentials without keys or certificates get expiry and status checks only.
 
@@ -53,7 +55,7 @@ Wallet-issued SD-JWT credentials follow the same model. The header carries a det
 
 The web decoder (`eudi serve` and the wallet's embedded decoder) also uses the local wallet's CA as an implicit trust anchor when no key or trust list is given. Credentials issued by the local wallet then show a verified chain.
 
-Trust-list validation covers certificate trust and service listing. Provider class and attestation-type entitlement come from signed Credential Issuer metadata (`/.well-known/openid-credential-issuer`, `issuer_info`) and registrar data. When a wallet exposes several trust-list profiles, `/api/trustlist` serves the PID list and `/api/trustlists` lists every profile. In containers, use the index entry's relative `path` instead of its advertised URL.
+Trust list validation covers certificate trust and service listing. Provider class and attestation-type entitlement come from signed Credential Issuer metadata (`/.well-known/openid-credential-issuer`, `issuer_info`) and registrar data. When a wallet exposes several trust list profiles, `/api/trustlist` serves the PID list and `/api/trustlists` lists every profile. In containers, use the index entry's relative `path` instead of its advertised URL.
 
 To let a verifier trust the wallet's local HTTPS endpoints, export the wallet CA with `eudi wallet ca-cert --out wallet-ca-cert.pem` and add it to the verifier trust store. `wallet tls-cert` exports the per-wallet HTTPS leaf certificate as a single PEM instead.
 

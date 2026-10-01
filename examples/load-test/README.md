@@ -58,7 +58,17 @@ Its verifier callback runs on the host. Containers reach it through `host.docker
 go run ./examples/load-test/loadtest -url http://localhost:8080
 ```
 
-`-issuers`, `-issues`, `-presenters`, `-presentations` and `-readers` set the load. `-callback-port` moves the callback (default 9090) and `-callback-host` names this machine as the containers reach it (default `host.docker.internal`). `-url` also takes several comma separated server URLs, used in turn, to run without the ingress. `-servers` names the servers behind the ingress, which are asked directly when a listing misses a credential. A credential that is missing from a listing begun after its issuance was acknowledged counts as a problem even when the next listing has it.
+Configure the generator with these flags:
+
+| Flag | Purpose |
+| --- | --- |
+| `-issuers`, `-issues`, `-presenters`, `-presentations`, `-readers` | Set the load |
+| `-callback-port` | Callback port (default `9090`) |
+| `-callback-host` | Hostname reachable from containers (default `host.docker.internal`) |
+| `-url` | Ingress URL, or comma-separated server URLs used in turn |
+| `-servers` | Backend URLs to check directly when a listing misses a credential |
+
+A listing started after successful issuance must include the credential. A missing credential counts as a failure even if the next listing contains it.
 
 ## Scale
 

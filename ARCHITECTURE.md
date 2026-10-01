@@ -19,7 +19,7 @@ examples/      Keycloak and web-wallet integration examples
 | Package | Responsibility |
 |---|---|
 | `config` | Defaults (ports, timeouts) |
-| `credtemplate` | Credential templates, pre-defined and user-supplied |
+| `credtemplate` | Credential templates, predefined and user-supplied |
 | `credtype` | The EUDI credential type identifiers and which type extends which |
 | `dcql` | DCQL query parsing, evaluation, generation |
 | `demorp` | The demo issuer and verifier the wallet hosts |
@@ -75,7 +75,7 @@ The wallet proves possession of its holder key, receives the credential and impo
 | [0006](docs/adr/0006-one-binary-plays-wallet-issuer-verifier-and-ca.md) | One binary plays wallet, issuer, verifier and CA |
 | [0007](docs/adr/0007-everything-lives-under-internal.md) | Everything lives under `internal/` |
 | [0008](docs/adr/0008-jws-verification-uses-go-jose-jwe-stays-hand-written.md) | JWS verification uses go-jose, JWE stays hand-written |
-| [0009](docs/adr/0009-signatures-are-verified-but-not-anchored-to-a-pre-registered-trust-list.md) | Signatures are verified but not anchored to a pre-registered trust list |
+| [0009](docs/adr/0009-signatures-are-verified-but-not-anchored-to-a-pre-registered-trust-list.md) | Signature checks have no configured trust anchors |
 | [0010](docs/adr/0010-spec-conformance-is-checked-before-and-after-every-change.md) | Spec conformance is checked before and after every change |
 | [0011](docs/adr/0011-a-flow-belongs-to-the-browser-that-started-it.md) | A flow belongs to the browser that started it |
 | [0012](docs/adr/0012-every-entry-point-runs-the-same-flow.md) | Every entry point runs the same flow |

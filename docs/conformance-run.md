@@ -11,7 +11,7 @@ You need:
 - `curl`
 - Docker
 - Maven
-- a local OpenID Foundation conformance-suite checkout
+- a local OpenID Foundation conformance suite checkout
 
 The documented suite baseline is `release-v5.2.4`. Use a newer release only when updating the baseline and the [results](./conformance-results.md).
 
@@ -84,7 +84,7 @@ OIDF_RUN_DIR=/tmp/oidf-wallet-conformance-local-strict \
   scripts/oidf-wallet-conformance.sh
 ```
 
-At the current baseline the full matrix runs with zero condition failures. The expected warnings and skips, and the exit status they produce, are recorded in [Current conformance results](./conformance-results.md). Compare a failing run against that matrix before treating the wallet as regressed.
+Compare failures with the latest [conformance results](./conformance-results.md) before treating them as regressions. The recorded baseline includes known wallet and suite failures, their conditions and the resulting exit status.
 
 ## Rerun Selected Plans or Modules
 
@@ -127,17 +127,23 @@ rg -n \
 
 When updating [Current conformance results](./conformance-results.md), include the suite tag, suite revision, wallet mode, run directory, runner log path, result matrix, and any targeted rerun evidence used to refine a failure.
 
+## Outbound TLS
+
+Strict wallets verify HTTPS certificates by default. The local suite's self-signed nginx certificate has no subject alternative names (SANs), so the wrapper passes `--tls-verify=false` in local mode. Hosted runs verify certificates.
+
+Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/path/to/dev-ca.pem` to add trusted CA certificates. For verification to pass, the suite certificate must also have a SAN matching its hostname.
+
 ## Environment Overrides
 
 - `CONFORMANCE_MODE`: `local` (default) or `hosted` for the OIDF hosted service
-- `CONFORMANCE_SERVER`: local conformance-suite base URL. Defaults to `https://localhost:8443/`
+- `CONFORMANCE_SERVER`: local conformance suite base URL. Defaults to `https://localhost:8443/`
 - `CONFORMANCE_SERVER_LOCAL`: local callback/helper base URL. Defaults to `CONFORMANCE_SERVER`
 - `CONFORMANCE_SERVER_MTLS`: local mTLS base URL. Defaults to `https://localhost:8444/`
 - `OIDF_WALLET_MODE`: wallet validation mode for the run, `strict` (default) or `debug`. Debug mode fails the negative modules listed in [Current conformance results](./conformance-results.md)
 - `PORT`: wallet port. Defaults to a free local port
 - `OIDF_RUN_DIR`: keep all runner artifacts in a chosen directory instead of a temp dir
-- `OIDF_SUITE_DIR`: use an existing conformance-suite checkout for runner/templates instead of downloading the latest release archive
-- `OIDF_SUITE_TAG`: expected conformance-suite tag when `OIDF_SUITE_DIR` or `OIDF_SUITE_URL` is used
+- `OIDF_SUITE_DIR`: use an existing conformance suite checkout for runner/templates instead of downloading the latest release archive
+- `OIDF_SUITE_TAG`: expected conformance suite tag when `OIDF_SUITE_DIR` or `OIDF_SUITE_URL` is used
 - `OIDF_WALLET_DIR`: reuse a specific wallet store
 - `EUDI_DEV_HOME`: the home of the wallet the wrapper starts (default `<run dir>/home`, so the wallet stays out of the instance registry of your own home)
 - `EUDI_DEV_STORAGE`: the storage backend the wallet under test keeps its state on (`file`, the default, `memory`, or a `postgres://` URL). The wrapper passes the environment through to `wallet serve`. Run the matrix once per backend before a release

@@ -94,7 +94,7 @@ SD-JWT Credential
   [3] birthdate: 1978-02-12
 ```
 
-`decode` verifies JWT or SD-JWT signatures automatically, against the embedded `x5c` certificate when the credential carries one, otherwise against issuer metadata resolved from `iss` and `kid`. Use `validate` for explicit trust inputs (`--key`, `--trust-list`, status-list checking).
+`decode` automatically verifies JWT and SD-JWT signatures. It uses the embedded `x5c` certificate when present, or issuer metadata resolved from `iss` and `kid`. Use `validate` to supply a key or trust list and check revocation status.
 
 An SD-JWT that violates an RFC 9901 §7.1 rejection rule (a disclosure that overwrites a signed claim, a duplicate digest, a disclosure nothing refers to) is printed with the violated rule named above the output. The wallet refuses to import such a credential.
 

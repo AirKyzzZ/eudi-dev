@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"net/http"
 	"slices"
 	"sort"
 	"strconv"
@@ -104,7 +105,7 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 
 			untrustedAuthority := false
 			if taList, ok := cqMap["trusted_authorities"].([]any); ok && len(taList) > 0 {
-				if !checkTrustedAuthorities(cred, taList) {
+				if !checkTrustedAuthorities(cred, taList, w.HTTPClient()) {
 					if w.ValidationMode != ValidationModeDebug {
 						skipped["not trusted by any trusted_authority"]++
 						continue
@@ -1237,7 +1238,7 @@ func optionMatchesFormat(opt any, queryFormat map[string]string, format string) 
 // checkTrustedAuthorities validates that the credential's issuer certificate chain
 // is trusted by at least one of the given trusted authorities.
 // Each entry must have "type" and "values" (array) fields.
-func checkTrustedAuthorities(cred StoredCredential, taList []any) bool {
+func checkTrustedAuthorities(cred StoredCredential, taList []any, clients ...*http.Client) bool {
 	for _, taRaw := range taList {
 		taMap, ok := taRaw.(map[string]any)
 		if !ok {
@@ -1269,7 +1270,7 @@ func checkTrustedAuthorities(cred StoredCredential, taList []any) bool {
 				continue
 			}
 			for _, u := range urls {
-				if checkETSITrustList(cred, u) {
+				if checkETSITrustList(cred, u, clients...) {
 					return true
 				}
 			}
@@ -1393,14 +1394,14 @@ func extractMDOCX5Chain(doc *mdoc.Document) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
-func checkETSITrustList(cred StoredCredential, trustListURL string) bool {
-	tlRaw, err := format.FetchURL(trustListURL)
+func checkETSITrustList(cred StoredCredential, trustListURL string, clients ...*http.Client) bool {
+	tlRaw, err := format.FetchURL(trustListURL, clients...)
 	// A verifier in Docker names the host as host.docker.internal, which the
 	// wallet on the host reaches as localhost.
 	if err != nil && strings.Contains(trustListURL, "host.docker.internal") {
 		fallbackURL := strings.Replace(trustListURL, "host.docker.internal", "localhost", 1)
 		log.Printf("[DCQL]   trusted_authorities: retrying with %s", fallbackURL)
-		tlRaw, err = format.FetchURL(fallbackURL)
+		tlRaw, err = format.FetchURL(fallbackURL, clients...)
 	}
 	if err != nil {
 		log.Printf("[DCQL]   trusted_authorities: failed to fetch trust list %s: %v", trustListURL, err)

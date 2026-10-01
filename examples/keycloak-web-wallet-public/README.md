@@ -9,7 +9,7 @@ The public wallet fetches request objects and calls token endpoints from its ser
 - Docker compose (as in the local example)
 - The [ngrok CLI](https://ngrok.com/download) with any account, or your own public https URL that forwards to the local Keycloak (set `KEYCLOAK_PUBLIC_URL` to skip ngrok)
 
-With the free ngrok plan, browsers see a one-time interstitial warning page on the first visit to the tunnel URL. Click through it once per browser session. Server-to-server requests (the wallet fetching the request object, token calls) are not affected. A reserved domain (`NGROK_DOMAIN=your-domain.ngrok.app`) or a paid plan removes the interstitial.
+On ngrok's free plan, click through the browser warning page on the first visit. The wallet's server-to-server requests are unaffected. A paid plan removes the warning. See [ngrok's free-plan limits](https://ngrok.com/docs/pricing-limits/free-plan-limits#removing-the-interstitial-page).
 
 ## Quick Start
 
@@ -20,17 +20,17 @@ cd examples/keycloak-web-wallet-public
 
 Then open the demo UI at <http://localhost:9090>:
 
-- **Issuance**: creates a credential offer in Keycloak and shows a clickable `https://eudi-test.dev/credential-offer?...` link. Clicking it delivers the offer to the public wallet, which shows the consent request in its UI. Approving imports the membership credential.
-- **Verification**: "Login with wallet" is a plain OIDC login: the browser goes to Keycloak through the tunnel, whose login page links to `https://eudi-test.dev/authorize?...`. The public wallet shows the consent request in its UI. Approving presents the PID credential, and the browser returns through Keycloak to the app's `/callback` with the ID-token claims on screen.
+- **Issuance**: create an offer, open its wallet link and approve it in the wallet UI. The wallet imports the membership credential.
+- **Verification**: choose "Login with wallet". Keycloak opens through the tunnel and offers a wallet link. Approve the PID presentation in the wallet UI. The browser returns to the app, which displays the ID-token claims.
 
 Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 
 ## Differences to the Local Example
 
-- **The wallet is shared.** Everything you issue lands in the one public demo wallet, is visible to every visitor of eudi-test.dev, can be deleted by anyone, and disappears with the daily reset. Do not enter personal data.
-- **Per-browser consent.** The consent request for your flow appears only in the browser that started it (bound by the `eudi_session` cookie), so approve it there. The activity log and stored credentials are still shared with every visitor.
-- **No headless demo scripts.** `demo-issuance.py` and `demo-verification.py` approve the consent over the API, which the public wallet does not allow for browser-driven flows (those need interactive consent in the wallet UI). Use the demo UI in the browser instead.
-- **No truststore or CA export.** The public wallet serves its trust list and status lists behind a publicly trusted certificate, so Keycloak's default truststore already covers it. The verifier trusts the wallet's credentials through `trustListUrl` (`https://eudi-test.dev/api/trustlist`), configured by the same script as in the local example.
+- **Shared data.** All visitors can see and delete the credentials you issue. Periodic resets remove them. Use test data only.
+- **Browser consent.** Approve in the browser that started the flow. The `eudi_session` cookie routes the dialog to that browser. Credentials and activity logs remain shared.
+- **Interactive flows.** Use the demo UI and approve consent in the browser. The public wallet requires this for browser flows, so the API approval used by `demo-issuance.py` and `demo-verification.py` cannot complete them.
+- **Trust setup.** Keycloak's default TLS truststore can reach the public wallet. The setup script configures `trustListUrl` as `https://eudi-test.dev/api/trustlist` so the verifier can validate wallet-issued credentials. No local CA export is needed.
 
 ## Configuration
 
@@ -41,4 +41,4 @@ Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 | `NGROK_DOMAIN` | none | Reserved ngrok domain for a stable tunnel URL |
 | `KEYCLOAK_PORT` / `APP_PORT` | `9080` / `9090` | Local ports, next free port is picked automatically |
 
-Because the wallet is a public deployment outside this compose project, restarting the example does not reset wallet state (the shared wallet resets itself daily).
+Restarting this example does not reset the public wallet. It follows its own reset schedule.

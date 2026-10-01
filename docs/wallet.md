@@ -21,12 +21,12 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `show`         | Show a stored credential by ID (raw or decoded)                 |
 | `import`       | Import a credential from file, stdin, or raw string (SD-JWT, JWT VC, mDoc) |
 | `remove`       | Remove a credential by ID                                       |
-| `generate-pid` | Deprecated. Generate default EUDI PID credentials (SD-JWT + mDoc) from the pre-defined PID templates, of the type `--vct` names. Use `issue ... --wallet --template pid-sdjwt|pid-mdoc` (or the `german-pid-*` ones) instead |
+| `generate-pid` | Deprecated. Generate both PID formats. Use `issue ... --wallet --template <name>` instead (see [templates](templates.md)) |
 | `accept`       | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detects) |
 | `scan`         | Scan a QR code and auto-dispatch to accept/import               |
 | `refresh`      | Ask a credential's issuer for a fresh copy over the refresh token grant |
 | `deferred`     | Credentials an issuer deferred and the wallet is still collecting (`check`, `abandon`) |
-| `logs`         | Show persisted wallet-side OID4VP/OID4VCI interaction logs      |
+| `logs`         | Show persisted wallet OID4VP/OID4VCI interaction logs      |
 | `trust-list`   | Print the trust list JWT (`--list` for the profiles, `--url` for the URL) |
 | `ca-cert`      | Print or export the shared wallet CA certificate                |
 | `tls-cert`     | Print or export the HTTPS wallet certificate used by HTTPS wallet endpoints |
@@ -37,7 +37,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `register`     | Register OS URL scheme handlers on macOS. No-op elsewhere       |
 | `unregister`   | Remove OS URL scheme handlers on macOS. No-op elsewhere         |
 
-All of these are also available over HTTP on a running `wallet serve` instance. See [Wallet HTTP API](wallet/http-api.md).
+A running `wallet serve` also exposes credential management and protocol operations through the [HTTP API](wallet/http-api.md).
 
 ## Quick start
 
@@ -98,7 +98,7 @@ The macOS URL handler sends links to the active remote wallet. While a remote ta
 
 ## Credential type inheritance
 
-A domestic PID extends the country-independent one. ARF Annex 2 (v3.0.0) PID_14 requires the vct to be "`urn:eudi:pid:1` for the type defined in this document or a domestic type that extends it", so `urn:eudi:pid:de:1` carries every attribute `urn:eudi:pid:1` defines plus the German ones.
+A domestic PID extends the country-independent type, as required by ARF Annex 2 (v3.0.0), PID_14. For example, `urn:eudi:pid:de:1` includes the attributes defined by `urn:eudi:pid:1` and adds German attributes.
 
 The wallet matches a DCQL `vct_values` entry against the credential's own type and every type it extends. A request for `urn:eudi:pid:1` is answered by any PID, a request for `urn:eudi:pid:de:1` by a German PID. The `[DCQL]` server log records the requested type whenever a credential matched under a type other than its own.
 
@@ -193,14 +193,14 @@ eudi wallet logs --json       # JSON array of log entries
 
 `wallet serve` runs the web UI, protocol endpoints, trust lists and management API. It loads credentials from the selected storage backend and handles consent for interactive requests. On macOS it can also register URL scheme handlers.
 
-The activity view shows protocol payloads first, with routing and status alongside them. Encrypted exchanges show an **Encrypted** label and the unencrypted payload, with the encrypted wire value in expandable details. Credential summaries list the selected disclosure paths without copying the wallet's full stored credential into the presentation view. The web UI requests this additional payload data through `/api/log?view=activity`; the default endpoint and CLI log output keep their existing format.
+The activity view shows each protocol request and response, with its endpoint and status. Encrypted exchanges show an **Encrypted** label and the plaintext. Expand the details to see the encrypted value. Credential summaries list the selected disclosure paths. See the [activity log API](wallet/http-api.md#activity-log) for this view's JSON format.
 
 ```bash
 eudi wallet serve                      # web UI on http://localhost:8085
 eudi wallet serve --auto-accept --pid  # headless, with default PIDs, for tests
 ```
 
-See [serving the wallet](wallet/serve.md) for the endpoints, trust-list profiles, certificate export, URL scheme registration, runtime conformance settings, and every `wallet serve` flag.
+See [serving the wallet](wallet/serve.md) for the endpoints, trust list profiles, certificate export, URL scheme registration, runtime conformance settings, and every `wallet serve` flag.
 
 ## Presenting from the wallet
 

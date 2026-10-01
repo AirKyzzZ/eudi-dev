@@ -21,11 +21,11 @@ The default wallet uses the prefix `wallet` on hosts and in containers. Custom w
 | Key | Contents |
 |---|---|
 | `wallet/state/credentials/<id>` | Credential JSON and display order |
-| `wallet/state/status/<credential-id>` | Status-list index and status |
+| `wallet/state/status/<credential-id>` | Status list index and status |
 | `wallet/state/log/<timestamp>-<hash>` | Activity log entry |
 | `wallet/state/deferred/<id>` | Deferred issuance JSON and order |
 | `wallet/state/revision/credentials` | Credential section revision marker |
-| `wallet/state/status-counter/value` | Next status-list index |
+| `wallet/state/status-counter/value` | Next status list index |
 | `wallet/holder.pem`, `wallet/issuer.pem` | Private keys |
 | `wallet-ca-key.pem`, `wallet-ca-cert.pem` | CA shared under the parent prefix |
 

@@ -153,6 +153,8 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		"status_list_url":       s.wallet.StatusListURL(),
 		"preferred_format":      s.wallet.PreferredFormat,
 		"key_attestation_level": s.wallet.KeyAttestationLevelSetting(),
+		"tls_verify":            s.wallet.TLSVerification(),
+		"tls_verify_override":   s.wallet.TLSVerificationOverride(),
 		"validation_mode":       string(mode),
 		"vci_version":           string(s.wallet.VCIFeatureVersion()),
 		"auto_accept":           s.wallet.AutoAccept,
@@ -248,15 +250,23 @@ func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Mode                *string `json:"mode,omitempty"`
-		HAIP                *bool   `json:"haip,omitempty"`
-		Encrypted           *bool   `json:"encrypted,omitempty"`
-		VCIVersion          *string `json:"vci_version,omitempty"`
-		KeyAttestationLevel *string `json:"key_attestation_level,omitempty"`
+		TLSVerify           json.RawMessage `json:"tls_verify,omitempty"`
+		Mode                *string         `json:"mode,omitempty"`
+		HAIP                *bool           `json:"haip,omitempty"`
+		Encrypted           *bool           `json:"encrypted,omitempty"`
+		VCIVersion          *string         `json:"vci_version,omitempty"`
+		KeyAttestationLevel *string         `json:"key_attestation_level,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
+	}
+	var tlsVerify *bool
+	if len(body.TLSVerify) > 0 {
+		if err := json.Unmarshal(body.TLSVerify, &tlsVerify); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tls_verify must be true, false or null (mode default)"})
+			return
+		}
 	}
 	var mode ValidationMode
 	if body.Mode != nil {
@@ -286,6 +296,9 @@ func (s *Server) handleSetConformance(w http.ResponseWriter, r *http.Request) {
 		keyAttestationLevel = parsed
 	}
 	s.wallet.mu.Lock()
+	if len(body.TLSVerify) > 0 {
+		s.wallet.tlsVerify = tlsVerify
+	}
 	if body.Mode != nil {
 		s.wallet.ValidationMode = mode
 	}
@@ -312,6 +325,7 @@ func (s *Server) handleResetConformance(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.wallet.mu.Lock()
+	s.wallet.tlsVerify = s.defaultTLSVerify
 	s.wallet.ValidationMode = s.defaultValidationMode
 	s.wallet.RequireHAIP = s.defaultRequireHAIP
 	s.wallet.RequireEncryptedRequest = s.defaultRequireEncryptedRequest
@@ -330,6 +344,8 @@ func (s *Server) writeConformanceConfig(w http.ResponseWriter) {
 		vciVersion = VCIVersion10
 	}
 	resp := map[string]any{
+		"tls_verify":                s.wallet.tlsVerificationLocked(),
+		"tls_verify_override":       s.wallet.tlsVerify,
 		"validation_mode":           string(s.wallet.ValidationMode),
 		"require_haip":              s.wallet.RequireHAIP,
 		"require_encrypted_request": s.wallet.RequireEncryptedRequest,

@@ -2,9 +2,34 @@
 
 Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
 
-## Run of 2026-10-01 (2.4.5 activity logs)
+## Run of 2026-10-01 (2.5.0 outbound TLS)
 
-The activity-log changes were checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran on file, memory and Postgres storage: 78 configurations per backend, covering 36 Final presentation configurations, 32 Final issuance configurations and 10 HAIP configurations. The demo issuer and verifier also ran their full nine-plan matrix.
+The TLS changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering plain and encrypted presentations, SD-JWT and mdoc issuance, and every HAIP happy flow. The demo issuer and verifier ran their full matrix of nine plans.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `FAILED` |
+|---|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 736 | 524 | 178 | 34 |
+| Wallet, memory, selected modules | 16 | 16 | 16 | 0 | 0 |
+| Wallet, Postgres, selected modules | 16 | 16 | 16 | 0 | 0 |
+| Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 |
+
+These totals include reruns of two wallet modules and two interrupted demo modules. All four reruns reached their expected result with no failing conditions. Every module run with file storage has an export. The runner used `CONFORMANCE_MAX_CONSECUTIVE_FAILURES=100` to continue past the known mdoc failures.
+
+The 34 wallet failures and four demo failures match the baseline below, including individual failing conditions. All 36 demo verifier outcomes matched expectations. No new conformance regression was found.
+
+Wallets ran in strict mode with `--tls-verify=false` because the local suite certificate has no subject alternative names. Integration tests with real TLS servers checked mode defaults, overrides, CA trust, hostname and expiry checks, and redirects between local and remote hosts. They also checked runtime changes, presentation clones and storage reloads.
+
+The full Go race suite and all 140 browser tests passed on each of file, memory and Postgres storage. Build, vet, lint, Python tests, installation checks and benchmark smoke checks also passed.
+
+The comparison is recorded in `/tmp/eudi-tls-conformance-verification.json`. Run directories contain `runner.log` and exported ZIP archives in `results/`:
+
+- File wallet: `/tmp/eudi-tls-wallet-file`, with continuations in `-remaining*` directories and reruns in `-rerun*` directories.
+- Selected backend runs: `/tmp/eudi-tls-wallet-memory` and `/tmp/eudi-tls-wallet-postgres`.
+- Demo: `/tmp/eudi-tls-demo` and its `-rerun*` directories.
+
+## Run of 2026-10-01 (2.5.0 activity logs)
+
+The activity-log changes were checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran on file, memory and Postgres storage: 78 configurations per backend, covering 36 Final presentation configurations, 32 Final issuance configurations and 10 HAIP configurations. The demo issuer and verifier also ran their full matrix of nine plans.
 
 | Target | Configurations | Modules | `PASSED` | `REVIEW` | `FAILED` |
 |---|---:|---:|---:|---:|---:|
@@ -13,13 +38,13 @@ The activity-log changes were checked against suite `release-v5.2.4` (revision `
 | Wallet, Postgres | 78 | 736 | 524 | 178 | 34 |
 | Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 |
 
-These totals include focused reruns of seven modules with transient failures. One had a `PASSED` verdict despite a failing authorization-code condition. All seven reruns passed or reached the expected `REVIEW` result with zero failing conditions. The request monitor timeout was raised from 20 to 60 seconds to reduce duplicate submissions during slow flows. No modules were skipped. The remaining failures are:
+These totals include focused reruns of seven modules with transient failures. One had a `PASSED` verdict despite a failing authorization code condition. All seven reruns passed or reached the expected `REVIEW` result with zero failing conditions. The request monitor timeout was raised from 20 to 60 seconds to reduce duplicate submissions during slow flows. No modules were skipped. The remaining failures are:
 
 - **32 mdoc pre-authorized issuance failures per backend.** Four modules fail in each of eight Final configurations. All 32 were reproduced on unchanged commit `5098a0d`, with identical failing conditions. The token response identifies SD-JWT configuration `eu.europa.ec.eudi.pid.1`, while the offer selects an mdoc configuration requiring an attestation proof. The suite rejects that proof for the token's configuration and then throws a NullPointerException. The scope-based module passes in all eight configurations.
 - **Two presentation suite failures per backend.** These are the previously documented `AddInvalidClientIdPrefixToRequestObject` NullPointerExceptions in multisigned `dc_api.jwt` plans. They occur before the suite contacts the wallet.
 - **Four demo issuer metadata failures.** These were also reproduced on unchanged commit `5098a0d`, with identical failing conditions. The mdoc metadata advertises JOSE signing-algorithm strings where the suite expects COSE algorithm integers. All 36 demo verifier verdicts matched their expected outcome.
 
-No new conformance regression was found. The baseline failures remain unresolved; this is not a fully passing conformance result.
+No new conformance regression was found. The baseline failures remain unresolved.
 
 Local evidence is summarized in `/tmp/eudi-activity-conformance-verification.json`. Wallet exports are under `/tmp/eudi-activity-wallet-file-final`, `/tmp/eudi-activity-wallet-memory`, `/tmp/eudi-activity-wallet-postgres`, and their `-remaining*` continuation directories. Focused reruns are in `wallet-<backend>-rerun*` directories under the same `/tmp/eudi-activity-` prefix. Baseline comparisons are in `/tmp/eudi-activity-wallet-mdoc-baseline*` and `/tmp/eudi-activity-demo-baseline`. Demo exports combine `/tmp/eudi-activity-demo-file` and `/tmp/eudi-activity-demo-final-haip`. Each run directory contains `runner.log` and exported ZIP archives in `results/`.
 
@@ -97,7 +122,7 @@ OIDF_RUN_DIR=/tmp/oidf-wallet-conformance-local-strict \
   scripts/oidf-wallet-conformance.sh
 ```
 
-The full matrix runs in one pass: 14 plans, 160 modules, 111 `PASSED`, 44 negative modules `REVIEW`, 5 `SKIPPED`, 0 `FAILED`, 16,305 condition successes against 1 condition failure. The skips and the condition failure are explained below. The 2026-07-30 run reported comparable totals, but its credentials carried no status list, so the suite skipped the status-list conditions.
+The full matrix runs in one pass: 14 plans, 160 modules, 111 `PASSED`, 44 negative modules `REVIEW`, 5 `SKIPPED`, 0 `FAILED`, 16,305 condition successes against 1 condition failure. The skips and the condition failure are explained below. The 2026-07-30 run reported comparable totals, but its credentials carried no status list, so the suite skipped the status list conditions.
 
 ## Run of 2026-08-27
 
@@ -181,7 +206,7 @@ Release-v5.2.1 also enforces RFC 8414 §3.1 on the wallet's OAuth authorization 
 ## Result Classification
 
 - `PASSED` is a pass.
-- `REVIEW` is pass-equivalent for this local harness when the runner summary shows `FINISHED`, `REVIEW`, and `0 FAILURE`. These modules are negative tests where the wallet rejects the request and the harness uploads the required screenshot placeholder.
+- The local harness accepts `REVIEW` when the runner summary shows `FINISHED`, `REVIEW`, and `0 FAILURE`. These modules are negative tests where the wallet rejects the request and the harness uploads the required screenshot placeholder.
 - `INTERRUPTED` counts as a failure.
 
 ## Matrix
@@ -190,9 +215,9 @@ Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screen
 
 | # | Plan | Variant | Current result | Screenshot |
 |---|---|---|---|---|
-| 1 | VP Final | SD-JWT, `direct_post`, signed `x509_hash` | 507 success / 0 failure. `REVIEW` negative modules are pass-equivalent. | [PNG](./conformance-results/2026-07-30/plan-01-vp-final-sdjwt-direct-post.png) |
+| 1 | VP Final | SD-JWT, `direct_post`, signed `x509_hash` | 507 success / 0 failure. Negative modules ending in `REVIEW` are accepted. | [PNG](./conformance-results/2026-07-30/plan-01-vp-final-sdjwt-direct-post.png) |
 | 2 | VP Final | SD-JWT, `direct_post.jwt`, signed `x509_hash` | 711 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-02-vp-final-sdjwt-direct-post-jwt.png) |
-| 3 | VP Final | SD-JWT, `direct_post`, unsigned `redirect_uri` | 507 success / 0 failure. `response-uri-not-client-id` finishes as pass-equivalent `REVIEW`. | [PNG](./conformance-results/2026-07-30/plan-03-vp-final-sdjwt-unsigned-direct-post.png) |
+| 3 | VP Final | SD-JWT, `direct_post`, unsigned `redirect_uri` | 507 success / 0 failure. `response-uri-not-client-id` ends in an accepted `REVIEW` result. | [PNG](./conformance-results/2026-07-30/plan-03-vp-final-sdjwt-unsigned-direct-post.png) |
 | 4 | VP Final | mDoc, `direct_post.jwt`, signed `x509_hash` | 592 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-04-vp-final-mdoc-direct-post-jwt.png) |
 | 5 | VCI Final | SD-JWT | 1021 success / 0 failure. Includes batch credential issuance. | [PNG](./conformance-results/2026-07-30/plan-05-vci-final-sdjwt.png) |
 | 6 | VCI Final | mDoc | 1055 success / 0 failure. Batch credential issuance `SKIPPED` in this run (the `jwt.keyattest` configuration, see below). | [PNG](./conformance-results/2026-07-30/plan-06-vci-final-mdoc.png) |
@@ -207,7 +232,7 @@ Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screen
 
 ## Passing VCI Coverage
 
-- VCI Final SD-JWT and mDoc issuer-initiated authorization-code flows pass, including the batch credential issuance module in both formats.
+- VCI Final SD-JWT and mDoc issuer-initiated authorization code flows pass, including the batch credential issuance module in both formats.
 - VCI Final SD-JWT and mDoc pre-authorized code flows pass, including the notification endpoint and batch issuance.
 - VCI HAIP SD-JWT and mDoc pass for plain immediate issuance, deferred issuance, encrypted credential request variants, FAPI happy-path modules, and FAPI negative authorization-response modules, plus batch issuance in both formats.
 - Strict mode rejects issuer mismatch in authorization server metadata, invalid authorization-response `iss`, removed authorization-response `iss`, invalid `state`, and missing `state`.
@@ -227,7 +252,7 @@ Debug mode is for troubleshooting verifier and issuer integrations. Only strict-
 
 The wrapper passes explicit module lists for the alpha Final VP plans, so each result page shows only the modules that apply to its variant.
 
-Suite-side exclusions:
+Suite exclusions:
 
 - `invalid-client-id-prefix` runs everywhere except the DC API plans, whose unsigned requests carry no `client_id` to corrupt (the module's own `@VariantNotApplicableWhen`).
 - VP Final `direct_post` omits `alternate-happy-flow` because that module rewrites the encrypted-response setup, which plain `direct_post` lacks.
@@ -349,5 +374,5 @@ When the wallet or suite baseline changes:
 - rerun the full matrix unless the change is clearly limited to a documented targeted rerun
 - keep every passing module passing
 - update the baseline tag, suite revision, run directory, runner log, and exported artifact location
-- update the matrix, suite-side exclusions, and screenshots in this file
-- keep suite-side exclusions visible until the upstream suite behavior changes
+- update the matrix, suite exclusions, and screenshots in this file
+- keep suite exclusions visible until the upstream suite behavior changes

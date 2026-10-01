@@ -13,14 +13,14 @@
 [![OpenID4VCI](https://img.shields.io/badge/OpenID4VCI-1.0%20%2B%201.1%20draft-blue)](docs/spec-compliance.md#oid4vci-10-openid-for-verifiable-credential-issuance)
 [![HAIP](https://img.shields.io/badge/HAIP-1.0-blue)](docs/spec-compliance.md#haip-10-high-assurance-interoperability-profile)
 [![SD-JWT](https://img.shields.io/badge/SD--JWT-RFC%209901-blue)](docs/spec-compliance.md#sd-jwt-selective-disclosure-jwt)
-[![SD-JWT VC](https://img.shields.io/badge/SD--JWT%20VC-draft--18-blue)](docs/spec-compliance.md#sd-jwt-selective-disclosure-jwt)
+[![SD-JWT VC](https://img.shields.io/badge/SD--JWT%20VC-draft--19-blue)](docs/spec-compliance.md#sd-jwt-selective-disclosure-jwt)
 [![mdoc](https://img.shields.io/badge/mdoc-ISO%2018013--5-blue)](docs/spec-compliance.md#mdoc--iso-18013-5)
 [![Token Status List](https://img.shields.io/badge/Token%20Status%20List-draft--21-blue)](docs/spec-compliance.md#token-status-list-draft-ietf-oauth-status-list)
 [![ETSI](https://img.shields.io/badge/ETSI-TS%20119%20602-blue)](docs/spec-compliance.md#etsi-ts-119-602-trusted-entity-lists)
 
 An unofficial developer toolkit for the EUDI and OpenID4VC ecosystem. Decode, issue, and present verifiable credentials, run a testing wallet, or proxy live wallet traffic for debugging. The CLI command is `eudi`.
 
-> **Try it online:** a shared public demo of the wallet and decoder runs at **<https://eudi-test.dev>**. Issue, present, and decode test credentials in the browser. State is shared between all visitors and resets daily, so do not enter personal data.
+> **Try it online:** a shared public demo of the wallet and decoder runs at **<https://eudi-test.dev>**. Issue, present, and decode test credentials in the browser. State is shared between all visitors and resets periodically. Use test data only.
 
 ## Highlights
 
@@ -97,7 +97,7 @@ docker pull ghcr.io/dominikschlosser/eudi-dev:latest
 docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
 ```
 
-The default CMD starts the wallet server headless with pre-loaded PID credentials. The container keeps its state in memory and needs no volume.
+The default CMD starts the wallet server headless with preloaded PID credentials. The container keeps its state in memory and needs no volume.
 
 → [Full Docker & verifier testing guide](docs/docker.md)
 → [OIDF conformance status](docs/conformance.md), [runbook](docs/conformance-run.md), and [results](docs/conformance-results.md)
@@ -159,17 +159,18 @@ The main commands:
 - `wallet ps` to find running wallet servers
 - `wallet use <url>` to select a remote or containerized wallet
 - `wallet kill` to stop a wallet server
-- `wallet trust-list` to get the verifier trust-list URL or JWT
-- `wallet logs` to inspect wallet-side OID4VP/OID4VCI interactions
+- `wallet trust-list` to get the verifier trust list URL or JWT
+- `wallet logs` to inspect wallet OID4VP/OID4VCI interactions
 - `wallet ca-cert` and `wallet tls-cert` to export certificate material
 - `wallet --mode debug|strict` and `--preferred-format ...` to control runtime behavior
+- `wallet --tls-verify=true|false` to set HTTPS certificate verification and `--tls-ca dev-ca.pem` to trust a development CA
 - `wallet serve --haip` to check verifiers and issuers against HAIP 1.0
 
 `--haip` adds HAIP 1.0 checks. `--mode strict` stops on findings, while `--mode debug` reports them and continues. This applies to HAIP findings too. See [HAIP enforcement](docs/wallet/presenting.md#haip-10-enforcement).
 
 When a server already serves the selected wallet directory, CLI commands use its API. After `wallet use <url>`, commands and clicked offer or presentation links go to that target. Discovery lists local instances and the active remote target.
 
-Use `/api/trustlists` to list trust-list profiles. Each entry has a relative `path` that works with Docker port mappings. The web UI shows these URLs above the certificate downloads.
+Use `/api/trustlists` to list trust list profiles. Each entry has a relative `path` that works with Docker port mappings. The web UI shows these URLs above the certificate downloads.
 
 ![Wallet UI](docs/assets/wallet-ui.png)
 
@@ -297,7 +298,7 @@ eudi dcql credential.txt
 | Format | Description |
 |--------|-------------|
 | **SD-JWT** (`dc+sd-jwt`) | Header/payload, disclosures, `_sd` resolution, key binding JWT. Signature: ES256/384/512, RS256/384/512, PS256/384/512 |
-| **JWT VC** (`jwt_vc_json`) | Plain JWT Verifiable Credentials (W3C JWT VC format), presented as-is |
+| **JWT VC** (`jwt_vc_json`) | Plain JWT Verifiable Credentials (W3C JWT VC format), presented without changes |
 | **mDOC** (`mso_mdoc`) | CBOR IssuerSigned & DeviceResponse (hex/base64url), COSE_Sign1 issuerAuth, MSO |
 | **OpenID4VCI / VP** | Credential offers, authorization requests, URI schemes (`openid-credential-offer://`, `haip-vci://`, `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`) |
 | **ETSI Trust Lists** | TS 119 602 trust list JWTs with entity names, identifiers, and service types |

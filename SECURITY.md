@@ -14,6 +14,7 @@
 - **Proxy logs**: The proxy records complete requests and responses, including tokens and credentials.
 - **Supported trust mechanisms**: The wallet reports unsupported mechanisms without resolving them. This includes DID keys and OpenID Federation client identifiers. See [ADR-0013](docs/adr/0013-only-the-eudi-stack-is-supported.md).
 - **Signature checks**: Request objects and signed issuer metadata are checked for valid signatures and consistent certificate chains. The wallet has no configured issuer or verifier trust anchors. Someone using their own certificate with a matching `x509_hash` or `sub` can pass these checks. A valid signature does not establish their identity.
+- **Outbound HTTPS**: Strict mode verifies server certificates, including local endpoints and redirects. Debug mode skips verification by default. `--tls-verify=true|false` overrides either default for every destination. `--tls-ca` adds CA certificates to system trust. Credential and request object signatures are checked separately.
 - **Test key attestations**: By default, key attestations claim the storage and authentication levels requested by the issuer, including `iso_18045_high`. The wallet does not provide those protections. Use `--key-attestation-level none` to omit the claims or specify a level to test it. Local wallets can change this in the Conformance panel. Claims are recorded in the activity log.
 - **Revocation**: The wallet can present revoked credentials. Its status displays are informational. The demo verifier checks status and rejects revoked credentials.
 

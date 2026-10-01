@@ -45,12 +45,12 @@ func directPostForm(payload map[string]any) (url.Values, error) {
 	return form, nil
 }
 
-func SubmitDirectPostObject(responseURI string, payload map[string]any) (*DirectPostResult, error) {
+func SubmitDirectPostObject(responseURI string, payload map[string]any, clients ...*http.Client) (*DirectPostResult, error) {
 	form, err := directPostForm(payload)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := format.HTTPClientForURL(responseURI).PostForm(responseURI, form)
+	resp, err := format.HTTPClientForURL(responseURI, clients...).PostForm(responseURI, form)
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
 	}
@@ -95,7 +95,7 @@ func (e *verifierResponseError) Error() string { return e.err.Error() }
 func (e *verifierResponseError) Unwrap() error { return e.err }
 
 // SubmitDirectPostJWT exposes a supplied CEK in X-Debug-JWE-CEK for proxy debugging.
-func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte) (*DirectPostResult, error) {
+func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte, clients ...*http.Client) (*DirectPostResult, error) {
 	form := url.Values{}
 	form.Set("response", responseJWT)
 
@@ -111,7 +111,7 @@ func SubmitDirectPostJWT(responseURI string, responseJWT string, cek []byte) (*D
 		log.Printf("[VP] JWE content encryption key for proxy debugging: %s", cekB64)
 	}
 
-	resp, err := format.HTTPClientForURL(responseURI).Do(req)
+	resp, err := format.HTTPClientForURL(responseURI, clients...).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("posting to response_uri: %w", err)
 	}

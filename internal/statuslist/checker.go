@@ -124,7 +124,7 @@ func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) 
 		return nil, fmt.Errorf("status list index %d is negative", ref.Idx)
 	}
 
-	body, contentType, err := fetchStatusListToken(ref.URI)
+	body, contentType, err := fetchStatusListToken(ref.URI, opts.HTTPClient)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) 
 
 // fetchStatusListToken performs the Section 8.1 request and returns the raw
 // token body together with the declared content type.
-func fetchStatusListToken(uri string) ([]byte, string, error) {
+func fetchStatusListToken(uri string, clients ...*http.Client) ([]byte, string, error) {
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request: %w", err)
@@ -192,7 +192,7 @@ func fetchStatusListToken(uri string) ([]byte, string, error) {
 	// Accept JWT and CWT so lists from mdoc issuers can also be resolved.
 	req.Header.Set("Accept", MediaTypeJWT+", "+MediaTypeCWT)
 
-	resp, err := format.HTTPClientForURL(uri).Do(req)
+	resp, err := format.HTTPClientForURL(uri, clients...).Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching status list: %w", err)
 	}

@@ -5,18 +5,22 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.5] - 2026-10-01
+## [2.5.0] - 2026-10-01
+
+### Added
+
+- **HTTPS certificate settings.** Strict mode verifies server certificates by default. Debug mode skips verification. `--tls-verify=true|false` overrides either mode for every HTTPS destination. `--tls-ca` adds trusted CA certificates. Verification can also be changed in the Conformance panel or API.
 
 ### Fixed
 
-- **Wallet activity logs.** Show request and response payloads prominently, with plaintext and an encryption indicator for encrypted exchanges. Move useful summaries into expandable details and remove duplicate credential and protocol fields from the web view. CLI log output remains unchanged.
+- **Wallet HTTPS requests.** Strict mode verifies certificates for local endpoints and redirect destinations. Fixes [#21](https://github.com/dominikschlosser/eudi-dev/issues/21).
+- **Wallet activity logs.** Show actual requests and responses. Encrypted exchanges are marked and also show plaintext. Useful summaries are expandable, and duplicate fields are removed from the web view. CLI output is unchanged.
+- **JWT decoding.** Fix a decoder error when detecting arbitrary JWTs.
 
-## [2.4.4] - 2026-09-28
+### Changed
 
-### Fixed
-
-- **Decoding of arbitrary JWTs** Fixed a bug that caused the decoder to sometimes not detect arbitrary JWTs correctly and instead showed an error. 
-
+- **Documentation.** Simplified public demo hosting, wallet guides and integration examples. Corrected stale reset and conformance descriptions.
+- **UI text.** Shortened descriptive text in wallet and decoder popups.
 
 ## [2.4.3] - 2026-09-23
 
@@ -28,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Go installation for v2 releases.** The module and package imports now use `github.com/dominikschlosser/eudi-dev/v2`, so new v2 tags can be installed with `go install github.com/dominikschlosser/eudi-dev/v2@latest`. Updated install examples and build version injection. Existing tags retain their original module path. Fixes [#19](https://github.com/dominikschlosser/eudi-dev/issues/19).
-- **Status-list signing and conformance screenshots.** Includes the certificate and screenshot fixes from 2.3.7-2 and 2.3.7-1.
+- **Status list signing and conformance screenshots.** Includes the certificate and screenshot fixes from 2.3.7-2 and 2.3.7-1.
 - **Security contact links.** The `security.txt` contact and policy URLs point to the GitHub repository without the Go module's `/v2` suffix.
 - **Conformance screenshot retries.** Monitoring stops when a module finishes or is interrupted, even if its screenshot could not be captured or uploaded.
 
@@ -56,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Status-list CWT certificate verification.** The demo issuer includes its certificate chain in the protected COSE header and uses a status-list signing certificate without the document signer's critical extended key usage.
+- **Status list CWT certificate verification.** The demo issuer includes its certificate chain in the protected COSE header and uses a status list signing certificate without the document signer's critical extended key usage.
 
 ## [2.3.7-1] - 2026-09-18
 
@@ -193,7 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recoverable decode errors.** The decoder displays usable credential content alongside deviations instead of returning a blank page for recoverable SD-JWT or mdoc errors.
 - **Unsupported status warnings.** Status mechanisms such as W3C StatusList2021 are now reported explicitly instead of appearing absent. HAIP validation also flags them.
-- **JWT VC type labels.** Listings read the W3C VC type array from `vc` or the payload root, rather than displaying `jwt_vc_json` as the credential type.
+- **JWT VC type labels.** Listings display the credential type from the W3C VC type array in `vc` or the payload root. `jwt_vc_json` identifies the format.
 - **Required wallet metadata.** Request URI POSTs now include `response_types_supported` and explicit response modes. This prevents verifiers from applying RFC 8414 defaults that do not describe the wallet.
 - **Array disclosure selection.** Requesting an array alone no longer discloses its selectively disclosed elements. Verifiers must select elements with `null` or an index. The wallet warns when a request produces an empty array.
 - **Accurate consent previews.** Consent shows empty arrays and missing claims as they will be presented. Complete matches are preferred. Debug mode permits partial matches with notes, while strict mode requires all claims.
@@ -526,7 +530,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 - **No duplicate older mdocs.** Regeneration reads namespaces from the raw credential, allowing it to replace PIDs stored before namespace prefixes were added to claim keys.
 - **JWT PID issuance.** `issue jwt --pid` accepts the default PID claim set despite its template's SD-JWT format. Explicitly selected templates still enforce format.
-- **Fresh PID dates.** Issuance and expiry dates are computed when the template is used, rather than once at process startup.
+- **Fresh PID dates.** Issuance and expiry dates are computed each time the template is used.
 
 ### Changed
 
@@ -657,7 +661,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Fixed
 
-- **Single proof with required attestation.** Credential requests use one proof containing the key attestation rather than repeated proofs for the same attested keys.
+- **Single proof with required attestation.** Credential requests use one proof containing the key attestation for the attested keys.
 - **Unanchored issuer metadata.** The wallet accepts correctly signed metadata from a signer without a known trust anchor and logs that limitation. It still checks typ, algorithm, subject and signature.
 - **Explicit authorization server discovery.** Demo issuer metadata now lists `authorization_servers` and leaves token endpoint configuration to that server's metadata.
 
@@ -730,7 +734,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Documentation
 
-- **Correct status list references.** Removed the incorrect RFC 9596 citation. The 16-byte list minimum is documented as a wallet choice rather than a specification requirement.
+- **Correct status list references.** Removed the incorrect RFC 9596 citation. The 16-byte list minimum is documented as a wallet choice. The specification requires no such minimum.
 
 ## [1.19.15] - 2026-08-06
 
@@ -1535,7 +1539,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 ### Added
 
 - A HAIP Keycloak example covers authorization code issuance and verifier authentication with X.509 certificates.
-- wallet support for interactive authorization-code issuance callbacks via the local `/callback` endpoint
+- wallet support for interactive authorization code issuance callbacks via the local `/callback` endpoint
 
 ### Changed
 
@@ -1580,7 +1584,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Fixed
 
-- credential-offer and issuer-metadata parsing for the new Keycloak issuance example flows
+- credential-offer and issuer metadata parsing for the new Keycloak issuance example flows
 
 ## [1.8.1] - 2026-04-09
 
@@ -1603,7 +1607,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 ### Fixed
 
 - wallet-generated ETSI trust lists now use the required top-level `LoTE` JSON binding wrapper instead of the previously emitted unwrapped payload
-- trust-list parsing and format detection now reject the old non-conformant unwrapped trust-list shape
+- trust list parsing and format detection now reject the old non-conformant unwrapped trust list shape
 - proxy JWE tests now match the current `EncryptJWE` API so the full suite builds cleanly again
 
 ## [1.7.4] - 2026-04-09
@@ -1629,7 +1633,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Fixed
 
-- trust-list parsing and decoded output now preserve and expose `ListAndSchemeInformation.NextUpdate`
+- trust list parsing and decoded output now preserve and expose `ListAndSchemeInformation.NextUpdate`
 
 ## [1.7.0] - 2026-03-22
 
@@ -1640,14 +1644,14 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Documentation
 
-- clarified that `/api/trustlists` is a local discovery endpoint while `/api/trustlists/{id}` serves the ETSI trust-list JWT
-- documented how Docker and Testcontainers callers should resolve trust-list `path` values against the URL they actually used
+- clarified that `/api/trustlists` is a local discovery endpoint while `/api/trustlists/{id}` serves the ETSI trust list JWT
+- documented how Docker and Testcontainers callers should resolve trust list `path` values against the URL they actually used
 
 ## [1.6.0] - 2026-03-22
 
 ### Added
 
-- multiple wallet trust-list profiles with `/api/trustlists`, `/api/trustlists/{id}`, and CLI selection via `wallet trust-list --id|--vct|--doctype`
+- multiple wallet trust list profiles with `/api/trustlists`, `/api/trustlists/{id}`, and CLI selection via `wallet trust-list --id|--vct|--doctype`
 - signed OpenID Credential Issuer metadata and registrar-style authorization responses for wallet-issued credential types
 - Each trust profile uses its own credential signing certificate under the shared wallet CA.
 
@@ -1659,9 +1663,9 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Fixed
 
-- `issue --wallet` credentials now validate against the wallet trust list and use wallet-managed status-list entries by default
+- `issue --wallet` credentials now validate against the wallet trust list and use wallet-managed status list entries by default
 - PID generation, serving, certificate exports and validation use the same stored wallet issuer state.
-- trust-list parsing accepts current ETSI-style `ListIssueDateTime` payloads
+- trust list parsing accepts current ETSI-style `ListIssueDateTime` payloads
 
 ### Documentation
 
@@ -1682,7 +1686,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 ### Changed
 
 - wallets under the same wallet base directory now share one persisted CA
-- the shared CA now anchors wallet trust lists, status-list `x5c` chains, issuer-metadata `x5c` chains, and HTTPS wallet certificates
+- the shared CA now anchors wallet trust lists, status list `x5c` chains, issuer metadata `x5c` chains, and HTTPS wallet certificates
 - HTTPS wallet certificates are now signed by the shared CA instead of being self-signed
 - Trust and certificate changes preserve API paths and response formats.
 
@@ -1698,7 +1702,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 ### Documentation
 
 - clarified that `/api/trustlist` and `/api/statuslist` are also exposed via HTTPS
-- updated wallet, validate, docker, and README docs for `wallet tls-cert` and HTTPS status-list resolution
+- updated wallet, validate, docker, and README docs for `wallet tls-cert` and HTTPS status list resolution
 
 ## [1.5.0] - 2026-03-20
 
@@ -1713,7 +1717,7 @@ Version 2.0.0 updates credential cards to use issuer names, descriptions, logos 
 
 ### Fixed
 
-- local validation fetches now bypass proxies and correctly trust the wallet's self-signed local HTTPS endpoints for issuer metadata and status-list resolution
+- local validation fetches now bypass proxies and correctly trust the wallet's self-signed local HTTPS endpoints for issuer metadata and status list resolution
 
 ## [1.4.5] - 2026-03-20
 

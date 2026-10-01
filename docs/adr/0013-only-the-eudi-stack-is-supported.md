@@ -2,9 +2,9 @@
 
 The specifications this toolkit implements are the ones the EUDI Architecture and Reference Framework builds on: OpenID4VP 1.0, OpenID4VCI 1.0, HAIP 1.0, SD-JWT and SD-JWT VC, ISO 18013-5, ETSI TS 119 602, and the Token Status List draft. `docs/spec-compliance.md` lists them and says what is implemented from each.
 
-The toolkit recognises and reports mechanisms outside that set, but does not implement them.
+The toolkit reports mechanisms outside that set as unsupported.
 
-## Why recognising is not supporting
+## Reporting unsupported mechanisms
 
 Silently ignoring an unsupported mechanism can make a request appear verified. A finding must identify which mechanism was skipped and what remains unchecked.
 
@@ -22,7 +22,7 @@ The Status List Token check accepts ES256 and ES384 only (`internal/statuslist/c
 
 Debug mode continues when the toolkit can process a request despite a profile violation. It collects findings ([ADR-0001](0001-debug-by-default-validation-with-opt-in-strict-mode.md)), so developers can inspect the exchange. For example, it can send `direct_post` where HAIP requires `direct_post.jwt`, or use a supported credential format outside the profile. A mechanism with no implementation cannot complete the flow. The wallet reports it as unsupported.
 
-Support means the mechanism is checked. It does not mean the result is trusted: signatures are verified without being tied to a pre-registered trust list ([ADR-0009](0009-signatures-are-verified-but-not-anchored-to-a-pre-registered-trust-list.md)).
+A supported mechanism is checked. For request objects and signed issuer metadata, signature verification uses the supplied certificate chain. Trust in the signer requires a configured anchor ([ADR-0009](0009-signatures-are-verified-but-not-anchored-to-a-pre-registered-trust-list.md)).
 
 ## Consequences
 

@@ -129,7 +129,7 @@ func MakeFetchRequestURI(w *Wallet, logFn func(string, ...any)) func(url, method
 
 func fetchRequestURIGET(w *Wallet, requestURI string) (string, error) {
 	logRequestObjectFetchRequest(w, "GET", requestURI, nil)
-	resp, err := format.HTTPClientForURL(requestURI).Get(requestURI)
+	resp, err := w.HTTPClient().Get(requestURI)
 	if err != nil {
 		logRequestObjectFetchResponse(w, "GET", requestURI, nil, err)
 		return "", fmt.Errorf("fetching %s: %w", requestURI, err)
@@ -210,7 +210,7 @@ func fetchRequestURIPOST(w *Wallet, requestURI, clientID string, logFn func(stri
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/oauth-authz-req+jwt")
 
-	resp, err := format.HTTPClientForURL(requestURI).Do(req)
+	resp, err := w.HTTPClient().Do(req)
 	if err != nil {
 		logRequestObjectFetchResponse(w, "POST", requestURI, nil, err)
 		return "", fmt.Errorf("POSTing to request_uri: %w", err)

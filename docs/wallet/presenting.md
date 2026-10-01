@@ -29,11 +29,13 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 |-------------------------|----------|--------------------------------------------------|
 | `--port`                | `8085`   | Server port for OID4VP                           |
 | `--auto-accept`         | `false`  | Auto-approve OID4VP presentations                |
+| `--tls-verify` | mode default | Verify all outbound HTTPS certificates (`true` in strict mode, `false` in debug mode) |
+| `--tls-ca` | None | Add PEM CA certificates to the system TLS trust store |
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--session-transcript`  | `oid4vp` | mDoc session transcript mode: `oid4vp` or `iso`  |
-| `--tx-code`             | —        | Transaction code for OID4VCI pre-authorized code flow |
+| `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
 | `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` so a verifier in a container reaches them |
-| `--key-attestation-level` | — | What the key attestation claims as `key_storage` and `user_authentication`: whatever the issuer requires (default), `none`, or an Appendix D.2 level such as `iso_18045_high` for both (see [SECURITY.md](../../SECURITY.md)). A running wallet server applies its own setting |
+| `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. A running wallet uses its own setting. See [key attestation claims](serve.md#key-attestation-claims) |
 | `--haip`                | `false`  | Check incoming presentations and credential offers against HAIP 1.0. `--mode` decides what a violation does: strict refuses the flow, debug reports it and continues |
 
 Pre-authorized code offers work directly with `wallet accept`. Authorization code offers require a running `wallet serve` instance. The client ID defaults to the wallet origin and the redirect URI to its `/callback` endpoint. Override them with `--vci-client-id` and `--vci-redirect-uri`. The wallet uses PAR and DPoP when advertised by the issuer.
@@ -41,6 +43,10 @@ Pre-authorized code offers work directly with `wallet accept`. Authorization cod
 For sign-in, `wallet accept` prints the authorization URL. It opens the URL only when no wallet page is already handling the flow, because the request can be used once (RFC 9126 §4). After the issuer redirects back, the wallet exchanges the code. The CLI waits for the credential or an error. A remote wallet follows the same process. See [sign-in during issuance](issuing.md#sign-in-during-issuance).
 
 For pre-authorized code offers, HAIP validation checks HTTPS transport. PAR, PKCE, DPoP and client authentication requirements apply to offers that use the authorization endpoint.
+
+Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
+
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own TLS settings. Set the flags on `wallet serve` or change verification in its Conformance panel. Passing TLS flags to `accept` or `scan` in this case returns an error.
 
 ## `wallet scan`
 
@@ -100,7 +106,7 @@ In interactive mode (no `--auto-accept`) the two callers also differ before cons
 
 `--haip` on `wallet serve` or `wallet accept` checks incoming requests and offers against [HAIP 1.0 Final](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html). `--demo` turns it on by default (see [hosting a public demo](../public-demo.md)).
 
-`--haip` and `--mode` are separate switches. `--haip` adds every check below to the ones that apply to any counterparty. `--mode` decides what happens on a finding. `--mode strict` stops the flow and `--mode debug` reports it and continues. So `--haip --mode debug` reports every profile violation and still completes the flow, which is useful for a counterparty under development.
+`--haip` adds the profile checks below. Strict mode rejects violations. Debug mode reports them and continues where possible. Advisory findings remain warnings in either mode.
 
 For **presentations** (OID4VP `direct_post.jwt` and Browser API `dc_api.jwt`) the wallet checks every request against all of:
 

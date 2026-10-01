@@ -6,7 +6,7 @@ A running `wallet serve` instance exposes credential management, issuance, templ
 
 ## HTTP API
 
-Use it to manage a wallet on another host or to drive a hosted instance from automated tests (CI jobs, Testcontainers, E2E suites). It also controls wallet behavior for tests (simulated errors, preferred credential format).
+Use it to manage a wallet on another host or to drive a hosted instance from automated tests (CI jobs, Testcontainers, E2E suites). It also lets tests simulate errors and choose a preferred credential format.
 
 > **No authentication.** Anyone who can reach the port can control the wallet and read its credentials. Use it for local development and isolated test networks with test data. Public deployments should use [`--demo`](../public-demo.md), which disables administrative operations, restricts outbound connections and resets state periodically. The remaining data and endpoints are public.
 
@@ -20,7 +20,9 @@ A client that opens a wallet page supplies the same browser ID in the page's `ow
 
 Request documents use `mine` to indicate ownership. Bundled clients also send `X-Eudi-Client: <name>/<release>`. The server logs an upgrade notice once for interactive submissions that omit it.
 
-`GET /api/error` and `DELETE /api/error` are scoped the same way: a caller reads and clears its own last error and the unowned ones. `POST /api/requests/{id}/approve` and `/deny` answer `404` when the caller neither owns the request nor passes `?request=<id>` (the id in the URL the wallet redirected that browser to).
+`GET /api/error` and `DELETE /api/error` follow the same ownership rules. A caller can read and clear its own errors and unowned errors.
+
+To approve or deny a request through `POST /api/requests/{id}/approve` or `/deny`, the caller must own it or pass `?request=<id>`. The wallet supplies that ID in the browser redirect URL. Other callers receive `404`.
 
 `GET /api/credentials` accepts optional `limit` and `offset` query parameters and reports the full number of stored credentials in the `X-Total-Count` response header. Without parameters it returns every credential. An offset past the end returns an empty array. The web UI uses this to page through long lists ten credentials at a time.
 
@@ -32,11 +34,11 @@ The credential endpoints mirror `wallet list`, `wallet show`, `wallet import`, a
 
 | Method   | Path                    | Body                  | Description                                        | CLI equivalent        |
 |----------|-------------------------|-----------------------|----------------------------------------------------|-----------------------|
-| `GET`    | `/api/credentials`      | —                     | List stored credentials                            | `wallet list --json`  |
-| `GET`    | `/api/credentials/{id}` | —                     | Show one credential (id, format, claims, raw)      | `wallet show <id>`    |
+| `GET`    | `/api/credentials`      | None                  | List stored credentials                            | `wallet list --json`  |
+| `GET`    | `/api/credentials/{id}` | None                  | Show one credential (id, format, claims, raw)      | `wallet show <id>`    |
 | `POST`   | `/api/credentials`      | raw credential string | Import a credential (see [Credential import](#credential-import)) | `wallet import`       |
-| `DELETE` | `/api/credentials/{id}` | —                     | Remove a credential by ID (`204` on success)       | `wallet remove <id>`  |
-| `DELETE` | `/api/credentials`      | —                     | Remove all credentials (returns `{"deleted": n}`)  | `wallet remove --all` |
+| `DELETE` | `/api/credentials/{id}` | None                  | Remove a credential by ID (`204` on success)       | `wallet remove <id>`  |
+| `DELETE` | `/api/credentials`      | None                  | Remove all credentials (returns `{"deleted": n}`)  | `wallet remove --all` |
 
 ```bash
 # List credentials, pick one, inspect it, then delete it
@@ -68,7 +70,7 @@ curl -X DELETE http://localhost:8085/api/credentials
 | `nbf`             | string  | Not-before as RFC3339 (`2025-01-15T00:00:00Z`) or relative duration (`-1h`)                  |
 | `status_list_uri` | string  | Status list URI to embed. Default is the wallet's own status list when configured. `""` disables it |
 | `status_list_idx` | int     | Status list index (default is the next free index on the wallet's status list)               |
-| `trust_profile`   | string  | Trust-list profile for registration metadata: `auto` (default), `pid`, or `local`            |
+| `trust_profile`   | string  | Trust list profile for registration metadata: `auto` (default), `pid`, or `local`            |
 | `trust`           | object  | Trust/registration metadata to persist with the credential type (same fields as the `issue` trust flags, e.g. `entitlements`, `trust_list_type`, `entity_name`) |
 | `display`         | object  | Card appearance: `name`, `description`, `background_color`, `text_color`, `logo`, `logo_alt_text`, `background_image` (the `--display-*` flags). A public demo drops operator-supplied images |
 | `display_template`| string  | Template whose logo and background image the credential uses (for a form that flattened the template's claims into `claims`) |
@@ -112,10 +114,10 @@ The template endpoints use the same storage backend as the `templates` CLI comma
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/templates` | List all templates (pre-defined and user), including claims |
+| `GET /api/templates` | List all templates (predefined and user), including claims |
 | `GET /api/templates/{name}` | Get one template |
 | `PUT /api/templates/{name}` | Create or replace a user template. The body is a full template document, so this doubles as the import endpoint for shared templates |
-| `DELETE /api/templates/{name}` | Delete a user template. Deleting an override of a pre-defined template restores the pre-defined version |
+| `DELETE /api/templates/{name}` | Delete a user template. Deleting an override of a predefined template restores the predefined version |
 
 ```bash
 curl -X PUT http://localhost:8085/api/templates/employee-card \
@@ -176,7 +178,7 @@ curl -X DELETE http://localhost:8085/api/next-error
 | Method   | Path              | Body                                                        | Description                |
 |----------|-------------------|-------------------------------------------------------------|----------------------------|
 | `POST`   | `/api/next-error` | `{"error": "...", "error_description": "..."}`              | Set one-shot error override |
-| `DELETE` | `/api/next-error` | —                                                           | Clear override              |
+| `DELETE` | `/api/next-error` | None                                                        | Clear override              |
 
 ### Preferred credential format
 
@@ -200,7 +202,7 @@ curl -X PUT http://localhost:8085/api/config/preferred-format \
 
 | Method | Path                           | Body                    | Description                    |
 |--------|--------------------------------|-------------------------|--------------------------------|
-| `GET`  | `/api/config`                  | —                       | Full instance introspection document (see [Introspection](#introspection)) |
+| `GET`  | `/api/config`                  | None                    | Full instance introspection document (see [Introspection](#introspection)) |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "dc+sd-jwt"}`  | Prefer SD-JWT when multiple match |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "mso_mdoc"}`   | Prefer mDoc when multiple match   |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "jwt_vc_json"}` | Prefer JWT VC when multiple match |
@@ -223,7 +225,7 @@ Credentials can be imported at runtime via `POST /api/credentials`. The body is 
 | Plain JWT | 3-part JWT without `~` | `jwt_vc_json` |
 | mDoc | CBOR-encoded | `mso_mdoc` |
 
-Plain JWT VCs are presented as-is (no selective disclosure, no KB-JWT). Use `"format": "jwt_vc_json"` in DCQL queries to match them.
+Plain JWT VCs are presented without changes (no selective disclosure, no KB-JWT). Use `"format": "jwt_vc_json"` in DCQL queries to match them.
 
 DID issuer keys cannot be resolved. Credentials whose `kid` or `iss` starts with `did:` are imported with an unverified issuer signature. Status list signatures using DID keys also remain unverified. Supported key sources are x5c chains and SD-JWT VC issuer metadata ([ADR-0013](../adr/0013-only-the-eudi-stack-is-supported.md)).
 
@@ -312,12 +314,14 @@ curl -X POST http://localhost:8085/api/deferred/<id>/collect
 
 ### Activity log
 
-The wallet UI and `wallet logs` show the activity log. Each entry carries a timestamp, a category (`presentation`, `issuance`, `management`), a description, a success flag, and for protocol steps a `details` object holding the request or response as sent or received.
+Each activity log entry has a timestamp, category (`presentation`, `issuance`, `management`), description, success flag and structured `details`.
+
+`GET /api/log` returns the existing log format used by the CLI. The web UI uses `GET /api/log?view=activity` for the full protocol requests and responses. Encrypted exchanges include plaintext and the encrypted wire value. Summaries add context, such as selected disclosure paths.
 
 | Method   | Path       | Description                                     | CLI equivalent |
 |----------|------------|--------------------------------------------------|----------------|
 | `GET`    | `/api/log` | The persisted activity log, newest last          | `wallet logs`  |
-| `DELETE` | `/api/log` | Clear it (`204`, and the wallet UI's Clear button). Demo mode refuses with `403` | —              |
+| `DELETE` | `/api/log` | Clear it (`204`, and the wallet UI's Clear button). Demo mode refuses with `403` | None           |
 
 ```bash
 curl http://localhost:8085/api/log
@@ -389,7 +393,7 @@ curl -X POST http://localhost:8085/api/presentations \
 
 ## Remote control
 
-In remote mode, CLI commands use a running wallet's REST API. This covers credential management, issuance, renewal, deferred issuance, logs, presentations, trust lists, certificate export, configuration and templates. `wallet logs --follow` remains local-only. `serve`, scanning and URL handler registration run on the local machine.
+In remote mode, CLI commands use a running wallet's REST API. This covers credential management, issuance, renewal, deferred issuance, logs, presentations, trust lists, certificate export, configuration and templates. `wallet logs --follow` remains local-only. `serve` and URL handler registration run locally. `scan` captures locally and sends the detected flow to the selected wallet.
 
 ```bash
 # Switch management to a running instance (persisted until switched back)
@@ -446,6 +450,19 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_encrypted_request`, `force_client_attestation`, `tls_listener`, `imprint` and `credential_count`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_encrypted_request`, `force_client_attestation`, `tls_listener`, `imprint` and `credential_count`.
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. Demo mode hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance.
+
+`PUT /api/config/conformance` accepts these values for `tls_verify`:
+
+| Value | HTTPS certificate verification |
+|---|---|
+| `true` | Verify certificates for every destination |
+| `false` | Skip verification |
+| `null` | Follow the mode default: strict verifies, debug skips |
+| Omitted | Keep the current setting |
+
+`GET /api/config` and the conformance response return the effective `tls_verify` value. They also return `tls_verify_override`, which is `null` when verification follows the mode default.
+
+`DELETE /api/config/conformance` restores startup settings. Demo wallets reject changes. Add CA certificates at startup with `--tls-ca`.

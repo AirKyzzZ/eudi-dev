@@ -1,13 +1,13 @@
 # Comments
 
-Human readability is the main writing priority. Use familiar words and clear sentences. Name the actor, explain one idea at a time and write for someone outside the conversation. Avoid prose semicolons and dashes when a short sentence is clearer. Preserve identifiers, syntax and exact specification quotes.
+Use plain English. Name the actor, explain one idea at a time and write for someone outside the conversation. Remove filler and stock AI phrases. Use short sentences instead of semicolons or prose dashes. Avoid constructions such as "not X but Y". Keep punctuation required by syntax, standard terms and exact specification quotes.
 
 Keep a comment only when it adds information that the code cannot show.
 
 ## Write one for
 
 - A citation: the spec section and the sentence a rule comes from, so the next reader can check it.
-- A constraint the code cannot show: an ordering another party imposes, a value that has to outlast a round trip, a limit measured rather than assumed.
+- A constraint the code cannot show: an ordering another party imposes, a value that has to outlast a round trip, a measured limit.
 - A non-obvious decision: why the obvious approach does not work here.
 
 ## Do not write one for
@@ -25,4 +25,4 @@ When a comment grows past a few lines, it is probably documentation. Deployment 
 
 ## Tests
 
-A test comment states the requirement the test encodes, positively, so a rule that later changes is found by reading it.
+A test comment explains the requirement being checked. This helps readers find the test when that requirement changes.

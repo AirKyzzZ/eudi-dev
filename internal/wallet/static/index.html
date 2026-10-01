@@ -128,7 +128,7 @@
   <div class="consent-overlay" id="howto-overlay">
     <div class="consent-dialog">
       <div class="consent-title">How to use this wallet</div>
-      <p class="dialog-hint">A spec-compliant wallet. Issuers and verifiers talk to it over OpenID4VCI and OpenID4VP. Point real ones at it and the flows run end to end, with holder binding, SD-JWT VC and mdoc, status lists and trust lists.</p>
+      <p class="dialog-hint">Test issuance with OpenID4VCI and presentations with OpenID4VP. This wallet supports SD-JWT VC, mdoc, holder binding, status lists and trust lists.</p>
       <div class="cli-install">
         <div class="cli-install-label">Deliver a credential offer (OpenID4VCI)</div>
         <pre><span class="howto-origin"></span>/credential-offer?credential_offer_uri=&hellip;</pre>
@@ -137,15 +137,15 @@
         <div class="cli-install-label">Trust list (verifiers trusting this wallet's credentials)</div>
         <pre><span class="howto-origin"></span>/api/trustlist</pre>
       </div>
-      <p class="dialog-hint">These endpoints take the same query parameters as the custom-scheme links (<code>openid-credential-offer://</code>, <code>openid4vp://</code>). Replace everything before the <code>?</code> with the endpoint URL.</p>
+      <p class="dialog-hint">For <code>openid-credential-offer://</code> and <code>openid4vp://</code> links, replace everything before the <code>?</code> with the matching endpoint URL. Keep the query parameters.</p>
       <div class="cli-install">
         <div class="cli-install-label">Custom-scheme links via CLI (any platform)</div>
         <pre>eudi wallet accept 'openid4vp://authorize?client_id=&hellip;'</pre>
         <div class="cli-install-label">System URL handler (macOS)</div>
         <pre>eudi wallet register</pre>
       </div>
-      <p class="dialog-hint"><code>wallet register</code> installs OS handlers for <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>openid-credential-offer://</code> and <code>haip-vci://</code>, so those links open this wallet. The <a href="https://github.com/dominikschlosser/eudi-dev/blob/main/docs/wallet.md" target="_blank" rel="noopener">wallet documentation</a> has the full list of endpoints.</p>
-      <p class="dialog-hint">No issuer or verifier at hand? This deployment also hosts a <a href="/issuer/" target="_blank">demo issuer</a> and a <a href="/verifier/" target="_blank">demo verifier</a>.</p>
+      <p class="dialog-hint"><code>wallet register</code> makes <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>openid-credential-offer://</code> and <code>haip-vci://</code> links open in this wallet. See the <a href="https://github.com/dominikschlosser/eudi-dev/blob/main/docs/wallet.md" target="_blank" rel="noopener">wallet documentation</a> for all endpoints.</p>
+      <p class="dialog-hint">Try the <a href="/issuer/" target="_blank">demo issuer</a> or <a href="/verifier/" target="_blank">demo verifier</a>.</p>
       <div class="consent-buttons">
         <button class="btn" id="howto-close">Close</button>
       </div>
@@ -155,12 +155,19 @@
   <div class="consent-overlay" id="conformance-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Conformance</div>
-      <p class="dialog-hint" id="conf-intro">How this wallet checks incoming requests, and which OpenID4VCI version it uses when it asks an issuer for a credential. A failed check is a warning in debug mode and rejects the request in strict mode.</p>
+      <p class="dialog-hint" id="conf-intro">Debug mode reports failed checks. Strict mode rejects invalid requests. HTTPS verification is on by default in strict mode and off in debug mode. You can override it in either mode.</p>
       <table class="conformance-table">
         <tr><td>Validation mode</td><td>
           <select id="conf-mode-select" class="conf-input">
             <option value="strict">strict</option>
             <option value="debug">debug</option>
+          </select>
+        </td></tr>
+        <tr><td>HTTPS certificates</td><td>
+          <select id="conf-tls-select" class="conf-input">
+            <option value="auto">mode default</option>
+            <option value="true">verify</option>
+            <option value="false">skip verification</option>
           </select>
         </td></tr>
         <tr><td>HAIP 1.0</td><td>
@@ -198,11 +205,11 @@
   <div class="consent-overlay" id="trust-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Trust &amp; certificates</div>
-      <p class="dialog-hint">What another party needs in order to trust this wallet. Verifiers check the credentials it issues, issuers check the wallet and key attestations it sends. Everything below chains to the same CA.</p>
+      <p class="dialog-hint">Issued credentials, wallet attestations and key attestations share this CA. Configure it as a trust anchor.</p>
 
       <div class="trust-section">
         <div class="trust-section-title">Trust lists</div>
-        <p class="trust-section-hint">ETSI trust lists naming this wallet&rsquo;s CA as the anchor.</p>
+        <p class="trust-section-hint">ETSI trust lists anchored to the wallet CA.</p>
         <div class="cert-links" id="trust-list-links"></div>
       </div>
 
@@ -215,7 +222,7 @@
               <a id="ca-cert-pem-link" href="/api/certificates/ca">PEM</a>
               <a id="ca-cert-jwks-link" href="/api/certificates/ca?format=jwks">JWKS</a>
             </span>
-            <span class="trust-item-hint">Configure this one. Wallet and key attestations carry only the leaf, and leaves change.</span>
+            <span class="trust-item-hint">Trust this CA. Attestations include only the signing certificate, which can change.</span>
           </dd>
 
           <dt>Signing key</dt>
@@ -223,7 +230,7 @@
             <span class="trust-links">
               <a id="signing-jwks-link" href="/.well-known/jwt-vc-issuer">JWKS</a>
             </span>
-            <span class="trust-item-hint">Signs issued credentials, the wallet attestation and the key attestation.</span>
+            <span class="trust-item-hint">Signs credentials, wallet attestations and key attestations.</span>
           </dd>
 
           <dt id="tls-row-label">TLS</dt>
@@ -232,7 +239,7 @@
               <a id="tls-cert-pem-link" href="/api/certificates/tls">PEM</a>
               <a id="tls-cert-jwks-link" href="/api/certificates/tls?format=jwks">JWKS</a>
             </span>
-            <span class="trust-item-hint">The wallet&rsquo;s own HTTPS leaf, for a client that pins it.</span>
+            <span class="trust-item-hint">Wallet HTTPS certificate for certificate pinning.</span>
           </dd>
         </dl>
       </div>
@@ -246,7 +253,7 @@
   <div class="consent-overlay" id="cli-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Get the CLI</div>
-      <p class="dialog-hint">This wallet is the web UI of <a href="https://github.com/dominikschlosser/eudi-dev" target="_blank" rel="noopener">eudi-dev</a>, a developer toolkit for EUDI and OpenID4VC. The <code>eudi</code> CLI decodes, issues and presents credentials, runs this wallet locally and proxies wallet traffic.</p>
+      <p class="dialog-hint">The <code>eudi</code> CLI from <a href="https://github.com/dominikschlosser/eudi-dev" target="_blank" rel="noopener">eudi-dev</a> runs this wallet locally. It also decodes, issues and presents credentials, and proxies wallet traffic.</p>
       <div class="cli-install">
         <div class="cli-install-label">Homebrew</div>
         <pre>brew install dominikschlosser/tap/eudi-dev</pre>
@@ -257,7 +264,7 @@
         <div class="cli-install-label">Binaries</div>
         <p class="dialog-hint"><a href="https://github.com/dominikschlosser/eudi-dev/releases" target="_blank" rel="noopener">GitHub Releases</a></p>
       </div>
-      <p class="dialog-hint">This is an independent open source project. It is not an official service of the European Commission or the European Union, has no affiliation with them, and is not endorsed by them.</p>
+      <p class="dialog-hint">Independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</p>
       <div class="consent-buttons">
         <button class="btn" id="cli-close">Close</button>
       </div>
@@ -271,7 +278,7 @@
   <div class="consent-overlay" id="import-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Import Credential</div>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Paste a raw SD-JWT or mDoc credential</p>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Paste an SD-JWT VC, JWT VC or mdoc credential.</p>
       <textarea id="import-textarea" style="width:100%;height:120px;font-family:var(--font-mono);font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical;"></textarea>
       <div class="consent-buttons">
         <button class="btn" id="import-cancel">Cancel</button>
@@ -283,7 +290,7 @@
   <div class="consent-overlay" id="issue-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Issue Credential</div>
-      <p class="dialog-hint">Issues a credential with the wallet's issuer key and imports it. Only the format is required. Pick a template (for example german-pid-sdjwt) to fill the rest, everything stays editable.</p>
+      <p class="dialog-hint">Uses the wallet's issuer key by default and stores the credential. Only the format is required. Templates fill fields you can edit.</p>
       <form id="issue-form">
         <div class="form-grid">
           <label class="form-label" for="issue-format">Format</label>
@@ -346,7 +353,7 @@
 
           <div class="form-section-label">Display (optional)</div>
 
-          <p class="form-hint" id="issue-template-art-note" hidden>This template provides its own logo and background image. They are kept unless you set your own below.</p>
+          <p class="form-hint" id="issue-template-art-note" hidden>The template's logo and background are kept unless you replace them below.</p>
 
           <label class="form-label" for="issue-display-name">Display name</label>
           <input type="text" id="issue-display-name" class="form-input" maxlength="80" placeholder="e.g. Employee Badge">
@@ -404,7 +411,7 @@
   <div class="consent-overlay" id="templates-overlay">
     <div class="consent-dialog">
       <div class="consent-title">Credential Templates</div>
-      <p class="dialog-hint">Templates are reusable claim sets. Some are built in. Saving under an existing name overwrites it. Paste JSON below to import one.</p>
+      <p class="dialog-hint">Import a reusable claim set as JSON. Saving an existing name replaces that template.</p>
       <div id="templates-list" class="templates-list"></div>
       <form id="template-form">
         <div class="form-grid">

@@ -1,6 +1,6 @@
 # Running OIDF Conformance Against the Demo Issuer and Verifier
 
-This runbook runs the official OIDF issuer and verifier plans against the demo issuer and demo verifier that `wallet serve` mounts under `/issuer` and `/verifier`. It is the counterpart of [Running OIDF Wallet Conformance](./conformance-run.md): here the suite acts as the wallet and the demo issuer and verifier are under test.
+Test the demo issuer at `/issuer` and verifier at `/verifier` with the official OIDF plans. The suite acts as the wallet. To test `eudi-dev` as the wallet instead, use the [wallet runbook](./conformance-run.md).
 
 Only the wallet goes through certification. These issuer and verifier plans run locally (or on the hosted demo service) as quality checks, and the wrapper refuses the production certification service.
 
@@ -8,10 +8,14 @@ Only the wallet goes through certification. These issuer and verifier plans run 
 
 The wrapper starts one wallet server and drives these plans through the official `run-test-plan.py`:
 
-- `oid4vci-1_0-issuer-test-plan` against the demo issuer, three times (authorization code wallet initiated, authorization code issuer initiated, pre-authorized code)
-- `oid4vci-1_0-issuer-haip-test-plan` against the demo issuer (SD-JWT VC, authorization code, issuer initiated). Only the VCI modules run. The demo issuer implements the minimal HAIP profile a wallet needs (PAR, PKCE S256, DPoP, attestation-based client authentication), and the plan's appended FAPI2 Security Profile server modules need a full OAuth authorization server
-- `oid4vp-1final-verifier-test-plan` against the demo verifier, three times (SD-JWT VC signed request, SD-JWT VC unsigned request under the `redirect_uri` prefix, mdoc signed request)
-- `oid4vp-1final-verifier-haip-test-plan` against the demo verifier (SD-JWT VC and mdoc, both `direct_post.jwt`)
+| Plan | Scenarios |
+| --- | --- |
+| `oid4vci-1_0-issuer-test-plan` | Authorization code initiated by the wallet or issuer, and pre-authorized code |
+| `oid4vci-1_0-issuer-haip-test-plan` | SD-JWT VC, authorization code, issuer-initiated |
+| `oid4vp-1final-verifier-test-plan` | Signed SD-JWT VC, unsigned SD-JWT VC with `redirect_uri`, and signed mdoc |
+| `oid4vp-1final-verifier-haip-test-plan` | SD-JWT VC and mdoc, both `direct_post.jwt` |
+
+The HAIP issuer plan runs only VCI modules. The demo issuer supports PAR, PKCE S256, DPoP and attestation-based client authentication. The appended FAPI2 server modules require a full OAuth authorization server.
 
 The wrapper excludes modules for features the demo services do not offer. The official runner counts skips as failures.
 
@@ -30,7 +34,7 @@ Verifier modules end in `REVIEW` because the suite cannot observe the verifier's
 
 ## Prerequisites
 
-The same as [Running OIDF Wallet Conformance](./conformance-run.md): a local conformance-suite checkout at the documented baseline, and the suite server running on the host behind its nginx.
+Use the prerequisites in [Running OIDF Wallet Conformance](./conformance-run.md): a local conformance suite checkout at the documented baseline and the suite server running behind nginx on the host.
 
 ## Run
 
@@ -60,7 +64,9 @@ The generated configs also give the suite the wallet CA: as `credential.trust_an
 
 ## Environment Overrides
 
-The wallet runbook's suite and server overrides apply unchanged (`CONFORMANCE_MODE`, `CONFORMANCE_SERVER`, `OIDF_SUITE_DIR`, `OIDF_SUITE_TAG`, `OIDF_SUITE_URL`, `OIDF_RUN_DIR`, `OIDF_MODULE_IDLE_TIMEOUT`, `OIDF_KEEP_SUITE_DB`, `OIDF_REQUEST_TIMEOUT`, `PORT`, `EUDI_DEV_STORAGE`). Set `OIDF_REQUEST_TIMEOUT=60` on a loaded machine, and leave `OIDF_KEEP_SUITE_DB` off for repeated runs (a suite database that holds several runs answers so slowly that modules stall). Specific to this wrapper:
+The [wallet runbook's suite and server overrides](conformance-run.md#environment-overrides) also apply here. On a loaded machine, set `OIDF_REQUEST_TIMEOUT=60`. For repeated runs, leave `OIDF_KEEP_SUITE_DB` unset so old results do not slow the suite enough to stall modules.
+
+This wrapper also accepts:
 
 - `OIDF_DEMO_BASE_URL`: the https origin the demo issuer and verifier advertise. Defaults to `https://localhost:<port+1>`
 - `ONLY_SCENARIOS`: comma separated scenario slug substrings to run a subset

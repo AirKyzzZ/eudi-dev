@@ -202,6 +202,10 @@ func cloneWalletForPresentation(src *Wallet, opts presentationRequestOptions) (*
 	// change them concurrently.
 	srcMode, srcHAIP, srcEncrypted := src.ConformanceSettings()
 
+	src.mu.RLock()
+	verify := src.tlsVerify
+	src.mu.RUnlock()
+
 	clone := &Wallet{
 		HolderKey:               src.HolderKey,
 		IssuerKey:               src.IssuerKey,
@@ -216,6 +220,8 @@ func cloneWalletForPresentation(src *Wallet, opts presentationRequestOptions) (*
 		RequestEncryptionKey:    src.RequestEncryptionKey,
 		RequireHAIP:             srcHAIP,
 		ValidationMode:          srcMode,
+		tlsVerify:               verify,
+		outboundHTTP:            src.HTTPClient(),
 		VCIVersion:              src.VCIFeatureVersion(),
 		Credentials:             append([]StoredCredential(nil), src.Credentials...),
 		StatusEntries:           cloneStatusEntries(src.StatusEntries),

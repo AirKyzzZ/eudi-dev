@@ -52,13 +52,13 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 
 | Flag             | Default | Description                              |
 |------------------|---------|------------------------------------------|
-| `--target`       | —       | URL of the verifier/issuer (required)    |
+| `--target`       | None    | URL of the verifier/issuer (required)    |
 | `--port`         | `9090`  | Proxy listen port                        |
 | `--dashboard`    | `9091`  | Dashboard listen port                    |
 | `--no-dashboard` | `false` | Disable web dashboard                    |
 | `--all-traffic`  | `false` | Show all traffic                          |
 | `--json`         | `false` | NDJSON output to stdout (global flag)    |
-| `-- <command>`   | —       | Launch target as subprocess, scan stdout |
+| `-- <command>`   | None    | Launch target as subprocess, scan stdout |
 
 `eudi proxy logs [dashboard-url]` reads a proxy that is already running:
 
@@ -127,6 +127,7 @@ eudi proxy --target http://localhost:3000 -- mvn spring-boot:run
 ```
 
 The proxy detects lines like:
+
 - `CEK: <base64url>` or `content encryption key: <base64url>`
 - JWK objects containing a `"d"` (private key) parameter
 

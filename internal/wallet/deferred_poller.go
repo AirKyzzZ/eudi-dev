@@ -185,7 +185,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	// The validation mode is read once: this runs on the poller goroutine,
 	// which can race a PUT /api/config/conformance.
 	mode := s.wallet.Mode()
-	metadata, metadataErr := fetchIssuerMetadata(pending.Issuer)
+	metadata, metadataErr := fetchIssuerMetadata(s.wallet.HTTPClient(), pending.Issuer)
 	if metadataErr != nil {
 		metadata = nil
 	}
@@ -199,7 +199,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	credResp, err := deferredCredentialAttempt(
 		mode, metadata,
 		pending.DeferredEndpoint, pending.AccessToken, pending.AuthScheme,
-		pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce)
+		pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce, s.wallet.HTTPClient())
 
 	// An issuer that refuses the authorization may have expired the token
 	// earlier than it said, so one renewal and one retry precede giving up.
@@ -211,7 +211,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 			credResp, err = deferredCredentialAttempt(
 				mode, metadata,
 				pending.DeferredEndpoint, pending.AccessToken, pending.AuthScheme,
-				pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce)
+				pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce, s.wallet.HTTPClient())
 		}
 	}
 
@@ -399,7 +399,7 @@ func (s *Server) refreshDeferredAccessToken(pending DeferredIssuance, dpopKey *e
 	}
 
 	nonce := ""
-	resp, err := postFormWithDPoP(pending.TokenEndpoint, form, dpopKey, "", &nonce, s.wallet.attestorFor(pending.ClientAuth))
+	resp, err := postFormWithDPoP(s.wallet.HTTPClient(), pending.TokenEndpoint, form, dpopKey, "", &nonce, s.wallet.attestorFor(pending.ClientAuth))
 	if err != nil {
 		return pending, err
 	}

@@ -54,7 +54,7 @@ func CanResolveJWTIssuerMetadata(token *sdjwt.Token) bool {
 
 // ResolveJWTIssuerMetadataKey resolves a signing key from the issuer metadata
 // endpoint referenced by the token's iss claim and kid header.
-func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInfo) (crypto.PublicKey, string, error) {
+func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInfo, clients ...*http.Client) (crypto.PublicKey, string, error) {
 	if !CanResolveJWTIssuerMetadata(token) {
 		return nil, "", nil
 	}
@@ -66,7 +66,7 @@ func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInf
 		return nil, "", err
 	}
 
-	doc, err := fetchIssuerMetadataDocument(metadataURL)
+	doc, err := fetchIssuerMetadataDocument(metadataURL, clients...)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching issuer metadata: %w", err)
 	}
@@ -83,7 +83,7 @@ func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInf
 		return nil, "", fmt.Errorf("issuer metadata issuer mismatch: got %s want %s", issuer, iss)
 	}
 
-	jwk, err := findIssuerMetadataJWK(doc, kid)
+	jwk, err := findIssuerMetadataJWK(doc, kid, clients...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -114,8 +114,8 @@ const SourceX5CLeaf = "x5c certificate, chain not validated"
 // certificate (only when no trust list is given), then kid-based issuer
 // metadata. The leaf step keeps validation offline for credentials that
 // carry their issuer certificate.
-func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo) (*sdjwt.VerifyResult, string, error) {
-	return verifyJWTSignature(token, pubKeys, tlCerts, true)
+func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
+	return verifyJWTSignature(token, pubKeys, tlCerts, true, clients...)
 }
 
 // VerifyJWTSignatureOffline uses only supplied keys and certificates. This path must
@@ -124,7 +124,7 @@ func VerifyJWTSignatureOffline(token *sdjwt.Token, pubKeys []crypto.PublicKey, t
 	return verifyJWTSignature(token, pubKeys, tlCerts, false)
 }
 
-func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, resolveIssuerMetadata bool) (*sdjwt.VerifyResult, string, error) {
+func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, resolveIssuerMetadata bool, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	if token == nil {
 		return nil, "", fmt.Errorf("token is nil")
 	}
@@ -155,7 +155,7 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 
 	if best != nil {
 		if resolveIssuerMetadata {
-			if key, source, err := ResolveJWTIssuerMetadataKey(token, tlCerts); err == nil && key != nil {
+			if key, source, err := ResolveJWTIssuerMetadataKey(token, tlCerts, clients...); err == nil && key != nil {
 				result := sdjwt.Verify(token, key)
 				if result.SignatureValid {
 					return result, source, nil
@@ -169,7 +169,7 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 		return nil, "", nil
 	}
 
-	key, source, err := ResolveJWTIssuerMetadataKey(token, tlCerts)
+	key, source, err := ResolveJWTIssuerMetadataKey(token, tlCerts, clients...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -179,14 +179,14 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 	return sdjwt.Verify(token, key), source, nil
 }
 
-func fetchIssuerMetadataDocument(metadataURL string) (map[string]any, error) {
+func fetchIssuerMetadataDocument(metadataURL string, clients ...*http.Client) (map[string]any, error) {
 	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	// Some issuers reject requests without an Accept header.
 	req.Header.Set("Accept", "application/json")
-	resp, err := format.HTTPClientForURL(metadataURL).Do(req)
+	resp, err := format.HTTPClientForURL(metadataURL, clients...).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func JWTVCIssuerMetadataURL(iss string) (string, error) {
 // issuerMetadataJWKSet returns the Issuer's JWK Set, by value or by reference.
 // SD-JWT VC §3.2: metadata "MUST include either jwks_uri or jwks [...] but not
 // both".
-func issuerMetadataJWKSet(doc map[string]any) ([]any, error) {
+func issuerMetadataJWKSet(doc map[string]any, clients ...*http.Client) ([]any, error) {
 	rawURI, hasURI := doc["jwks_uri"]
 	rawJWKS, hasJWKS := doc["jwks"]
 
@@ -249,7 +249,7 @@ func issuerMetadataJWKSet(doc map[string]any) ([]any, error) {
 		if !ok || strings.TrimSpace(uri) == "" {
 			return nil, fmt.Errorf("issuer metadata jwks_uri is not a URL string")
 		}
-		set, err := fetchIssuerMetadataDocument(strings.TrimSpace(uri))
+		set, err := fetchIssuerMetadataDocument(strings.TrimSpace(uri), clients...)
 		if err != nil {
 			return nil, fmt.Errorf("fetching jwks_uri: %w", err)
 		}
@@ -273,8 +273,8 @@ func jwkSetKeys(set map[string]any) ([]any, error) {
 	return keysRaw, nil
 }
 
-func findIssuerMetadataJWK(doc map[string]any, kid string) (map[string]any, error) {
-	keysRaw, err := issuerMetadataJWKSet(doc)
+func findIssuerMetadataJWK(doc map[string]any, kid string, clients ...*http.Client) (map[string]any, error) {
+	keysRaw, err := issuerMetadataJWKSet(doc, clients...)
 	if err != nil {
 		return nil, err
 	}

@@ -22,7 +22,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA, grouped by task.
 ## Presenting and validating
 
 - [Validate](validate.md): verify a presentation or a credential from the CLI
-- [Decode](decode.md): inspect a credential or request without validating it
+- [Decode](decode.md): inspect credentials, requests, offers and trust lists
 
 ## Deploying
 

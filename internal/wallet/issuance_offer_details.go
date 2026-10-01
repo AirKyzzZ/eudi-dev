@@ -77,7 +77,7 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *Issuanc
 		}
 	}
 
-	metadata, err := fetchIssuerMetadata(offer.CredentialIssuer)
+	metadata, err := fetchIssuerMetadata(w.HTTPClient(), offer.CredentialIssuer)
 	if err != nil {
 		details.MetadataError = err.Error()
 	} else {

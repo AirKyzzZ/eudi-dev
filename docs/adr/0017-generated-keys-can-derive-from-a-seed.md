@@ -4,7 +4,7 @@ The wallet can derive generated holder, issuer, CA and TLS keys from `--seed` or
 
 Existing keys take precedence. The seed is used only when generating a missing key.
 
-With memory storage, the wallet creates new CA and TLS certificates on each start, using random serial numbers. Go's ECDSA signing draws its nonce from the system's random source, so the certificate bytes differ between starts while their keys and subjects stay the same. A verifier matches the CA by subject and key, so the chain still verifies. The credential-signing leaf keeps one serial per trust-list profile, derived from the profile name.
+With memory storage, the wallet creates new CA and TLS certificates on each start, using random serial numbers. Go's ECDSA signing draws its nonce from the system's random source, so the certificate bytes differ between starts while their keys and subjects stay the same. A verifier matches the CA by subject and key, so the chain still verifies. The credential-signing leaf keeps one serial per trust list profile, derived from the profile name.
 
 ## The image default
 

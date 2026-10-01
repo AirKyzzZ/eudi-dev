@@ -10,16 +10,18 @@ Related docs:
 
 ## Current State
 
-The harness targets a local OpenID Foundation conformance-suite server by default. The documented baseline is `release-v5.2.4`. When the server exposes `/api/server`, the wrapper checks that its tag matches the runner/templates tag and fails early on a mismatch.
+The harness targets a local OpenID Foundation conformance suite server by default. The documented baseline is `release-v5.2.4`. When the server exposes `/api/server`, the wrapper checks that its tag matches the runner/templates tag and fails early on a mismatch.
 
 Current local status:
 
-- VCI Final SD-JWT and mDoc wallet plans pass in strict mode. The SD-JWT plans include the batch credential issuance module (the wallet sends multiple distinct proof keys and matches the reordered credentials by binding key). The mdoc plans use the key attestation configuration with the `attestation` proof type, where the key attestation naming every batch key is the proof (Appendix F.3, HAIP §4.5.1) and the suite issues one credential per attested key.
-- VCI HAIP SD-JWT and mDoc wallet plans pass in strict mode, including plain immediate issuance, deferred issuance, encrypted credential request variants, FAPI happy-path modules, and FAPI negative authorization-response modules, plus batch issuance for both formats.
-- VP Final, VP HAIP `direct_post.jwt`, and VP HAIP `dc_api.jwt` selected modules pass in strict mode, including the unusable-encryption-key module (the wallet ignores JWKS keys it cannot use per RFC 7517 §5). Negative modules that finish as `REVIEW` count as pass-equivalent for the local harness when the runner reports zero condition failures.
-- The wrapper passes explicit VP module lists for the alpha Final plans only, so modules the suite marks not applicable appear as documented exclusions. The certifiable HAIP plans always run complete (a certification run must not filter modules).
+- The latest full wallet run has 524 `PASSED`, 178 `REVIEW` and 34 `FAILED` modules. The failures match the baseline: 32 mdoc pre-authorized issuance failures and two suite exceptions in multisigned presentations.
+- The latest demo issuer and verifier run has 61 `PASSED`, 36 `REVIEW` and four `FAILED` modules. The failures concern mdoc algorithm metadata. All 36 verifier decisions match expectations.
+- Negative modules can end in `REVIEW` after the expected refusal. The local harness accepts that result only when there are no failing conditions.
+- Alpha Final plans use explicit VP module lists. Certifiable HAIP plans run complete and unfiltered.
 
-See [Current conformance results](./conformance-results.md) for the detailed plan matrix, artifact locations, result-page screenshots, and suite-side exclusions.
+The latest changes introduced no new regression. The baseline failures remain unresolved.
+
+See [Current conformance results](./conformance-results.md) for the detailed plan matrix, artifact locations, result-page screenshots, and suite exclusions.
 
 ## Covered Plans
 
@@ -48,7 +50,7 @@ The HAIP plans expose fewer selectable variants (the module entries fix the rest
 - VP HAIP: SD-JWT and mDoc with `direct_post.jwt` and `dc_api.jwt`, the latter covering unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules (4 plans)
 - VCI HAIP: SD-JWT and mDoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
 
-The matrix skips the variants the wallet does not implement: the `pre_registered` and `decentralized_identifier` prefixes, the `wallet_initiated` and `issuer_initiated_dc_api` VCI flows, `rar` authorization requests (the wallet authorizes via scope), and mTLS or `private_key_jwt` client authentication.
+The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover issuance initiated by the wallet. The Final issuance matrix uses flows initiated by the issuer.
 
 The matrix is fixed in the wrapper. Use the official runner `--rerun` selector for targeted reruns of an already generated matrix, or `ONLY_SCENARIOS` (a comma separated list of slug substrings) to generate and run a subset.
 
@@ -58,12 +60,12 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 
 - defaults to `CONFORMANCE_MODE=local`
 - targets `https://localhost:8443/` and `https://localhost:8444/` for the local suite and mTLS endpoints
-- downloads the latest upstream conformance-suite release tarball from GitLab, unless `OIDF_SUITE_DIR` or `OIDF_SUITE_URL` is set
+- downloads the latest upstream conformance suite release tarball from GitLab, unless `OIDF_SUITE_DIR` or `OIDF_SUITE_URL` is set
 - checks the local suite `/api/server` tag when available and fails early if the running server does not match the runner/templates release
 - creates a Python virtualenv for the official runner
 - starts `eudi wallet serve` in strict mode with default PID credentials
-- configures the wallet's normal OID4VCI authorization-code client settings
-- runs the official `run-test-plan.py` against the conformance-suite server
+- configures the wallet's normal OID4VCI authorization code client settings
+- runs the official `run-test-plan.py` against the conformance suite server
 - forwards `--rerun` to the official runner for targeted plan/module reruns
 
 [`scripts/oidf_wallet_conformance.py`](../scripts/oidf_wallet_conformance.py):
@@ -82,7 +84,7 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 - monitors waiting modules and automatically submits presentation requests, Browser API requests, credential offers, verifier redirects, and negative-review screenshot placeholders
 - prints the created local `plan-detail.html?plan=...` URLs
 
-## Design Rule
+## Wallet keys
 
 The wallet runs a conformance test with its normal keys:
 

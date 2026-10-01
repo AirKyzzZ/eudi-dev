@@ -52,7 +52,9 @@ It includes:
 
 Folder: [`examples/keycloak-web-wallet`](../examples/keycloak-web-wallet/README.md)
 
-Runs issuer, verifier, and wallet in containers with plain web URLs. One Keycloak `26.7.2` instance issues and verifies (`keycloak-extension-oid4vp`), the `eudi-dev` wallet runs as a compose service, and the verifier's `walletScheme` points at the wallet's `/authorize` URL. Verification is an ordinary browser OIDC login. This setup suits hosted environments, automated tests, and non-macOS platforms.
+Runs a Keycloak `26.7.2` issuer and verifier, the `eudi-dev` wallet and a demo UI in one compose project. Wallet links use `/authorize` and `/credential-offer` web URLs. Verification starts as a browser OIDC login.
+
+Use this example for container setups, automated tests or platforms without custom URL handlers.
 
 It includes:
 
@@ -60,7 +62,7 @@ It includes:
 - a demo UI (port 9090) with clickable localhost wallet links for issuance and a normal OIDC "Login with wallet" flow for verification
 - static issuer and verifier realms reused from the two smaller examples, plus an admin-API step that points the verifier's `walletScheme` / `trustListUrl` at the wallet
 - headless demos that call `GET /credential-offer` and `GET /authorize`
-- automatic wallet-CA export into Keycloak's truststore for the status-list revocation check
+- automatic export of the wallet CA into Keycloak's truststore for the status list revocation check
 
 ### Keycloak + Public Demo Wallet
 
