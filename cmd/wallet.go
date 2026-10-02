@@ -366,9 +366,12 @@ func walletRemoveCmd() *cobra.Command {
 
 func walletRegisterCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                "register [wallet-serve-flags...]",
-		Short:              "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://)",
-		Long:               "Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.",
+		Use:   "register [wallet-serve-flags...]",
+		Short: "Register OS URL scheme handlers",
+		Long: `Registers this wallet as the OS handler for the OID4VP/OID4VCI URL schemes (macOS, a no-op elsewhere). The provided arguments are stored and replayed as 'wallet serve ...' when a clicked link needs to auto-start the wallet listener.
+
+Supported schemes: openid4vp://, eudi-openid4vp://, haip-vp://,
+openid-credential-offer://, haip-vci:// and eu-eaa-offer://.`,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
@@ -443,7 +446,7 @@ func walletTrustListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "trust-list",
 		Short: "Print the trust list JWT for this wallet (or just the URL)",
-		Long: `Generates and prints the ETSI trust list JWT containing the wallet's issuer certificate.
+		Long: `Generates and prints the ETSI trust list JWT containing service certificates and provider CAs.
 The output can be piped to a file or used directly with --trust-list in the validate command.
 
 Without selection flags, this prints the same legacy PID-first trust list as /api/trustlist.
@@ -569,8 +572,8 @@ func walletCACertCmd() *cobra.Command {
 		Use:   "ca-cert",
 		Short: "Print or export the shared wallet CA certificate",
 		Long: `Loads or creates the shared wallet CA certificate and prints it as PEM.
-All wallets under the same wallet base directory use this CA for trust lists,
-status list x5c chains, issuer-metadata x5c chains, and HTTPS wallet endpoints.
+Wallets under the same parent directory share this root for signing and HTTPS
+certificate chains. New provider chains include an intermediate CA.
 
 Use --jwks to export the certificate as a JWKS document (public key with x5c
 chain).`,

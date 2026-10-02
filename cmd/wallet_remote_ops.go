@@ -430,7 +430,8 @@ func completeSignIn(c *remote.Client, pending map[string]any) (map[string]any, e
 func isCredentialOfferURI(uri string) bool {
 	return strings.Contains(uri, "credential_offer") ||
 		strings.HasPrefix(uri, "openid-credential-offer://") ||
-		strings.HasPrefix(uri, "haip-vci://")
+		strings.HasPrefix(uri, "haip-vci://") ||
+		strings.HasPrefix(uri, "eu-eaa-offer://")
 }
 
 // A browser tab with an owner receives the sign-in URL from the wallet. Opening it

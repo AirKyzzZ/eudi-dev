@@ -170,9 +170,6 @@ func TestStore_ReadAllReturnsEveryBlobUnderPrefix(t *testing.T) {
 // backend takes no lock and is left out.
 func TestStore_WriteIfRefusesAStaleVersion(t *testing.T) {
 	for kind, store := range backends(t) {
-		if kind == KindFile {
-			continue
-		}
 		t.Run(kind, func(t *testing.T) {
 			key := scope(t) + "/counter"
 			defer store.Delete(key)
@@ -199,13 +196,9 @@ func TestStore_WriteIfRefusesAStaleVersion(t *testing.T) {
 	}
 }
 
-// Concurrent counter allocation must return each value once. The file backend has no
-// locking and is excluded.
+// Concurrent counter allocation must return each value once.
 func TestStore_WriteIfSerialisesConcurrentIncrements(t *testing.T) {
 	for kind, store := range backends(t) {
-		if kind == KindFile {
-			continue
-		}
 		t.Run(kind, func(t *testing.T) {
 			key := scope(t) + "/counter"
 			defer store.Delete(key)

@@ -8,6 +8,7 @@ This wallet implements OS registration for custom URL schemes only on macOS. Con
 |---------------|------------|
 | `openid4vp://?<params>` or `openid4vp://authorize?<params>` | `http://localhost:9085/authorize?<params>` |
 | `openid-credential-offer://?<params>` | `http://localhost:9085/credential-offer?<params>` |
+| `haip-vci://?<params>` or `eu-eaa-offer://?<params>` | `http://localhost:9085/credential-offer?<params>` |
 
 When a browser navigates to those URLs, the wallet behaves like a same-device wallet app: it presents (or imports) and then redirects the browser onward, either to the verifier's `redirect_uri` or into the wallet UI. See [Invoking the wallet by URL](../../docs/wallet/presenting.md#invoking-the-wallet-by-url).
 

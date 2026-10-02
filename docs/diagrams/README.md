@@ -20,7 +20,7 @@ sequenceDiagram
     participant RP as RP page / verifier
 
     Issuer-->>Browser: credential_offer or credential_offer_uri
-    Browser->>Wallet: openid-credential-offer:// or haip-vci://
+    Browser->>Wallet: eu-eaa-offer://, openid-credential-offer:// or haip-vci://
     Wallet->>AS: token request
     Wallet->>Issuer: credential request
     Issuer-->>Wallet: credential

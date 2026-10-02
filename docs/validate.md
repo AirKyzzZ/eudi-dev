@@ -51,7 +51,7 @@ When a trust list is given and the credential contains an x5c (SD-JWT/JWT) or x5
 3. The leaf certificate is verified to chain up to a trust list CA via any intermediates
 4. The leaf certificate's public key is used to verify the credential signature
 
-Wallet-issued SD-JWT credentials follow the same model. The header carries a deterministic `kid` and the leaf certificate in `x5c`, and the wallet trust list carries the CA. The wallet also publishes JWT VC issuer metadata at `/.well-known/jwt-vc-issuer`.
+Wallet-issued SD-JWT credentials follow the same model. The header carries a deterministic `kid`, the leaf and any intermediate certificates in `x5c`, with the root omitted. The wallet trust list publishes signing certificates and their provider CAs. The wallet also publishes JWT VC issuer metadata at `/.well-known/jwt-vc-issuer`.
 
 The web decoder (`eudi serve` and the wallet's embedded decoder) also uses the local wallet's CA as an implicit trust anchor when no key or trust list is given. Credentials issued by the local wallet then show a verified chain.
 

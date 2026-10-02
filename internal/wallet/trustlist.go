@@ -26,13 +26,17 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/jws"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
 type trustListOptions struct {
-	OperatorName  string
-	Issuer        string
-	TrustListPath string
-	Profile       trustListProfile
+	OperatorName           string
+	Issuer                 string
+	TrustListPath          string
+	Profile                trustListProfile
+	Sequence               int
+	IssuanceCertificates   []string
+	RevocationCertificates []string
 }
 
 type TrustListGroup struct {
@@ -89,11 +93,51 @@ func GenerateTrustListJWTForWalletGroup(w *Wallet, issuer string, group TrustLis
 	if path == "" {
 		path = "/api/trustlist"
 	}
-	return generateTrustListJWTWithOptions(w.CAKey, w.CertChain[len(w.CertChain)-1], trustListOptions{
-		OperatorName:  "EUDI Dev Wallet",
-		Issuer:        strings.TrimRight(strings.TrimSpace(issuer), "/"),
-		TrustListPath: path,
-		Profile:       group.Profile,
+	var issuanceCertificates []string
+	countries := []string{""}
+	if group.Profile.LoTEType == pidTrustListType {
+		countries = []string{"NL", "DE"}
+	}
+	for _, country := range countries {
+		_, chain, err := w.signingMaterialForProfile(group.Profile, country)
+		if err != nil {
+			return "", err
+		}
+		issuanceCertificates = append(issuanceCertificates, base64.StdEncoding.EncodeToString(chain[0].Raw))
+	}
+	_, profileChain, err := w.signingMaterialForProfile(group.Profile, "")
+	if err != nil {
+		return "", err
+	}
+	certificates, err := w.signingStore().profileCertificates(profileChain[0], w.TrustAnchorCertificate())
+	if err != nil {
+		return "", err
+	}
+	seen := make(map[string]bool)
+	for _, certificate := range issuanceCertificates {
+		seen[certificate] = true
+	}
+	for _, certificate := range certificates {
+		if !seen[certificate] {
+			issuanceCertificates = append(issuanceCertificates, certificate)
+			seen[certificate] = true
+		}
+	}
+	_, statusChain, err := w.StatusListSigningMaterial()
+	if err != nil {
+		return "", err
+	}
+	listKey, listChain, err := w.TrustListSigningMaterial("EUDI Dev Wallet", mock.DefaultCertificateCountry)
+	if err != nil {
+		return "", err
+	}
+	return w.signingStore().trustList(listKey, listChain[0], trustListOptions{
+		OperatorName:           "EUDI Dev Wallet",
+		Issuer:                 strings.TrimRight(strings.TrimSpace(issuer), "/"),
+		TrustListPath:          path,
+		Profile:                group.Profile,
+		IssuanceCertificates:   issuanceCertificates,
+		RevocationCertificates: []string{base64.StdEncoding.EncodeToString(statusChain[0].Raw)},
 	})
 }
 
@@ -324,7 +368,17 @@ func trustListGroupSortKey(group TrustListGroup) string {
 
 func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.Certificate, opts trustListOptions) (string, error) {
 	certB64 := base64.StdEncoding.EncodeToString(caCert.Raw)
-	now := time.Now().UTC().Truncate(time.Millisecond)
+	certDigest := sha256.Sum256(caCert.Raw)
+	if len(opts.IssuanceCertificates) == 0 {
+		opts.IssuanceCertificates = []string{certB64}
+	}
+	if len(opts.RevocationCertificates) == 0 {
+		opts.RevocationCertificates = []string{certB64}
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if opts.Sequence == 0 {
+		opts.Sequence = 1
+	}
 	if strings.TrimSpace(opts.OperatorName) == "" {
 		opts.OperatorName = "EUDI Dev Wallet"
 	}
@@ -339,22 +393,30 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 		}
 	}
 
+	if opts.Profile.SchemeTerritory == "" {
+		opts.Profile.SchemeTerritory = "NL"
+	}
 	issueTime := now.Format(time.RFC3339Nano)
 	nextUpdate := now.Add(24 * time.Hour).Format(time.RFC3339Nano)
 
 	schemeInfo := map[string]any{
 		"LoTEVersionIdentifier": 1,
-		"LoTESequenceNumber":    1,
+		"LoTESequenceNumber":    opts.Sequence,
 		"LoTEType":              opts.Profile.LoTEType,
-		"SchemeOperatorName":    []map[string]string{{"lang": "en-US", "value": opts.OperatorName}},
+		"SchemeOperatorName":    []map[string]string{{"lang": "en", "value": opts.OperatorName}},
 		"ListIssueDateTime":     issueTime,
 		"NextUpdate":            nextUpdate,
+	}
+	schemeInfo["SchemeName"] = []map[string]string{{"lang": "en", "value": opts.Profile.SchemeTerritory + ": EUDI Dev Test Providers"}}
+	schemeInfo["SchemeOperatorAddress"] = map[string]any{
+		"SchemeOperatorPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Country": "NL"}},
+		"SchemeOperatorElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev"}},
 	}
 	if opts.Profile.StatusDeterminationApproach != "" {
 		schemeInfo["StatusDeterminationApproach"] = opts.Profile.StatusDeterminationApproach
 	}
 	if opts.Profile.SchemeTypeCommunityRules != "" {
-		schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en-US", "uriValue": opts.Profile.SchemeTypeCommunityRules}}
+		schemeInfo["SchemeTypeCommunityRules"] = []map[string]string{{"lang": "en", "uriValue": opts.Profile.SchemeTypeCommunityRules}}
 	}
 	if opts.Profile.SchemeTerritory != "" {
 		schemeInfo["SchemeTerritory"] = opts.Profile.SchemeTerritory
@@ -364,17 +426,29 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 		if path == "" {
 			path = "/api/trustlist"
 		}
-		schemeInfo["SchemeInformationURI"] = []map[string]string{{"lang": "en-US", "uriValue": opts.Issuer + path}}
+		schemeInfo["SchemeInformationURI"] = []map[string]string{
+			{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md"},
+			{"lang": "en", "uriValue": opts.Issuer + path + "/history"},
+		}
+		schemeInfo["DistributionPoints"] = []string{opts.Issuer + path}
+		schemeInfo["PointersToOtherLoTE"] = []map[string]any{{
+			"LoTELocation":             opts.Issuer + path,
+			"ServiceDigitalIdentities": []map[string]any{{"X509Certificates": []map[string]string{{"val": certB64}}}},
+			"LoTEQualifiers":           []map[string]any{{"LoTEType": opts.Profile.LoTEType, "SchemeOperatorName": schemeInfo["SchemeOperatorName"], "MimeType": "application/jwt"}},
+		}}
 	}
 
 	entityInfo := map[string]any{
-		"TEName": []map[string]string{{"lang": "en-US", "value": opts.Profile.EntityName}},
+		"TEName":      []map[string]string{{"lang": "en", "value": "EUDI Dev Test Provider"}},
+		"TETradeName": []map[string]string{{"lang": "en", "value": opts.Profile.EntityName}},
+		"TEAddress": map[string]any{
+			"TEPostalAddress":     []map[string]string{{"lang": "en", "StreetAddress": "Test address", "Locality": "Test city", "PostalCode": "0000", "Country": "NL"}},
+			"TEElectronicAddress": []map[string]string{{"lang": "en", "uriValue": "https://github.com/dominikschlosser/eudi-dev"}},
+		},
 	}
 	if opts.Issuer != "" {
-		entityInfo["TEInformationURI"] = []map[string]string{{"lang": "en-US", "uriValue": opts.Issuer}}
-		entityInfo["TEAddress"] = map[string]any{
-			"TEElectronicAddress": []map[string]string{{"lang": "en-US", "uriValue": opts.Issuer}},
-		}
+		entityInfo["TEInformationURI"] = []map[string]string{{"lang": "en", "uriValue": opts.Issuer}}
+		entityInfo["TEAddress"].(map[string]any)["TEElectronicAddress"] = []map[string]string{{"lang": "en", "uriValue": opts.Issuer}}
 	}
 
 	// ETSI trust lists use a JSON wrapper object.
@@ -388,18 +462,18 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 						{
 							"ServiceInformation": map[string]any{
 								"ServiceTypeIdentifier": opts.Profile.IssuanceServiceType,
-								"ServiceName":           []map[string]string{{"lang": "en-US", "value": opts.Profile.IssuanceServiceName}},
+								"ServiceName":           []map[string]string{{"lang": "en", "value": opts.Profile.IssuanceServiceName}},
 								"ServiceDigitalIdentity": map[string]any{
-									"X509Certificates": []map[string]string{{"val": certB64}},
+									"X509Certificates": trustListCertificates(opts.IssuanceCertificates),
 								},
 							},
 						},
 						{
 							"ServiceInformation": map[string]any{
 								"ServiceTypeIdentifier": opts.Profile.RevocationServiceType,
-								"ServiceName":           []map[string]string{{"lang": "en-US", "value": opts.Profile.RevocationServiceName}},
+								"ServiceName":           []map[string]string{{"lang": "en", "value": opts.Profile.RevocationServiceName}},
 								"ServiceDigitalIdentity": map[string]any{
-									"X509Certificates": []map[string]string{{"val": certB64}},
+									"X509Certificates": trustListCertificates(opts.RevocationCertificates),
 								},
 							},
 						},
@@ -410,9 +484,20 @@ func generateTrustListJWTWithOptions(signingKey *ecdsa.PrivateKey, caCert *x509.
 	}
 
 	header := map[string]any{
-		"alg": "ES256",
-		"typ": "JWT",
+		"alg":      "ES256",
+		"typ":      "JWT",
+		"x5c":      []string{certB64},
+		"iat":      now.Unix(),
+		"x5t#S256": base64.RawURLEncoding.EncodeToString(certDigest[:]),
 	}
 
 	return jws.Sign(header, payload, signingKey)
+}
+
+func trustListCertificates(certificates []string) []map[string]string {
+	values := make([]map[string]string, len(certificates))
+	for i, cert := range certificates {
+		values[i] = map[string]string{"val": cert}
+	}
+	return values
 }

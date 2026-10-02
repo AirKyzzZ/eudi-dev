@@ -336,6 +336,16 @@ func (s *Server) handleCACertificate(w http.ResponseWriter, r *http.Request) {
 	writeCertificateExport(w, r, certPEM)
 }
 
+func (s *Server) handleCACertificateDER(w http.ResponseWriter, r *http.Request) {
+	cert := s.wallet.TrustAnchorCertificate()
+	if cert == nil {
+		http.Error(w, "wallet has no CA certificate", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pkix-cert")
+	w.Write(cert.Raw)
+}
+
 func (s *Server) handleTLSCertificate(w http.ResponseWriter, r *http.Request) {
 	store := s.currentStore()
 	if store == nil {

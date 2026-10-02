@@ -89,7 +89,7 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 The wallet runs a conformance test with its normal keys:
 
 - its holder key for DPoP and proof binding
-- its issuer signing key and certificate chain for client attestation and key attestation
+- its wallet provider signing key and certificate chain for client attestation and key attestation
 - its shared wallet CA as the trust anchor
 
 ## What the Suite Does Not Cover

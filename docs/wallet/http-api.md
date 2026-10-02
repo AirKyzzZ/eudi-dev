@@ -131,7 +131,7 @@ curl -X POST http://localhost:8085/api/issue \
 
 ### Certificate export
 
-The certificate endpoints mirror `wallet ca-cert` and `wallet tls-cert` (e.g. for provisioning verifier trust stores in automated tests). Both return PEM by default. With `?format=jwks` they return a JWKS document (public key with `x5c` chain) instead.
+The CA and TLS endpoints mirror `wallet ca-cert` and `wallet tls-cert`. Both return PEM by default. `?format=jwks` returns the public key and `x5c` chain as JWKS.
 
 | Method | Path                            | Description                                              | CLI equivalent   |
 |--------|---------------------------------|----------------------------------------------------------|------------------|
@@ -139,6 +139,10 @@ The certificate endpoints mirror `wallet ca-cert` and `wallet tls-cert` (e.g. fo
 | `GET`  | `/api/certificates/ca?format=jwks`  | Shared wallet CA certificate as JWKS                 | `wallet ca-cert --jwks` |
 | `GET`  | `/api/certificates/tls`         | HTTPS leaf certificate for the wallet's issuer URL (PEM) | `wallet tls-cert` |
 | `GET`  | `/api/certificates/tls?format=jwks` | HTTPS leaf certificate as JWKS                       | `wallet tls-cert --jwks` |
+| `GET` | `/api/certificates/ca.der` | Root CA certificate as DER | |
+| `GET` | `/api/certificates/providers/{role}/{country}.der` | Provider CA certificate as DER | |
+| `GET` | `/api/certificates/signers/{sha256}.pem` | Archived signing certificate as PEM | |
+| `GET` | `/api/certificates/signers/{sha256}.der` | Archived signing certificate as DER | |
 
 ```bash
 curl http://localhost:8085/api/certificates/ca > wallet-ca-cert.pem
@@ -146,6 +150,31 @@ curl 'http://localhost:8085/api/certificates/tls?format=jwks'
 ```
 
 The TLS certificate matches the HTTPS wallet host of the running server (its effective issuer URL).
+
+Provider roles are `pid`, `wallet` and `local`. The country is two uppercase letters such as `NL`. Only existing providers can be retrieved. Signing certificate URLs use the SHA-256 fingerprint of the DER certificate and remain available after renewal. JOSE `x5u` uses PEM and COSE `x5u` uses DER. See [test certificates](../test-certificates.md) for the certificate profiles.
+
+### Issuer metadata and trust lists
+
+These endpoints are available on both wallet ports.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/.well-known/jwt-vc-issuer` | Public credential signing keys |
+| `GET` | `/.well-known/openid-credential-issuer` | Wallet issuer metadata |
+| `GET` | `/.well-known/openid-credential-issuer/issuer` | Demo issuer metadata, when the demo is enabled |
+| `GET` | `/api/registrar/wrp` | Provider registrations |
+| `GET` | `/api/registrar/wrp/{identifier}` | One provider registration |
+| `GET` | `/api/trustlist` | Default signed trust list |
+| `GET` | `/api/trustlists` | Available trust lists and their URLs |
+| `GET` | `/api/trustlists/{id}` | Signed trust list for a profile |
+| `GET` | `/api/trustlist/history` | Sequence numbers and URLs of saved default trust lists |
+| `GET` | `/api/trustlist/history/{sequence}` | One saved default trust list |
+| `GET` | `/api/trustlists/{id}/history` | Sequence numbers and URLs of saved profile trust lists |
+| `GET` | `/api/trustlists/{id}/history/{sequence}` | One saved profile trust list |
+
+Issuer metadata is JSON by default. `Accept: application/jwt` selects metadata signed with the Access Certificate key. Its `issuer_info` includes a Registrar signed registration certificate and the existing registrar dataset. Provider registration status and revocation are not implemented.
+
+Trust lists contain service certificates and provider CAs. A separate list operator key signs them. History preserves each published JWT. Changed content or an expired instance advances the sequence number. See [wallet server](serve.md) for discovery and filtering.
 
 ### One-shot error override
 
@@ -295,7 +324,7 @@ curl -H 'Accept: application/statuslist+cwt' http://localhost:8085/api/statuslis
 
 The wallet and `eudi validate` read both forms. When they resolve a credential's status reference, they ask for both media types and parse whichever comes back.
 
-`GET /api/crl` serves the certificate revocation list of the wallet CA as a DER CRL (`application/pkix-crl`). The CRL distribution points of generated document signer certificates point to this URL (ISO/IEC 18013-5 Table B.3). The list is empty (credential revocation runs over the status list) and is freshly signed with a week of validity.
+`GET /api/crl` serves the root CA's DER certificate revocation list (`application/pkix-crl`). `GET /api/crl/providers/{role}/{country}` serves a provider CA's CRL. Generated signing certificates point to their provider's CRL. Existing certificates signed directly by the root use `/api/crl`. These lists are empty and freshly signed with a week of validity. Credential revocation uses the status list.
 
 ### Deferred issuance
 
@@ -450,7 +479,7 @@ Discovery includes local instances and the active remote target. A responding re
 
 `GET /api/config` reports the instance version, build, serving URLs, wallet settings and credential count. It identifies the [storage backend](../wallet.md#storage-backends) and whether generated keys use a [seed](../wallet.md#seeded-keys).
 
-The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_encrypted_request`, `force_client_attestation`, `tls_listener`, `imprint` and `credential_count`.
+The response includes `port`, `build_id`, `version`, `storage`, `seeded_keys`, `base_url`, `issuer_url`, `status_list_url`, `preferred_format`, `key_attestation_level`, `tls_verify`, `tls_verify_override`, `validation_mode`, `vci_version`, `auto_accept`, `session_transcript`, `require_haip`, `require_haip_issuance`, `require_encrypted_request`, `force_client_attestation`, `adhoc_display_images`, `tls_listener`, `imprint` and `credential_count`.
 
 Local instances also report `pid`, `wallet_dir` and `templates_dir`. Demo mode hides those fields and adds a `demo` object. `POST /api/shutdown` sends its response before stopping the instance.
 

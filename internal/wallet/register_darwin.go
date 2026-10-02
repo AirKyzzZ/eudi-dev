@@ -139,6 +139,7 @@ end open location
 		{"-c", "Add :CFBundleURLTypes:1:CFBundleURLSchemes array", plistPath},
 		{"-c", "Add :CFBundleURLTypes:1:CFBundleURLSchemes:0 string openid-credential-offer", plistPath},
 		{"-c", "Add :CFBundleURLTypes:1:CFBundleURLSchemes:1 string haip-vci", plistPath},
+		{"-c", "Add :CFBundleURLTypes:1:CFBundleURLSchemes:2 string eu-eaa-offer", plistPath},
 	}
 
 	for _, args := range plistCmds {
@@ -173,7 +174,7 @@ end open location
 	if len(opts.ServeArgs) > 0 {
 		fmt.Printf("  Serve args: %s\n", strings.Join(slices.Clone(opts.ServeArgs), " "))
 	}
-	fmt.Printf("  Schemes:    openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://\n")
+	fmt.Printf("  Schemes:    openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://\n")
 	return nil
 }
 

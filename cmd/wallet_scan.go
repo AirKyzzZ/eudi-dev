@@ -139,7 +139,7 @@ func walletAcceptCmd() *cobra.Command {
 		Long: `Auto-detects the URI type and dispatches to the appropriate flow:
 
   - openid4vp://, haip-vp://, eudi-openid4vp://     →  OID4VP presentation
-  - openid-credential-offer://, haip-vci://         →  OID4VCI credential issuance
+  - openid-credential-offer://, haip-vci://, eu-eaa-offer:// → OID4VCI credential issuance
 
 For OID4VP requests, the wallet evaluates the DCQL query, shows a consent UI
 (unless --auto-accept), and submits a VP token to the verifier.

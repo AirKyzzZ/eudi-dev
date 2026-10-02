@@ -48,7 +48,7 @@ from iss+kid. Use 'validate' for explicit keys, trust lists, and revocation chec
 
 Accepts:
   - Credential strings: SD-JWT, JWT, mDOC (hex or base64url)
-  - URI schemes: openid-credential-offer://, haip-vci://, openid4vp://, haip-vp://, eudi-openid4vp://
+  - URI schemes: openid-credential-offer://, haip-vci://, eu-eaa-offer://, openid4vp://, haip-vp://, eudi-openid4vp://
   - HTTPS URLs with OID4 query parameters
   - JWT request objects (OID4VP, trust lists)
   - Raw JSON

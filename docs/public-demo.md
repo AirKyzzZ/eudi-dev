@@ -61,7 +61,7 @@ Every response includes these headers:
 
 Every wallet server includes an issuer at `/issuer` and a verifier at `/verifier`. The issuer offers a Demo Event Ticket through pre-authorized and authorization code flows. The verifier requests the ticket or a PID through OpenID4VP.
 
-The verifier signs requests delivered from `/verifier/request/{id}`, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. Each request has its own encryption key and accepts one response. Offers and requests expire after ten minutes and are kept only in memory.
+The verifier signs requests delivered from `/verifier/request/{id}` with its access certificate, identifies itself with `x509_hash:` and receives encrypted `direct_post.jwt` responses. A registrar-signed registration certificate identifies the same provider. Each request has its own encryption key and accepts one response. Offers and requests expire after ten minutes and are kept only in memory.
 
 The verifier page has a PID format toggle. By default, a PID request accepts either an SD-JWT VC or an mdoc, and the wallet presents one it holds. Select a format to test whether the wallet can present it. The ticket is always an SD-JWT VC.
 
@@ -159,22 +159,25 @@ To test a wallet without attestation, use `--demo-issuer-client-auth optional`. 
 
 The wallet authenticates PAR and token requests with a wallet attestation. With a separate possession proof, it sends both headers below. When the server advertises combined DPoP proof, the DPoP header replaces the separate attestation PoP header.
 
-- `OAuth-Client-Attestation`, signed by the wallet's issuer key (`sub` is the client id, `cnf.jwk` is the wallet's holder key, and `iss` is the wallet origin, which draft 10 permits). Its `x5c` header carries only the leaf certificate (the self-signed root is stripped).
+- `OAuth-Client-Attestation`, signed by the wallet provider key (`sub` is the client id, `cnf.jwk` is the wallet's holder key, and `iss` is the wallet origin, which draft 10 permits). Its `x5c` header carries the wallet provider leaf and any intermediate certificates, with the self-signed root omitted.
 - `OAuth-Client-Attestation-PoP`, signed by that holder key. If the authorization server metadata advertises a `challenge_endpoint`, the wallet fetches a challenge first and includes it.
 
 When the configuration requires key attestations, the credential proof includes `key-attestation+jwt`. It appears in the JWT proof header or as an attestation proof, depending on the offered format. The reported storage and user authentication levels are test claims. The wallet stores keys unencrypted ([SECURITY.md](../SECURITY.md)).
 
-The leaf certificate is included in the attestation. The trust anchor is fetched once:
+The certificate chain is included in the attestation. These endpoints publish the corresponding trust material:
 
 | Source | URL |
 | --- | --- |
 | CA certificate (the anchor to pin) | `/api/certificates/ca`, JWKS form with `?format=jwks` |
-| Signing key by `kid` | `/.well-known/jwt-vc-issuer` |
-| ETSI trust list with the same CA | `/api/trustlists` for the index, `/api/trustlists/{id}` for a list |
+| Wallet provider certificates | `/api/trustlists/wallet-provider` |
+| Credential signing key by `kid` | `/.well-known/jwt-vc-issuer` |
+| Trust list index | `/api/trustlists` |
 
 Pin the CA through an out-of-band exchange. It is self-signed and persists across restarts and resets. Signing certificates can be renewed without changing that anchor.
 
-Trust lists are grouped by profile (`pid`, `local`). Each contains the same CA and can supply the attestation trust anchor.
+Trust lists are grouped by role. The `pid` and `local` lists publish credential signing certificates and their provider CAs. The `wallet-provider` list publishes wallet provider certificates. A separate list operator signs the lists. Their sequence numbers and retained history let clients test trust updates.
+
+The issuer metadata endpoints return JSON by default and an access-certificate-signed JWT when the request accepts only `application/jwt`. They include a registrar-signed registration certificate whose identifier, legal name and country match the access certificate. Registration status and revocation remain unimplemented. See [test certificates](test-certificates.md) for the exact profiles and versions.
 
 ## Imprint
 

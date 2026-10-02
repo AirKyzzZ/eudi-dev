@@ -31,9 +31,10 @@ import (
 )
 
 type SDJWTConfig struct {
-	Issuer    string
-	VCT       string
-	ExpiresIn time.Duration
+	CertificateIssuer string
+	Issuer            string
+	VCT               string
+	ExpiresIn         time.Duration
 	// IssuedAt overrides the issuance instant iat carries and exp counts
 	// from. An issuer that hands out several copies of one credential rounds
 	// it, so the copies do not share the precise issuance second (RFC 9901
@@ -160,6 +161,14 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 		}
 		if len(x5c) > 0 {
 			header["x5c"] = x5c
+			if strings.HasPrefix(cfg.VCT, "urn:eudi:pid:") && !cfg.KeepTrustAnchor {
+				if reference := SigningCertificateURL(cfg.CertificateIssuer, chain[0], "pem"); reference != "" {
+					digest := sha256.Sum256(chain[0].Raw)
+					header["x5u"] = reference
+					header["x5t#S256"] = base64.RawURLEncoding.EncodeToString(digest[:])
+					header["iat"] = time.Now().Unix()
+				}
+			}
 		}
 	}
 

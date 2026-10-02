@@ -167,6 +167,10 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("DELETE /api/templates/{name}", s.handleDeleteTemplate)
 
 	s.mux.HandleFunc("GET /api/certificates/ca", s.handleCACertificate)
+	s.mux.HandleFunc("GET /api/certificates/ca.der", s.handleCACertificateDER)
+	s.mux.HandleFunc("GET /api/certificates/providers/{role}/{country}", s.handleProviderCertificateDER)
+	s.mux.HandleFunc("GET /api/certificates/signers/{certificate}", s.handleSigningCertificate)
+	s.mux.HandleFunc("GET /api/crl/providers/{role}/{country}", s.handleProviderCRL)
 	s.mux.HandleFunc("GET /api/certificates/tls", s.handleTLSCertificate)
 
 	s.mux.HandleFunc("GET /api/requests", s.withFreshStore(s.handleListRequests))
@@ -177,6 +181,10 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("GET /api/trustlist", s.withFreshStore(s.handleTrustList))
 	s.mux.HandleFunc("GET /api/trustlists", s.withFreshStore(s.handleTrustListIndex))
 	s.mux.HandleFunc("GET /api/trustlists/{id}", s.withFreshStore(s.handleTrustListByID))
+	s.mux.HandleFunc("GET /api/trustlist/history", s.withFreshStore(s.handleTrustListHistory))
+	s.mux.HandleFunc("GET /api/trustlist/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
+	s.mux.HandleFunc("GET /api/trustlists/{id}/history", s.withFreshStore(s.handleTrustListHistory))
+	s.mux.HandleFunc("GET /api/trustlists/{id}/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
 	s.mux.HandleFunc("GET /api/registrar/wrp", s.withFreshStore(s.handleRegistrarWRPList))
 	s.mux.HandleFunc("GET /api/registrar/wrp/{identifier}", s.withFreshStore(s.handleRegistrarWRPByIdentifier))
 
@@ -384,6 +392,7 @@ func (s *Server) applyPersistedWalletState(reloaded *Wallet) {
 	s.wallet.HolderKey = reloaded.HolderKey
 	s.wallet.IssuerKey = reloaded.IssuerKey
 	s.wallet.CAKey = reloaded.CAKey
+	s.wallet.signers = reloaded.signers
 	s.wallet.CertChain = append([]*x509.Certificate(nil), reloaded.CertChain...)
 	s.wallet.IssuedAttestations = append([]IssuedAttestationSpec(nil), reloaded.IssuedAttestations...)
 	s.wallet.Credentials = append([]StoredCredential(nil), reloaded.Credentials...)

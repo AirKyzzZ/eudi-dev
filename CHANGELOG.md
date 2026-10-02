@@ -5,7 +5,7 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.5.0] - 2026-10-01
+## [2.5.0] - 2026-10-02
 
 ### Added
 
@@ -13,14 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **EUDI signing roles.** Use separate keys and certificates for PID credentials, wallet attestations, access signatures, registrar responses, credential status and trust lists. Provider certificates include the relevant identity, purpose and policy identifiers. PID certificate countries follow the credential's `issuing_country`.
+- **Signing certificate storage.** Keep certificates stable across requests and retain them across restarts with file or PostgreSQL storage. Memory storage retains them for the lifetime of the store. Changed certificate details and renewal receive unique serial numbers.
+- **PID certificate references.** Include protected certificate URLs and SHA-256 fingerprints in issued PID signatures. SD-JWT certificate URLs return PEM, and mdoc URLs return DER. Published URLs contain the certificate fingerprint and remain available after renewal. The protected SD-JWT `iat` records actual signing time independently of a rounded credential issuance time.
+- **Issuer discovery.** Wallet and demo issuer metadata use an access certificate for signing. Discovery returns JSON by default and signed metadata when the request accepts only `application/jwt`. Mdoc metadata advertises the COSE algorithm `-7`.
+- **Registration certificates.** Include registrar-signed registration certificates in issuer metadata and demo presentation requests. The registered identifier, legal name and country match the access certificate. Registrar links point to the actual API endpoint. The existing registrar dataset remains available for compatibility.
+- **Trust lists.** Publish credential signing certificates, provider CAs and status signing certificates, with a separate list operator signer. Include required addresses, English text, certificate fingerprints and signing timestamps. An unchanged list keeps the same signed instance until it expires. Changed content or expiry advances the sequence number, and previous instances remain available through `/history`.
+- **Credential descriptions.** Keep an open description visible when the credential list refreshes.
+- **Mdoc date encoding.** Encode recognized date attributes according to their namespace and name, including nested driving privilege dates. Preserve text claims such as German `raw_eid_birth_date`, even when their values resemble dates.
+- **Credential offer links.** Support the EUDI `eu-eaa-offer://` scheme in the parser, CLI, web UI and macOS URL handler, and use it for demo offers. Help and documentation list all supported offer schemes. Existing offer schemes remain accepted.
+- **Concurrent file writes.** Coordinate conditional writes across processes so servers retain the same generated keys and certificates.
 - **Wallet HTTPS requests.** Strict mode verifies certificates for local endpoints and redirect destinations. Fixes [#21](https://github.com/dominikschlosser/eudi-dev/issues/21).
 - **Wallet activity logs.** Show actual requests and responses. Encrypted exchanges are marked and also show plaintext. Useful summaries are expandable, and duplicate fields are removed from the web view. CLI output is unchanged.
-- **JWT decoding.** Fix a decoder error when detecting arbitrary JWTs.
 
 ### Changed
 
+- **Generated certificate chains.** New wallets use a root CA, provider intermediate CA and credential signing certificate. Certificates advertise CA and CRL retrieval URLs. Existing stored direct CA chains remain supported. The intermediate hierarchy exercises the EUDI certificate profile and produces an advisory ISO IACA path length warning. See [test certificates](docs/test-certificates.md) for the applicable specification versions and test limits.
 - **Documentation.** Simplified public demo hosting, wallet guides and integration examples. Corrected stale reset and conformance descriptions.
 - **UI text.** Shortened descriptive text in wallet and decoder popups.
+
+## [2.4.4] - 2026-09-28
+
+### Fixed
+
+- **Decoding of arbitrary JWTs** Fixed a bug that caused the decoder to sometimes not detect arbitrary JWTs correctly and instead showed an error.
 
 ## [2.4.3] - 2026-09-23
 

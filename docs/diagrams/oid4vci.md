@@ -121,8 +121,8 @@ sequenceDiagram
 
 | Field / setting | Used how |
 |-----------------|----------|
-| `eudi wallet serve --vci-client-id ...` | Required for the authorization code flow. |
-| `eudi wallet serve --vci-redirect-uri ...` | Required for the redirect flow. Interactive authorization (below) runs without one. |
+| `eudi wallet serve --vci-client-id ...` | Overrides the client ID, which defaults to the wallet origin. |
+| `eudi wallet serve --vci-redirect-uri ...` | Overrides the callback URL, which defaults to the wallet origin plus `/callback`. Interactive authorization (below) can run without a redirect. |
 | OAuth metadata `pushed_authorization_request_endpoint` | Used when published (RFC 9126 makes publishing it a SHOULD). Otherwise the request goes straight to the authorization endpoint. `--haip` requires PAR unless the server publishes an `authorization_challenge_endpoint`. |
 | OAuth metadata `authorization_endpoint` | Required for the browser redirect. |
 | OAuth metadata DPoP support | Optional. The wallet binds its tokens with DPoP when the metadata advertises it and uses bearer tokens otherwise. Under `--haip`, advertising DPoP without `ES256` is a violation. |

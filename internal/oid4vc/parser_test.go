@@ -55,6 +55,22 @@ func TestParseVCIInlineOffer(t *testing.T) {
 	}
 }
 
+// TS 119 472-3 V1.1.1 GEN-REQ-4.1-06 defines the EUDI credential offer scheme.
+func TestParseEUDICredentialOffer(t *testing.T) {
+	offer := `{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid+sdjwt"]}`
+	for _, scheme := range []string{"eu-eaa-offer", "openid-credential-offer", "haip-vci"} {
+		t.Run(scheme, func(t *testing.T) {
+			kind, parsed, err := Parse(scheme + "://?credential_offer=" + url.QueryEscape(offer))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind != TypeVCI || parsed.(*CredentialOffer).CredentialConfigurationIDs[0] != "pid+sdjwt" {
+				t.Fatalf("credential offer was not preserved: %v", parsed)
+			}
+		})
+	}
+}
+
 func TestParseVCIRawJSON(t *testing.T) {
 	raw := `{"credential_issuer":"https://issuer.example","credential_configuration_ids":["pid"],"grants":{}}`
 	reqType, result, err := Parse(raw)

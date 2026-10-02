@@ -2,6 +2,48 @@
 
 Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
 
+## Check of 2026-10-02 (offer links and documentation)
+
+The EUDI offer scheme now routes to issuance in the web UI, including when offer parameters are missing. All 141 browser tests and the full Go race suite passed on file, memory and Postgres storage. The offer parser, format detection and CLI dispatch checks passed. All 30 Python tests, vet, lint and the Docker build passed.
+
+Documentation checks covered 58 Markdown files, 270 local links, 53 heading links and 145 CLI flags. The full OIDF and load test results below cover the certificate and protocol changes. Those runs were not repeated for this UI, help and documentation follow-up.
+
+Local evidence is in `/tmp/eudi-offer-docs-2026-10-02`.
+
+## Run of 2026-10-01 (2.5.0 EUDI certificate profiles)
+
+The certificate and metadata changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering both credential formats, encrypted exchanges and all HAIP happy flows. The demo issuer and verifier ran all nine plans.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
+|---|---:|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 736 | 498 | 178 | 26 | 34 |
+| Wallet, memory, selected modules | 16 | 16 | 14 | 0 | 2 | 0 |
+| Wallet, Postgres, selected modules | 16 | 16 | 14 | 0 | 2 | 0 |
+| Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 | 0 |
+
+Every wallet module has an export. Individual failing conditions were compared with the TLS baseline below. All 34 existing wallet failures match that baseline. The suite still has its 32 mdoc pre-authorized issuance failures and two multisigned presentation construction failures. No new protocol failure was found. Focused reruns completed modules that had stalled or hit local suite timeouts. All 36 final demo verifier outcomes matched expectations.
+
+The wallet warnings come from `ValidateMdocTrustAnchorIacaCertificateProfile`. ISO/IEC 18013-5:2021 Annex B requires an IACA root with a path length of zero. New EUDI wallets use the provider intermediate required by ETSI TS 119 412-6 V1.1.1 clause 4.4.3, so their root permits one intermediate. The suite reports that difference as an advisory warning. The [certificate guide](test-certificates.md) explains the applicable versions and retained support for existing direct CA chains.
+
+The four demo metadata modules now finish with `WARNING`, replacing the four previous failures caused by string mdoc algorithm identifiers. The warnings identify `issuer_info` and `client_attestation_pop_methods_supported`, which the suite's metadata schemas do not recognize. The first is EUDI registration metadata. The second is defined by the client attestation draft. Neither warning was suppressed.
+
+The full Go race suite and all 140 browser tests passed on each of file, memory and Postgres storage. Build, installation, vet, lint, all 30 Python tests and the benchmark smoke check also passed. Independent checks validated the generated lists against ETSI's pinned JSON binding and verified their signatures, certificate retrieval, metadata, registration identities and PID certificate references.
+
+Two load tests ran against the final Docker image, with two wallet servers sharing Postgres:
+
+| Run | Issuances | Presentations and callbacks | Duration | Issuance p95 | Presentation p95 |
+|---|---:|---:|---:|---:|---:|
+| Default | 160 | 240 | 8.658 s | 517 ms | 457 ms |
+| Stress | 640 | 960 | 117.132 s | 4.687 s | 3.801 s |
+
+Both runs passed every correctness check. Each credential appeared once, status indices were unique, every presentation callback arrived and both servers reported the same count. These runs shared the machine with the conformance suite, so the timings are diagnostic rather than a capacity estimate.
+
+Local evidence is in `/tmp/eudi-eudi-profile-fixes-2026-10-01`. `final-verification.json` records the completed checks and `regression-verification.json` records the module comparison. Run directories contain `runner.log` and exported ZIP archives in `results/`:
+
+- Full wallet matrix: `wallet-final-presentations`, `wallet-final-vci-sdjwt` and `wallet-final-vci-mdoc`, with the last five HAIP plans in `wallet-final-haip-74` through `wallet-final-haip-78` and focused reruns in `wallet-final-rerun*` directories.
+- Selected backends: `wallet-memory-final` and `wallet-postgres-final`.
+- Demo: `demo-final-profile` and `demo-verifier-verified`, with an earlier focused rerun in `demo-final-nonce-rerun`.
+
 ## Run of 2026-10-01 (2.5.0 outbound TLS)
 
 The TLS changes were checked against suite `release-v5.2.4` (revision `ab35a8d`). The full wallet matrix ran with file storage. Memory and Postgres each ran 16 selected modules covering plain and encrypted presentations, SD-JWT and mdoc issuance, and every HAIP happy flow. The demo issuer and verifier ran their full matrix of nine plans.

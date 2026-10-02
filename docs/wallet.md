@@ -92,7 +92,7 @@ eudi wallet import credential.txt
 eudi wallet register
 ```
 
-On Linux and Windows, `wallet register` and `wallet unregister` are no-ops, so shared scripts stay portable. Open copied `openid4vp://` or `openid-credential-offer://` links with `eudi wallet accept '<uri>'`.
+On Linux and Windows, `wallet register` and `wallet unregister` are no-ops, so shared scripts stay portable. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
 
 The macOS URL handler sends links to the active remote wallet. While a remote target is set with `wallet use <url>`, clicked links go to that instance (useful when the wallet runs in a Docker container), and the handler then opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
 
@@ -130,6 +130,10 @@ All wallet state is stored in `~/.eudi-dev/wallet/` by default:
     ├── wallet-log-cleaned-at # Timestamp marker written by wallet logs clean
     ├── wallet-tls-cert.pem # HTTPS certificate for wallet endpoints on port+1
     ├── wallet-tls-key.pem  # HTTPS private key for wallet endpoints on port+1
+    ├── signing-keys/       # Keys for provider, access, registrar, status and list signatures
+    ├── certificates/       # Current signing certificates and provider CAs
+    ├── certificate-der/    # Published certificates retained by fingerprint
+    ├── trustlists/         # Current signed trust lists and their history
     ├── assets/             # Display images (card art) referenced from wallet.json
     └── templates/          # User credential templates (see templates.md)
 ```
@@ -138,14 +142,11 @@ Display images are stored once under content-based names in `assets/`. Credentia
 
 On the file backend the activity log is the top-level `log` field of `wallet.json`. The other backends keep one entry per row (see [Storage backends](#storage-backends)). `wallet logs clean` clears those entries and writes `wallet-log-cleaned-at`. A running wallet server drops in-memory entries older than that marker when it saves. With `--wallet-dir`, both are in that directory.
 
-Keys are P-256 EC keys, auto-generated on first use and reused across invocations. Wallets under the same wallet base directory share a persisted **CA key** and build certificate chains from it:
+Keys are P-256 EC keys, generated on first use and reused across invocations. Wallets under the same parent directory share a persisted root CA. New wallets use provider intermediate CAs for credential and wallet provider certificates. Existing stored CAs with a path length of zero continue to sign leaves directly.
 
-1. **CA certificate**: self-signed, used as trust anchor in the trust list (`/api/trustlist`)
-2. **Leaf certificate**: signed by the CA, wraps the issuer key's public key
+Generated credentials use the wallet's issuer key. SD-JWT credentials carry a deterministic `kid` and a certificate chain in `x5c`, with the self-signed root omitted. The wallet's trust lists publish the corresponding signing certificates and provider CAs. JWT VC issuer metadata also exposes the credential signing key.
 
-Generated credentials are signed with the **issuer key**. SD-JWT credentials include a deterministic `kid` header, expose the signing key through JWT VC issuer metadata, and include the leaf signing certificate in `x5c`. The shared CA is the anchor in the wallet trust list, so verifiers validate the signing key through that chain.
-
-Each wallet keeps its own issuer key. Its credential-signing leaf certificate and HTTPS wallet certificate are generated from the shared CA.
+Wallet attestations, access signatures, registrar responses, status lists and trust lists use separate keys and certificates. File and Postgres storage retain signing certificates across restarts. Published certificate URLs remain available after renewal. See [test certificates](test-certificates.md) for the signing roles, EUDI specification versions and ISO certificate profile difference.
 
 Generated credentials expire in **30 days** by default. Use `--exp` to override (e.g. `--exp 720h` for 30 days, `--exp 24h` for 1 day). Use `--nbf` to set a not-before time (RFC3339 or duration, e.g. `--nbf 2025-01-15T00:00:00Z` or `--nbf -1h`).
 
@@ -265,6 +266,6 @@ The flag and environment variable also apply to `issue --wallet` and `templates`
 
 ## Seeded keys
 
-`--seed <string>` or `EUDI_DEV_SEED` derives holder, issuer, CA and TLS keys from a string. With memory storage, this keeps the keys stable across restarts. Existing stored keys take precedence.
+`--seed <string>` or `EUDI_DEV_SEED` derives holder, issuer, CA, TLS and role-specific signing keys from a string. With memory storage, this keeps the keys stable across restarts. Existing stored keys take precedence. A fresh memory store creates new certificates with unique serial numbers.
 
 The [Docker image](docker.md#stateless-container) uses the public seed `eudi-dev`. The value `auto` uses that seed for memory storage and random keys for other backends. An empty value generates random keys. `GET /api/config` reports `seeded_keys`.

@@ -469,8 +469,8 @@ func TestParseIssuerMetadataResponse_SignedJWT(t *testing.T) {
 	}
 
 	issuerInfo, ok := metadata["issuer_info"].([]any)
-	if !ok || len(issuerInfo) != 1 {
-		t.Fatalf("expected single issuer_info entry, got %v", metadata["issuer_info"])
+	if !ok || len(issuerInfo) != 2 {
+		t.Fatalf("expected two issuer_info entries, got %v", metadata["issuer_info"])
 	}
 	entry, ok := issuerInfo[0].(map[string]any)
 	if !ok {

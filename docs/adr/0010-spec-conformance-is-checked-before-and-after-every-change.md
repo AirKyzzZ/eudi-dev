@@ -30,9 +30,9 @@ EUDI stays the primary target, and [ADR-0013](0013-only-the-eudi-stack-is-suppor
 
 ## Watched sources
 
-No other executable conformance suite exists for EUDI or the ARF as of 2026-08. Re-check these before extending conformance coverage, in rough order of expected relevance:
+The repository uses the OIDF suite for executable conformance tests. Check these sources before extending EUDI coverage:
 
-- The [Functional Conformance Assessment Framework](https://conformance.eudi.dev) (FCAF), the official EUDI conformance framework aimed at certification. Textual test books per system under test (relying party, attestation provider, PID provider), still skeletal at v0.0.10. When the attestation provider and relying party test books land, map the demo issuer and verifier onto them.
+- The [Functional Conformance Assessment Framework](https://conformance.eudi.dev/latest/) (FCAF) publishes test books for the Wallet Solution, including relying party and attestation provider interactions. Content is under active development and has maturity stages. Check each test's version and maturity before using it as a conformance requirement.
 - [ISO/IEC TS 18013-6:2025](https://www.iso.org/standard/91153.html), mDL test methods against ISO/IEC 18013-5. The source for closing the mdoc certificate profile findings the OIDF suite reports as warnings.
 - The EC Interoperability Test Bed with the EWC conformance testbed ([RFC100](https://github.com/EWC-consortium/eudi-wallet-rfcs/blob/main/ewc-rfc100-interoperability-profile-towards-itb.md), [backend](https://github.com/EWC-consortium/ewc-wallet-conformance-backend)). Its executable tests certify conformance to the EWC RFC profiles of the Large Scale Pilots. ARF and HAIP conformance need separate checks.
 - [eudi-doc-testing-application](https://github.com/eu-digital-identity-wallet/eudi-doc-testing-application), the QA suite for the EC reference wallet apps. Its Gherkin scenarios catalogue EUDI behaviours worth mirroring in tests here.

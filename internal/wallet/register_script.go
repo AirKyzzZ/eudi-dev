@@ -167,7 +167,7 @@ accept_cli() {
 }
 
 case "$URI" in
-  openid-credential-offer://*|haip-vci://*)
+  openid-credential-offer://*|haip-vci://*|eu-eaa-offer://*)
     if ensure_listener; then
       open_remote_ui
       submit_offer 2>>"$LOG_FILE" && exit 0

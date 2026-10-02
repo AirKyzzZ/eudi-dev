@@ -125,6 +125,7 @@ type Wallet struct {
 	// Forwards batch use from a clone so the original wallet advances its rotation.
 	batchPresentedSink func(id string)
 	runtime            *WalletRuntime
+	signers            *signingStore
 	// Marks batch use counts for saving so rotation survives restart.
 	batchDirty bool
 }
@@ -459,32 +460,32 @@ func New(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet {
 		return w
 	}
 
-	caCert, err := mock.GenerateCACert(caKey)
+	caCert, err := mock.GenerateRootCACert(caKey)
 	if err != nil {
 		log.Printf("[Wallet] Warning: failed to generate CA cert: %v", err)
 		return w
 	}
 
-	leafCert, err := mock.GenerateLeafCert(caKey, caCert, &issuerKey.PublicKey)
-	if err != nil {
+	if err := w.SetCertificateAuthority(caKey, caCert); err != nil {
 		log.Printf("[Wallet] Warning: failed to generate leaf cert: %v", err)
 		return w
 	}
-
-	w.CAKey = caKey
-	w.CertChain = []*x509.Certificate{leafCert, caCert}
 
 	return w
 }
 
 // SetCertificateAuthority preserves the issuer key while replacing its CA and chain.
 func (w *Wallet) SetCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.Certificate) error {
+	return w.setCertificateAuthority(caKey, caCert, false)
+}
+
+func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.Certificate, renew bool) error {
 	if w == nil || w.IssuerKey == nil || caKey == nil || caCert == nil {
 		return fmt.Errorf("wallet CA configuration requires issuer key, CA key, and CA certificate")
 	}
 	opts := mock.LeafCertOptions{}
 	opts.DNSNames, opts.IPAddresses, opts.URIs = issuerSubjectAltNames(w.IssuerURL)
-	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &w.IssuerKey.PublicKey, opts)
+	leafCert, err := w.signingStore().certificate(caKey, caCert, &w.IssuerKey.PublicKey, opts, renew)
 	if err != nil {
 		return fmt.Errorf("generating issuer leaf certificate: %w", err)
 	}
@@ -504,7 +505,7 @@ func (w *Wallet) RefreshSigningCertificate() error {
 	if w == nil || w.CAKey == nil || len(w.CertChain) < 2 {
 		return nil
 	}
-	return w.SetCertificateAuthority(w.CAKey, w.CertChain[len(w.CertChain)-1])
+	return w.setCertificateAuthority(w.CAKey, w.CertChain[len(w.CertChain)-1], true)
 }
 
 // SigningCertificateExpiry returns the zero time when no chain exists.
@@ -597,14 +598,15 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	}
 
 	sdConfig := mock.SDJWTConfig{
-		Issuer:          issuer,
-		VCT:             vct,
-		ExpiresIn:       30 * 24 * time.Hour,
-		Claims:          sdClaims,
-		Key:             issuerKey,
-		HolderKey:       holderPubKey,
-		CertChain:       pidChain,
-		AlwaysDisclosed: sdTpl.AlwaysDisclosed,
+		CertificateIssuer: w.IssuerURL,
+		Issuer:            issuer,
+		VCT:               vct,
+		ExpiresIn:         30 * 24 * time.Hour,
+		Claims:            sdClaims,
+		Key:               issuerKey,
+		HolderKey:         holderPubKey,
+		CertChain:         pidChain,
+		AlwaysDisclosed:   sdTpl.AlwaysDisclosed,
 	}
 
 	statusListURL := w.StatusListURL()
@@ -634,8 +636,9 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	}
 
 	mdocConfig := mock.MDOCConfig{
-		DocType:   mdocDocType,
-		Namespace: mdocNamespace,
+		CertificateIssuer: w.IssuerURL,
+		DocType:           mdocDocType,
+		Namespace:         mdocNamespace,
 		// German PID additions use a second namespace. Claim keys encode it as
 		// namespace:element.
 		NamespaceClaims: mdocNamespaces,

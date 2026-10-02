@@ -17,9 +17,14 @@ package wallet
 import (
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"net/http"
+	"path"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +76,62 @@ func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(jwt))
 }
 
+func (s *Server) handleTrustListHistory(w http.ResponseWriter, r *http.Request) {
+	group, ok := FindTrustListGroupForWallet(s.wallet, r.PathValue("id"), "", "")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	listPath := "/api/trustlist"
+	if r.PathValue("id") != "" {
+		listPath = "/api/trustlists/" + group.ID
+	}
+	issuer := strings.TrimRight(s.wallet.IssuerURL, "/")
+	if _, err := GenerateTrustListJWTForWalletGroup(s.wallet, issuer, group, listPath); err != nil {
+		http.Error(w, "loading trust list history: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	store := s.wallet.signingStore()
+	dir := path.Join(store.trustListDir(issuer, listPath), "history")
+	if raw := r.PathValue("sequence"); raw != "" {
+		sequence, err := strconv.Atoi(raw)
+		if err != nil || sequence < 1 {
+			http.NotFound(w, r)
+			return
+		}
+		jwt, err := store.backend.Read(path.Join(dir, strconv.Itoa(sequence)+".jwt"))
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				http.NotFound(w, r)
+			} else {
+				http.Error(w, "loading trust list history: "+err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/jwt")
+		w.Write(jwt)
+		return
+	}
+	files, err := store.backend.List(dir)
+	if err != nil {
+		http.Error(w, "loading trust list history: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type instance struct {
+		Sequence int    `json:"sequence"`
+		URL      string `json:"url"`
+	}
+	instances := make([]instance, 0, len(files))
+	for _, file := range files {
+		sequence, err := strconv.Atoi(strings.TrimSuffix(file, ".jwt"))
+		if err == nil {
+			instances = append(instances, instance{Sequence: sequence, URL: issuer + listPath + "/history/" + strconv.Itoa(sequence)})
+		}
+	}
+	sort.Slice(instances, func(i, j int) bool { return instances[i].Sequence < instances[j].Sequence })
+	writeJSON(w, http.StatusOK, map[string]any{"instances": instances})
+}
+
 func (s *Server) handleJWTVCIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	issuer := strings.TrimRight(s.wallet.IssuerURL, "/")
 	if issuer == "" {
@@ -99,8 +160,13 @@ func (s *Server) handleOpenIDCredentialIssuerMetadata(w http.ResponseWriter, r *
 		http.Error(w, "wallet issuer URL is not configured", http.StatusNotFound)
 		return
 	}
-	if !acceptsOnlySignedIssuerMetadata(r.Header.Get("Accept")) {
-		writeJSON(w, http.StatusOK, buildOpenIDCredentialIssuerMetadata(s.wallet, issuer))
+	if !AcceptsOnlySignedIssuerMetadata(r.Header.Get("Accept")) {
+		metadata, err := buildOpenIDCredentialIssuerMetadata(s.wallet, issuer)
+		if err != nil {
+			http.Error(w, "building issuer metadata: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, metadata)
 		return
 	}
 	if len(s.wallet.CertChain) == 0 {
@@ -118,9 +184,9 @@ func (s *Server) handleOpenIDCredentialIssuerMetadata(w http.ResponseWriter, r *
 	w.Write([]byte(jwt))
 }
 
-// Clients that accept JSON or any media type receive unsigned metadata, the form
-// required by OpenID4VCI 1.0 §12.2.2.
-func acceptsOnlySignedIssuerMetadata(accept string) bool {
+// AcceptsOnlySignedIssuerMetadata preserves unsigned discovery when JSON is accepted
+// as OpenID4VCI 1.0 §12.2.2 requires.
+func AcceptsOnlySignedIssuerMetadata(accept string) bool {
 	wantsJWT := false
 	for _, entry := range strings.Split(accept, ",") {
 		mediaType := strings.ToLower(strings.TrimSpace(strings.Split(entry, ";")[0]))
@@ -145,9 +211,14 @@ func (s *Server) handleRegistrarWRPList(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "wallet has no registrar signing material", http.StatusInternalServerError)
 		return
 	}
+	registrarKey, registrarChain, err := s.wallet.RegistrarSigningMaterial()
+	if err != nil {
+		http.Error(w, "loading registrar signer: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	record := buildRegistrarDataset(s.wallet, issuer)
 	if !matchesRegistrarQuery(record, r) {
-		recordJWT, err := signRegistrarResponseJWT(s.wallet.CAKey, []*x509.Certificate{s.wallet.CertChain[len(s.wallet.CertChain)-1]}, []RegistrarDataset{})
+		recordJWT, err := signRegistrarResponseJWT(registrarKey, registrarChain, []RegistrarDataset{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("signing registrar response: %v", err), http.StatusInternalServerError)
 			return
@@ -156,7 +227,7 @@ func (s *Server) handleRegistrarWRPList(w http.ResponseWriter, r *http.Request) 
 		w.Write([]byte(recordJWT))
 		return
 	}
-	recordJWT, err := signRegistrarResponseJWT(s.wallet.CAKey, []*x509.Certificate{s.wallet.CertChain[len(s.wallet.CertChain)-1]}, []RegistrarDataset{record})
+	recordJWT, err := signRegistrarResponseJWT(registrarKey, registrarChain, []RegistrarDataset{record})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("signing registrar response: %v", err), http.StatusInternalServerError)
 		return
@@ -175,13 +246,18 @@ func (s *Server) handleRegistrarWRPByIdentifier(w http.ResponseWriter, r *http.R
 		http.Error(w, "wallet has no registrar signing material", http.StatusInternalServerError)
 		return
 	}
+	registrarKey, registrarChain, err := s.wallet.RegistrarSigningMaterial()
+	if err != nil {
+		http.Error(w, "loading registrar signer: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	record := buildRegistrarDataset(s.wallet, issuer)
 	identifier := strings.TrimSpace(r.PathValue("identifier"))
 	if identifier == "" || !recordHasIdentifier(record, identifier) {
 		http.Error(w, "wallet relying party not found", http.StatusNotFound)
 		return
 	}
-	recordJWT, err := signRegistrarResponseJWT(s.wallet.CAKey, []*x509.Certificate{s.wallet.CertChain[len(s.wallet.CertChain)-1]}, record)
+	recordJWT, err := signRegistrarResponseJWT(registrarKey, registrarChain, record)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("signing registrar response: %v", err), http.StatusInternalServerError)
 		return

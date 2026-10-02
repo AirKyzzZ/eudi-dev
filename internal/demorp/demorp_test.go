@@ -2030,10 +2030,7 @@ func TestIssuerReportsASigningFailureAsAServerFault(t *testing.T) {
 	}
 }
 
-// The demo verifier presents a wallet-relying-party registration certificate in
-// verifier_info (OpenID4VP 1.0 §5.1), so the wallet's consent dialog has a
-// purpose to show. The certificate names the request's own client_id and is
-// signed under the wallet CA like everything else this demo signs.
+// OpenID4VP 1.0 §5.1 carries registered purposes in verifier_info.
 func TestVerifierRequestCarriesARegistrationCertificate(t *testing.T) {
 	d, w, _ := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -2072,7 +2069,7 @@ func TestVerifierRequestCarriesARegistrationCertificate(t *testing.T) {
 		t.Errorf("purpose = %v, want the PID request's purpose", localized)
 	}
 
-	chain, err := w.DefaultSigningCertChain()
+	_, chain, err := w.RegistrarSigningMaterial()
 	if err != nil {
 		t.Fatalf("signing chain: %v", err)
 	}
@@ -2081,7 +2078,7 @@ func TestVerifierRequestCarriesARegistrationCertificate(t *testing.T) {
 		t.Fatal("leaf certificate does not hold an EC key")
 	}
 	if !verifyES256(leafKey, cert.signingInput, cert.signature) {
-		t.Error("the registration certificate is not signed by the wallet's signing key")
+		t.Error("the registration certificate is not signed by the registrar's signing key")
 	}
 }
 

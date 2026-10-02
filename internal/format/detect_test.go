@@ -72,6 +72,7 @@ func TestDetect_OID4VCI_URIScheme(t *testing.T) {
 	}{
 		{"basic", "openid-credential-offer://?credential_offer=%7B%22credential_issuer%22%3A%22https%3A%2F%2Fissuer.example.com%22%7D"},
 		{"haip-vci", "haip-vci://?credential_offer=%7B%22credential_issuer%22%3A%22https%3A%2F%2Fissuer.example.com%22%7D"},
+		{"eudi", "eu-eaa-offer://?credential_offer=test"},
 		{"uppercase", "OpenID-Credential-Offer://?credential_offer=test"},
 	}
 	for _, tt := range tests {

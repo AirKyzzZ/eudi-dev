@@ -118,6 +118,7 @@ func (d *DemoRP) credentialConfigurations(base map[string]any) map[string]any {
 			entry["cryptographic_binding_methods_supported"] = []string{"jwk"}
 		case "mso_mdoc":
 			entry["doctype"] = cfg.docType
+			entry["credential_signing_alg_values_supported"] = []int{-7}
 			entry["cryptographic_binding_methods_supported"] = []string{"cose_key"}
 		}
 		display := map[string]any{"name": cfg.id, "locale": "en-US"}
@@ -204,17 +205,18 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	case "dc+sd-jwt":
 		issuedAt := time.Now().Truncate(time.Hour)
 		return mock.GenerateSDJWT(mock.SDJWTConfig{
-			Issuer:          d.issuerID(),
-			VCT:             cfg.vct,
-			ExpiresIn:       expiresIn,
-			IssuedAt:        &issuedAt,
-			Claims:          claims,
-			Key:             signingKey,
-			HolderKey:       holderKey,
-			CertChain:       chain,
-			AlwaysDisclosed: tpl.AlwaysDisclosed,
-			StatusListURI:   statusURI,
-			StatusListIdx:   statusIdx,
+			CertificateIssuer: d.wallet.IssuerURL,
+			Issuer:            d.issuerID(),
+			VCT:               cfg.vct,
+			ExpiresIn:         expiresIn,
+			IssuedAt:          &issuedAt,
+			Claims:            claims,
+			Key:               signingKey,
+			HolderKey:         holderKey,
+			CertChain:         chain,
+			AlwaysDisclosed:   tpl.AlwaysDisclosed,
+			StatusListURI:     statusURI,
+			StatusListIdx:     statusIdx,
 		})
 	case "mso_mdoc":
 		namespace := tpl.Namespace
@@ -222,15 +224,16 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 			namespace = cfg.docType
 		}
 		return mock.GenerateMDOC(mock.MDOCConfig{
-			DocType:       cfg.docType,
-			Namespace:     namespace,
-			Claims:        claims,
-			Key:           signingKey,
-			HolderKey:     holderKey,
-			ExpiresIn:     expiresIn,
-			CertChain:     chain,
-			StatusListURI: statusURI,
-			StatusListIdx: statusIdx,
+			CertificateIssuer: d.wallet.IssuerURL,
+			DocType:           cfg.docType,
+			Namespace:         namespace,
+			Claims:            claims,
+			Key:               signingKey,
+			HolderKey:         holderKey,
+			ExpiresIn:         expiresIn,
+			CertChain:         chain,
+			StatusListURI:     statusURI,
+			StatusListIdx:     statusIdx,
 		})
 	}
 	return "", fmt.Errorf("configuration %s has an unknown format %s", cfg.id, cfg.format)

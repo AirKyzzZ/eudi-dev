@@ -66,7 +66,7 @@ Never use real credentials (see [SECURITY.md](SECURITY.md)).
 brew install dominikschlosser/tap/eudi-dev
 ```
 
-Installs the `eudi` command with shell completion (plus `oid4vc-dev` as a legacy alias).
+Installs the `eudi` command with shell completion.
 
 ### From GitHub Releases
 
@@ -300,7 +300,7 @@ eudi dcql credential.txt
 | **SD-JWT** (`dc+sd-jwt`) | Header/payload, disclosures, `_sd` resolution, key binding JWT. Signature: ES256/384/512, RS256/384/512, PS256/384/512 |
 | **JWT VC** (`jwt_vc_json`) | Plain JWT Verifiable Credentials (W3C JWT VC format), presented without changes |
 | **mDOC** (`mso_mdoc`) | CBOR IssuerSigned & DeviceResponse (hex/base64url), COSE_Sign1 issuerAuth, MSO |
-| **OpenID4VCI / VP** | Credential offers, authorization requests, URI schemes (`openid-credential-offer://`, `haip-vci://`, `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`) |
+| **OpenID4VCI / VP** | Credential offers, authorization requests, URI schemes (`openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`, `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`) |
 | **ETSI Trust Lists** | TS 119 602 trust list JWTs with entity names, identifiers, and service types |
 
 ## Spec Compliance
@@ -334,8 +334,6 @@ The official listings link to the certification submissions and test results. Se
 ## Notices
 
 **No EU affiliation:** This is an independent open source project, not affiliated with or endorsed by the European Commission or the European Union. "EUDI" is used descriptively (a developer tool for the European Digital Identity ecosystem). For official EUDI Wallet resources see the [eu-digital-identity-wallet](https://github.com/eu-digital-identity-wallet) organization.
-
-**Renamed from oid4vc-dev:** The old name keeps working. A binary named `oid4vc-dev` behaves identically (help and completion adapt to the invoked name). The legacy `~/.oid4vc-dev` state directory and `OID4VC_DEV_HOME` variable are honored. The `ghcr.io/dominikschlosser/oid4vc-dev` image receives releases.
 
 ## License
 

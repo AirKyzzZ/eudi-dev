@@ -11,7 +11,7 @@ Four predefined templates ship with the binary:
 | `german-pid-sdjwt` | sdjwt | German PID (`urn:eudi:pid:de:1`), which extends the EUDI PID |
 | `german-pid-mdoc` | mdoc | German PID (ISO 18013-5 elements, `eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.de.1`) |
 
-The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md) (version 1.7) and carry its Jan Wijnand ('t Hart) example identity. The `german-pid-*` templates follow the claim table of the [German PID Rulebook](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) (version 1.0.0) and carry the ERIKA MUSTERMANN specimen. Each predefined PID links its rulebook in its display description.
+The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) and carry its Jan Wijnand ('t Hart) example identity. The `german-pid-*` templates follow the [German PID Rulebook 1.0.0 consultation draft](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) and carry the ERIKA MUSTERMANN specimen. Each predefined PID links its rulebook in its display description.
 
 The German rulebook adds national attributes (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, and the age thresholds in `age_equal_or_over`). The EU rulebook carries attributes the German eID lacks (`sex`, `document_number`, `personal_administrative_number`, `date_of_issuance`, `birth_family_name`). Some shared attributes differ in encoding. The birth name is `birth_name` in the German PID and `birth_family_name` in the EU PID. The German street address includes the house number where the EU PID has `address.house_number`.
 
@@ -22,7 +22,7 @@ The German mdoc PID uses two namespaces:
 - `eu.europa.ec.eudi.pid.1` for European elements
 - `eu.europa.ec.eudi.pid.de.1` for national additions: `birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date` and `age_over_*`
 
-Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Dates use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp.
+Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Recognized date attributes use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp. The namespace and attribute name determine the encoding. The German `raw_eid_birth_date` stays a text string.
 
 Regenerating a PID replaces the mdoc PID with the same namespaces. Give an overridden `german-pid-mdoc` at least one `eu.europa.ec.eudi.pid.de.1` element so it stays distinguishable from `pid-mdoc`.
 

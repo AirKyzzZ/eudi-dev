@@ -30,10 +30,20 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
+
+func SigningCertificateURL(issuer string, cert *x509.Certificate, extension string) string {
+	issuer = strings.TrimRight(issuer, "/")
+	if cert == nil || (!strings.HasPrefix(issuer, "https://") && !strings.HasPrefix(issuer, "http://")) {
+		return ""
+	}
+	digest := sha256.Sum256(cert.Raw)
+	return fmt.Sprintf("%s/api/certificates/signers/%x.%s", issuer, digest, extension)
+}
 
 // DefaultCertificateCountry is the subject countryName generated certificates
 // carry when the credential being signed does not name an issuing country. It
@@ -52,6 +62,16 @@ var (
 	oidExtensionExtendedKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
 	// mdlDS, the document signing key purpose of ISO/IEC 18013-5 Annex B.
 	oidMdlDocumentSigner = asn1.ObjectIdentifier{1, 0, 18013, 5, 1, 2}
+)
+
+type CertificateRole string
+
+const (
+	PIDProviderCertificate    CertificateRole = "pid"
+	WalletProviderCertificate CertificateRole = "wallet"
+	AccessCertificate         CertificateRole = "access"
+	RegistrarCertificate      CertificateRole = "registrar"
+	TrustListCertificate      CertificateRole = "trustlist"
 )
 
 // randomSerialNumber returns a positive certificate serial of at most 20
@@ -158,6 +178,14 @@ func PublicKeyJWK(key *ecdsa.PublicKey) string {
 // with a pathLenConstraint of 0, a SHA-1 subject key identifier, and an issuer
 // alternative name with issuer contact information.
 func GenerateCACert(caKey *ecdsa.PrivateKey) (*x509.Certificate, error) {
+	return generateCACert(caKey, 0)
+}
+
+func GenerateRootCACert(caKey *ecdsa.PrivateKey) (*x509.Certificate, error) {
+	return generateCACert(caKey, 1)
+}
+
+func generateCACert(caKey *ecdsa.PrivateKey, maxPathLen int) (*x509.Certificate, error) {
 	serial, err := randomSerialNumber()
 	if err != nil {
 		return nil, err
@@ -177,16 +205,17 @@ func GenerateCACert(caKey *ecdsa.PrivateKey) (*x509.Certificate, error) {
 		SerialNumber: serial,
 		SubjectKeyId: subjectKeyID,
 		Subject: pkix.Name{
-			CommonName: "OID4VC Dev Wallet CA",
-			Country:    []string{DefaultCertificateCountry},
+			CommonName:   "OID4VC Dev Wallet CA",
+			Country:      []string{DefaultCertificateCountry},
+			Organization: []string{"EUDI Dev Test CA"},
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		MaxPathLen:            0,
-		MaxPathLenZero:        true,
+		MaxPathLen:            maxPathLen,
+		MaxPathLenZero:        maxPathLen == 0,
 		ExtraExtensions:       []pkix.Extension{issuerAltName},
 	}
 
@@ -202,9 +231,23 @@ func GenerateLeafCert(caKey *ecdsa.PrivateKey, caCert *x509.Certificate, leafPub
 	return GenerateLeafCertWithOptions(caKey, caCert, leafPubKey, LeafCertOptions{})
 }
 
+type certificatePolicy struct {
+	ID         asn1.ObjectIdentifier
+	Qualifiers []policyQualifier
+}
+
+type policyQualifier struct {
+	ID  asn1.ObjectIdentifier
+	URI string `asn1:"ia5"`
+}
+
 type LeafCertOptions struct {
-	CommonName   string
-	SerialNumber *big.Int
+	CommonName            string
+	Organization          string
+	SerialNumber          *big.Int
+	Role                  CertificateRole
+	IssuingCertificateURL []string
+	CertificateAuthority  bool
 	// EU 2026/1731, EAA-6.2.10.1-08 permits status signing without an EKU.
 	StatusListSigner bool
 	// Country becomes the subject countryName. ISO/IEC 18013-5 Table B.3
@@ -239,6 +282,10 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 	if country == "" {
 		country = DefaultCertificateCountry
 	}
+	organization := opts.Organization
+	if organization == "" {
+		organization = "EUDI Dev Test Provider"
+	}
 	serialNumber := opts.SerialNumber
 	if serialNumber == nil || serialNumber.Sign() <= 0 {
 		var err error
@@ -258,8 +305,10 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName: commonName,
-			Country:    []string{country},
+			CommonName:   commonName,
+			Country:      []string{country},
+			Organization: []string{organization},
+			ExtraNames:   []pkix.AttributeTypeAndValue{{Type: asn1.ObjectIdentifier{2, 5, 4, 97}, Value: "NTR" + country + "-00000000"}},
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
@@ -269,11 +318,23 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 		DNSNames:              opts.DNSNames,
 		URIs:                  opts.URIs,
 		IPAddresses:           opts.IPAddresses,
+		IssuingCertificateURL: opts.IssuingCertificateURL,
 		ExtraExtensions: []pkix.Extension{
 			issuerAltName,
 		},
 	}
-	if !opts.StatusListSigner {
+	if opts.CertificateAuthority {
+		template.IsCA = true
+		template.BasicConstraintsValid = true
+		template.MaxPathLen = 0
+		template.MaxPathLenZero = true
+		template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+		template.NotAfter = time.Now().Add(5 * 365 * 24 * time.Hour)
+	}
+	if template.NotAfter.After(caCert.NotAfter) {
+		template.NotAfter = caCert.NotAfter
+	}
+	if !opts.CertificateAuthority && !opts.StatusListSigner && (opts.Role == "" || opts.Role == PIDProviderCertificate) {
 		extendedKeyUsage, err := asn1.Marshal([]asn1.ObjectIdentifier{oidMdlDocumentSigner})
 		if err != nil {
 			return nil, fmt.Errorf("encoding extended key usage: %w", err)
@@ -281,6 +342,35 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{
 			Id: oidExtensionExtendedKeyUsage, Critical: true, Value: extendedKeyUsage,
 		})
+	}
+	if opts.Role == PIDProviderCertificate || opts.Role == WalletProviderCertificate {
+		role := asn1.ObjectIdentifier{0, 4, 0, 194126, 1, 1}
+		if opts.Role == WalletProviderCertificate {
+			role[len(role)-1] = 2
+		}
+		// EN 319 412-5 V2.5.1 §4.2.3 encodes QcType as a sequence of purpose OIDs.
+		statements, err := asn1.Marshal([]struct {
+			ID    asn1.ObjectIdentifier
+			Types []asn1.ObjectIdentifier
+		}{{asn1.ObjectIdentifier{0, 4, 0, 1862, 1, 6}, []asn1.ObjectIdentifier{role}}})
+		if err != nil {
+			return nil, fmt.Errorf("encoding QCStatements: %w", err)
+		}
+		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}, Value: statements})
+	}
+	if opts.Role == AccessCertificate {
+		// TS 119 411-8 V1.1.1 §5.3 defines the legal person access policy.
+		policies, err := asn1.Marshal([]certificatePolicy{{
+			ID: asn1.ObjectIdentifier{0, 4, 0, 194118, 1, 2},
+			Qualifiers: []policyQualifier{{
+				ID:  asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 1},
+				URI: "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md",
+			}},
+		}})
+		if err != nil {
+			return nil, fmt.Errorf("encoding access certificate policy: %w", err)
+		}
+		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 32}, Value: policies})
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, template, caCert, leafPubKey, caKey)

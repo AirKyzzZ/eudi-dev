@@ -42,7 +42,7 @@ func Detect(input string) CredentialFormat {
 	}
 
 	lower := strings.ToLower(input)
-	if strings.HasPrefix(lower, "openid-credential-offer://") || strings.HasPrefix(lower, "haip-vci://") {
+	if strings.HasPrefix(lower, "openid-credential-offer://") || strings.HasPrefix(lower, "haip-vci://") || strings.HasPrefix(lower, "eu-eaa-offer://") {
 		return FormatOID4VCI
 	}
 	if strings.HasPrefix(lower, "openid4vp://") || strings.HasPrefix(lower, "haip-vp://") || strings.HasPrefix(lower, "eudi-openid4vp://") {

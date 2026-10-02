@@ -11,6 +11,7 @@ eudi decode -v credential.txt
 cat credential.txt | eudi decode
 
 # OpenID4VCI credential offers
+eudi decode 'eu-eaa-offer://?credential_offer_uri=...'
 eudi decode 'openid-credential-offer://?credential_offer_uri=...'
 eudi decode 'https://issuer.example/offer?credential_offer=...'
 
@@ -28,7 +29,7 @@ eudi decode -f trustlist https://example.com/trust-list.jwt
 
 ## Auto-detection order
 
-1. **OpenID URI schemes**: `openid-credential-offer://` / `haip-vci://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` (VP)
+1. **URI schemes**: `openid-credential-offer://` / `haip-vci://` / `eu-eaa-offer://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` (VP)
 2. **HTTP(S) URL with OID4 query params**: `credential_offer` / `credential_offer_uri` (VCI), `client_id` / `response_type` / `request_uri` (VP)
 3. **SD-JWT**: contains `~` separator
 4. **mDOC**: hex or base64url encoded CBOR

@@ -470,17 +470,19 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 	key, _ := GenerateKey()
 
 	result, err := GenerateMDOC(MDOCConfig{
-		DocType:   "com.test",
-		Namespace: "com.test",
+		DocType:   PIDNamespace,
+		Namespace: PIDNamespace,
 		Claims: map[string]any{
-			"birth_date":    "1964-08-12",
-			"expiry_date":   "2031-08-04T00:00:00Z",
-			"family_name":   "MUSTERMANN",
-			"document_ref":  "2024-INVOICE",
-			"nested":        map[string]any{"issued": "2026-07-23"},
-			"age_over_18":   true,
-			"nationality":   []any{"DE"},
-			"not_a_date_at": "12-31-2026",
+			"birth_date":         "1964-08-12",
+			"expiry_date":        "2031-08-04T00:00:00Z",
+			"family_name":        "MUSTERMANN",
+			"document_ref":       "2024-INVOICE",
+			"raw_eid_birth_date": "1964-08-12",
+			"date_as_text":       "2026-07-23",
+			"nested":             map[string]any{"issued": "2026-07-23"},
+			"age_over_18":        true,
+			"nationality":        []any{"DE"},
+			"not_a_date_at":      "12-31-2026",
 		},
 		Key: key,
 	})
@@ -501,7 +503,7 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 
 	tags := make(map[string]uint64)
 	values := make(map[string]any)
-	for _, raw := range issuerSigned.NameSpaces["com.test"] {
+	for _, raw := range issuerSigned.NameSpaces[PIDNamespace] {
 		var item struct {
 			ElementIdentifier string          `cbor:"elementIdentifier"`
 			ElementValue      cbor.RawMessage `cbor:"elementValue"`
@@ -530,10 +532,14 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 	if got := tags["expiry_date"]; got != 0 {
 		t.Errorf("expiry_date should be tagged tdate (0), got tag %d", got)
 	}
-	for _, name := range []string{"family_name", "document_ref", "not_a_date_at", "age_over_18", "nationality"} {
+	for _, name := range []string{"family_name", "document_ref", "not_a_date_at", "age_over_18", "nationality", "raw_eid_birth_date", "date_as_text"} {
 		if tag, ok := tags[name]; ok {
 			t.Errorf("%s must not be tagged as a date, got tag %d", name, tag)
 		}
+	}
+
+	if nested, ok := values["nested"].(map[any]any); !ok || nested["issued"] != "2026-07-23" {
+		t.Errorf("nested text was converted to a CBOR date: %v", values["nested"])
 	}
 
 	// Parsing unwraps the tags again, so the rest of the wallet keeps seeing
@@ -543,7 +549,7 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 		t.Fatalf("mdoc.Parse: %v", err)
 	}
 	parsed := make(map[string]any)
-	for _, item := range doc.NameSpaces["com.test"] {
+	for _, item := range doc.NameSpaces[PIDNamespace] {
 		parsed[item.ElementIdentifier] = item.ElementValue
 	}
 	if parsed["birth_date"] != "1964-08-12" {
@@ -605,5 +611,48 @@ func TestGenerateMDOC_X5ChainOmitsTheRoot(t *testing.T) {
 		if c.Equal(caCert) {
 			t.Error("x5chain carries the self-signed root")
 		}
+	}
+}
+
+func TestGenerateMDOC_DrivingPrivilegeDates(t *testing.T) {
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := GenerateMDOC(MDOCConfig{
+		DocType: "org.iso.18013.5.1.mDL", Namespace: "org.iso.18013.5.1", Key: key,
+		Claims: map[string]any{"driving_privileges": []any{map[string]any{
+			"vehicle_category_code": "B", "issue_date": "2026-01-01", "expiry_date": "2031-01-01", "restriction_text": "2026-01-01",
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := base64.RawURLEncoding.DecodeString(credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var signed struct {
+		NameSpaces map[string][]cbor.RawTag `cbor:"nameSpaces"`
+	}
+	if err := cbor.Unmarshal(data, &signed); err != nil {
+		t.Fatal(err)
+	}
+	var embedded []byte
+	if err := cbor.Unmarshal(signed.NameSpaces["org.iso.18013.5.1"][0].Content, &embedded); err != nil {
+		t.Fatal(err)
+	}
+	var item struct {
+		Value []struct {
+			Issued      cbor.RawTag `cbor:"issue_date"`
+			Expiry      cbor.RawTag `cbor:"expiry_date"`
+			Restriction string      `cbor:"restriction_text"`
+		} `cbor:"elementValue"`
+	}
+	if err := cbor.Unmarshal(embedded, &item); err != nil {
+		t.Fatal(err)
+	}
+	if len(item.Value) != 1 || item.Value[0].Issued.Number != 1004 || item.Value[0].Expiry.Number != 1004 || item.Value[0].Restriction != "2026-01-01" {
+		t.Errorf("driving privilege types = %+v", item.Value)
 	}
 }

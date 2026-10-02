@@ -70,6 +70,7 @@
   })();
 
   let credentials = [];
+  const openDescriptions = new Set();
   let pendingRequests = [];
   // Paginate on the server because shared wallets can hold many credentials.
   const CREDENTIALS_PER_PAGE = 10;
@@ -480,6 +481,7 @@
     credentials.forEach(cred => {
       const card = document.createElement('div');
       card.className = 'credential-card';
+      if (openDescriptions.has(cred.id)) card.classList.add('desc-open');
       if (cred.batch) card.classList.add('batch');
 
       const isProtected = cred.protected === true;
@@ -549,9 +551,12 @@
 
       const about = card.querySelector('[data-about]');
       if (about) {
+        about.setAttribute('aria-expanded', String(openDescriptions.has(cred.id)));
         about.addEventListener('click', (e) => {
           e.stopPropagation();
           const open = card.classList.toggle('desc-open');
+          if (open) openDescriptions.add(cred.id);
+          else openDescriptions.delete(cred.id);
           about.setAttribute('aria-expanded', String(open));
         });
         const back = card.querySelector('[data-desc-close]');
@@ -559,6 +564,7 @@
           back.addEventListener('click', (e) => {
             e.stopPropagation();
             card.classList.remove('desc-open');
+            openDescriptions.delete(cred.id);
             about.setAttribute('aria-expanded', 'false');
           });
         }
@@ -652,6 +658,7 @@
   async function deleteCredential(id) {
     try {
       await fetch('/api/credentials/' + id, { method: 'DELETE' });
+      openDescriptions.delete(id);
       await loadCredentials();
       await loadLog();
     } catch (e) {
@@ -669,7 +676,8 @@
     try {
       const isVCI = uri.includes('credential_offer') ||
         uri.startsWith('openid-credential-offer://') ||
-        uri.startsWith('haip-vci://');
+        uri.startsWith('haip-vci://') ||
+        uri.startsWith('eu-eaa-offer://');
       const endpoint = isVCI ? '/api/offers' : '/api/presentations';
       expectError();
 

@@ -328,7 +328,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 
 	// HAIP requires x509_hash for signed requests. The certificate hash binds the
 	// client ID to the signing certificate.
-	signingKey, chain, err := d.wallet.DefaultSigningMaterial()
+	signingKey, chain, err := d.wallet.AccessSigningMaterial()
 	if err != nil || signingKey == nil || len(chain) == 0 {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no signing certificate available"})
 		return
@@ -427,9 +427,14 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, dcql map[string]any, credentials []map[string]any, responseURI, base, purpose string, signingKey *ecdsa.PrivateKey, chain []*x509.Certificate, verifierInfo []any) {
 	now := time.Now()
 	if len(verifierInfo) == 0 {
+		registrarKey, registrarChain, err := d.wallet.RegistrarSigningMaterial()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "loading registrar signer: " + err.Error()})
+			return
+		}
 		registration, err := wallet.SignRegistrationCertificateJWT(
-			d.registrationCertificateClaims("EUDI-DEV-DEMO-VERIFIER", "Demo Verifier", purpose, credentials),
-			signingKey, chain)
+			d.registrationCertificateClaims(chain[0], "Demo Verifier", purpose, credentials),
+			registrarKey, registrarChain)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "signing registration certificate: " + err.Error()})
 			return
@@ -663,7 +668,7 @@ func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState
 
 func (d *DemoRP) customSigningMaterial(pemBundle string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if strings.TrimSpace(pemBundle) == "" {
-		return d.wallet.DefaultSigningMaterial()
+		return d.wallet.AccessSigningMaterial()
 	}
 	var key *ecdsa.PrivateKey
 	var chain []*x509.Certificate
@@ -720,7 +725,7 @@ func lastStringComponent(path []any) string {
 
 // Register the same DCQL claims the request asks for so ARF RPRC_21 over-asking checks
 // pass. The payload follows ETSI TS 119 475 §5.2.4.
-func (d *DemoRP) registrationCertificateClaims(sub, name, purpose string, dcqlCredentials []map[string]any) map[string]any {
+func (d *DemoRP) registrationCertificateClaims(accessCertificate *x509.Certificate, name, purpose string, dcqlCredentials []map[string]any) map[string]any {
 	registered := make([]map[string]any, 0, len(dcqlCredentials))
 	for _, c := range dcqlCredentials {
 		registered = append(registered, map[string]any{
@@ -729,13 +734,30 @@ func (d *DemoRP) registrationCertificateClaims(sub, name, purpose string, dcqlCr
 			"claim":  c["claims"],
 		})
 	}
+	// TS 119 475 V1.2.1 §5.1.1 links registration and access certificates by their identifier.
+	identifier := accessCertificate.Subject.CommonName
+	for _, attribute := range accessCertificate.Subject.Names {
+		if attribute.Type.String() == "2.5.4.97" {
+			identifier, _ = attribute.Value.(string)
+			break
+		}
+	}
+	country := "EU"
+	if len(accessCertificate.Subject.Country) > 0 {
+		country = accessCertificate.Subject.Country[0]
+	}
+	legalName := name
+	if len(accessCertificate.Subject.Organization) > 0 {
+		legalName = accessCertificate.Subject.Organization[0]
+	}
 	now := time.Now()
 	base := d.baseURL()
 	return map[string]any{
-		"sub":                   sub,
+		"sub":                   identifier,
+		"sub_ln":                legalName,
 		"name":                  name,
-		"country":               "EU",
-		"registry_uri":          base + "/registrar",
+		"country":               country,
+		"registry_uri":          base + "/api/registrar/wrp",
 		"srv_description":       []map[string]any{{"lang": "en", "value": name}},
 		"entitlements":          []string{"https://uri.etsi.org/19475/Entitlement/Service_Provider"},
 		"privacy_policy":        base + "/privacy-policy",

@@ -797,14 +797,19 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, chall
 		return nil, fmt.Errorf("wallet issuer signing material is not configured")
 	}
 
-	x5c := buildJWSX5C(w.CertChain)
+	signingKey, chain, err := w.WalletProviderSigningMaterial()
+	if err != nil {
+		return nil, err
+	}
+
+	x5c := buildJWSX5C(chain)
 	holderJWK := mock.SigningJWKMap(&w.HolderKey.PublicKey)
 	clientAttestationHeader := map[string]any{
 		"alg": "ES256",
 		"typ": "oauth-client-attestation+jwt",
 		"x5c": x5c,
 	}
-	if kid := mock.KeyIDForPublicKey(&w.IssuerKey.PublicKey); kid != "" {
+	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
 		clientAttestationHeader["kid"] = kid
 	}
 	clientAttestationPayload := map[string]any{
@@ -817,7 +822,7 @@ func createClientAttestationHeaders(w *Wallet, auth *ClientAuthentication, chall
 		"iss": w.IssuerURL,
 		"nbf": time.Now().Unix(),
 	}
-	clientAttestationJWT, err := signJWT(clientAttestationHeader, clientAttestationPayload, w.IssuerKey)
+	clientAttestationJWT, err := signJWT(clientAttestationHeader, clientAttestationPayload, signingKey)
 	if err != nil {
 		return nil, err
 	}
@@ -893,6 +898,11 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	if w == nil || w.IssuerKey == nil || len(w.CertChain) == 0 {
 		return "", fmt.Errorf("wallet issuer signing material is not configured")
 	}
+	signingKey, chain, err := w.WalletProviderSigningMaterial()
+	if err != nil {
+		return "", err
+	}
+
 	if len(proofKeys) == 0 {
 		proofKeys = []*ecdsa.PrivateKey{w.HolderKey}
 	}
@@ -903,9 +913,9 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	header := map[string]any{
 		"alg": "ES256",
 		"typ": "key-attestation+jwt",
-		"x5c": buildJWSX5C(w.CertChain),
+		"x5c": buildJWSX5C(chain),
 	}
-	if kid := mock.KeyIDForPublicKey(&w.IssuerKey.PublicKey); kid != "" {
+	if kid := mock.KeyIDForPublicKey(&signingKey.PublicKey); kid != "" {
 		header["kid"] = kid
 	}
 	payload := map[string]any{
@@ -922,7 +932,7 @@ func createKeyAttestation(w *Wallet, metadata map[string]any, configID, cNonce s
 	if cNonce != "" {
 		payload["nonce"] = cNonce
 	}
-	keyAttestationJWT, err := signJWT(header, payload, w.IssuerKey)
+	keyAttestationJWT, err := signJWT(header, payload, signingKey)
 	if err != nil {
 		return "", fmt.Errorf("creating key attestation JWT: %w", err)
 	}

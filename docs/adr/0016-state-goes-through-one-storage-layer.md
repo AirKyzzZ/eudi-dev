@@ -34,6 +34,8 @@ Postgres writes are atomic per row. A wallet save spans several statements and i
 
 Use the file or memory backend for one wallet server. A server using file storage checks the wallet file's modification time and size, with a reload at least every two seconds while handling requests. Use Postgres to share persisted state across servers. Pending browser flows and demo issuer/verifier requests remain in memory, so requests in one flow must reach the same server.
 
+File compare-and-swap operations use a lock shared by processes for signing keys, certificates and counters. A wallet save still writes one `wallet.json`, so this does not make file storage suitable for multiple wallet servers.
+
 The keys, the CA and every credential are stored in the clear on every backend (ADR-0003). Anyone with access to the stored CA key can sign certificates trusted by verifiers that use this CA.
 
 Postgres is the only external backend. Another engine is another `Store` implementation behind the same keys.

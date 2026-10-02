@@ -445,7 +445,7 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 		},
 	}
 
-	signingKey, chain, err := d.wallet.DefaultSigningMaterial()
+	signingKey, chain, err := d.wallet.AccessSigningMaterial()
 	if err != nil || signingKey == nil || len(chain) == 0 {
 		return claims
 	}
@@ -454,11 +454,15 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 	// (rc-wrp+jwt) in verifier_info (OpenID4VP 1.0 §5.1) like the demo
 	// verifier's requests. It registers the same credential queries the request
 	// asks for, so the wallet's over-asking check (ARF RPRC_21) passes.
+	registrarKey, registrarChain, err := d.wallet.RegistrarSigningMaterial()
+	if err != nil {
+		return claims
+	}
 	registration, rerr := wallet.SignRegistrationCertificateJWT(
-		d.registrationCertificateClaims("EUDI-DEV-DEMO-ISSUER", "Demo Issuer",
+		d.registrationCertificateClaims(chain[0], "Demo Issuer",
 			"Proving who you are before the ticket is issued",
 			[]map[string]any{sdjwtCred, mdocCred}),
-		signingKey, chain)
+		registrarKey, registrarChain)
 	if rerr == nil {
 		claims["verifier_info"] = []map[string]any{{
 			"format": "registration_cert",

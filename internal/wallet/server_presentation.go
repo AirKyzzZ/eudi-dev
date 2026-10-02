@@ -210,6 +210,7 @@ func cloneWalletForPresentation(src *Wallet, opts presentationRequestOptions) (*
 		HolderKey:               src.HolderKey,
 		IssuerKey:               src.IssuerKey,
 		CAKey:                   src.CAKey,
+		signers:                 src.signingStore(),
 		CertChain:               append([]*x509.Certificate(nil), src.CertChain...),
 		IssuedAttestations:      append([]IssuedAttestationSpec(nil), src.IssuedAttestations...),
 		AutoAccept:              src.AutoAccept,

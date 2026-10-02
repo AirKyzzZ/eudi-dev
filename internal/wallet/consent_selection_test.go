@@ -26,7 +26,16 @@ import (
 func TestApplyConsentSelection(t *testing.T) {
 	w := pidBaselineWallet(t)
 	matches, options := w.EvaluateDCQLWithOptions(setsQuery())
-	alternate := options.Queries[0].Candidates[1]
+	alternate := options.Queries[0].Candidates[0]
+	for _, candidate := range options.Queries[0].Candidates {
+		if candidate.VCT == mock.GermanPIDVCT {
+			alternate = candidate
+			break
+		}
+	}
+	if alternate.VCT != mock.GermanPIDVCT {
+		t.Fatal("German PID candidate is missing")
+	}
 
 	t.Run("no overrides keeps the auto selection", func(t *testing.T) {
 		got := ApplyConsentSelection(options, matches, ConsentResult{Approved: true})

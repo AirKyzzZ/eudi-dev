@@ -137,14 +137,14 @@
         <div class="cli-install-label">Trust list (verifiers trusting this wallet's credentials)</div>
         <pre><span class="howto-origin"></span>/api/trustlist</pre>
       </div>
-      <p class="dialog-hint">For <code>openid-credential-offer://</code> and <code>openid4vp://</code> links, replace everything before the <code>?</code> with the matching endpoint URL. Keep the query parameters.</p>
+      <p class="dialog-hint">To open a custom-scheme link in a browser, replace everything before the <code>?</code> with the matching endpoint URL. Keep the query parameters.</p>
       <div class="cli-install">
         <div class="cli-install-label">Custom-scheme links via CLI (any platform)</div>
         <pre>eudi wallet accept 'openid4vp://authorize?client_id=&hellip;'</pre>
         <div class="cli-install-label">System URL handler (macOS)</div>
         <pre>eudi wallet register</pre>
       </div>
-      <p class="dialog-hint"><code>wallet register</code> makes <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>openid-credential-offer://</code> and <code>haip-vci://</code> links open in this wallet. See the <a href="https://github.com/dominikschlosser/eudi-dev/blob/main/docs/wallet.md" target="_blank" rel="noopener">wallet documentation</a> for all endpoints.</p>
+      <p class="dialog-hint">On macOS, <code>wallet register</code> makes <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>openid-credential-offer://</code>, <code>haip-vci://</code> and <code>eu-eaa-offer://</code> links open in this wallet. See the <a href="https://github.com/dominikschlosser/eudi-dev/blob/main/docs/wallet.md" target="_blank" rel="noopener">wallet documentation</a> for all endpoints.</p>
       <p class="dialog-hint">Try the <a href="/issuer/" target="_blank">demo issuer</a> or <a href="/verifier/" target="_blank">demo verifier</a>.</p>
       <div class="consent-buttons">
         <button class="btn" id="howto-close">Close</button>

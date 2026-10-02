@@ -228,7 +228,7 @@ func TestTrustListGroupsForWallet_MixedProfiles(t *testing.T) {
 	}
 }
 
-func TestWalletProviderTrustList_AlwaysServedWithSameAnchorButNeverDefault(t *testing.T) {
+func TestWalletProviderTrustList_UsesDistinctSignerAndIsNeverDefault(t *testing.T) {
 	// Wallet attestations exist before the wallet issues credentials.
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example:8443"
@@ -252,7 +252,7 @@ func TestWalletProviderTrustList_AlwaysServedWithSameAnchorButNeverDefault(t *te
 		t.Fatal("wallet-provider list must never be the default trust list")
 	}
 
-	// The wallet provider list uses the same CA as credential lists.
+	// TS 119 412-6 V1.1.1 §5 distinguishes the wallet provider signing role.
 	walletJWT, err := GenerateTrustListJWTForWalletGroup(w, w.IssuerURL, group, "/api/trustlists/wallet-provider")
 	if err != nil {
 		t.Fatalf("GenerateTrustListJWTForWalletGroup(wallet-provider): %v", err)
@@ -261,8 +261,8 @@ func TestWalletProviderTrustList_AlwaysServedWithSameAnchorButNeverDefault(t *te
 	if err != nil {
 		t.Fatalf("GenerateTrustListJWTForWalletGroup(%s): %v", defaultGroup.ID, err)
 	}
-	if got, want := trustListAnchorCert(t, walletJWT), trustListAnchorCert(t, credentialJWT); got != want {
-		t.Fatal("expected the wallet-provider list to carry the same CA certificate as the credential list")
+	if got, want := trustListAnchorCert(t, walletJWT), trustListAnchorCert(t, credentialJWT); got == want {
+		t.Fatal("wallet and credential lists share a service signing certificate")
 	}
 }
 
@@ -359,13 +359,13 @@ func TestSigningCertChainForProfile_UsesSharedCAWithDistinctLeafs(t *testing.T) 
 	if err != nil {
 		t.Fatalf("SigningCertChainForIssuedAttestation(local): %v", err)
 	}
-	if len(pidChain) != 2 || len(localChain) != 2 {
-		t.Fatalf("expected leaf+CA chains, got pid=%d local=%d", len(pidChain), len(localChain))
+	if len(pidChain) != 3 || len(localChain) != 3 {
+		t.Fatalf("expected leaf, intermediate and root chains, got pid=%d local=%d", len(pidChain), len(localChain))
 	}
 	if bytes.Equal(pidChain[0].Raw, localChain[0].Raw) {
 		t.Fatal("expected distinct leaf certificates for pid and local profiles")
 	}
-	if !bytes.Equal(pidChain[1].Raw, localChain[1].Raw) {
+	if !bytes.Equal(pidChain[2].Raw, localChain[2].Raw) {
 		t.Fatal("expected pid and local profiles to share the same CA certificate")
 	}
 	pidPub, ok := pidChain[0].PublicKey.(*ecdsa.PublicKey)

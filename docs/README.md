@@ -37,6 +37,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA, grouped by task.
 - [Demo issuer and verifier conformance run](conformance-run-demorp.md): the harness that tests the demo issuer and verifier
 - [Conformance results](conformance-results.md): the recorded suite results
 - [Spec compliance](spec-compliance.md): the per-feature compliance matrix
+- [Test certificates](test-certificates.md): EUDI specification versions, signing roles, certificate retrieval and test limits
 
 ## Reference
 

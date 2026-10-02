@@ -11,7 +11,9 @@ Detects the URI type and dispatches to the matching flow:
 - `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`: OID4VP presentation (evaluates DCQL, shows the consent UI, submits the VP token)
   - Supports `response_type=vp_token id_token` (SIOPv2 + OID4VP combined flow). Generates a self-issued ID token alongside the VP token
   - Supports `response_type=id_token` (SIOPv2 only). Generates a self-issued ID token without VP token
-- `openid-credential-offer://`, `haip-vci://`: OID4VCI credential issuance (fetches the credential from the issuer)
+- `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: OID4VCI credential issuance (fetches the credential from the issuer)
+
+EUDI issuance uses `eu-eaa-offer://` under [ETSI TS 119 472-3 V1.1.1](https://www.etsi.org/deliver/etsi_ts/119400_119499/11947203/01.01.01_60/ts_11947203v010101p.pdf), requirement GEN-REQ-4.1-06. All three offer schemes accept `credential_offer` and `credential_offer_uri` parameters.
 
 In interactive mode (the default), OID4VP requests start a temporary consent UI server and open it in the browser. With `--auto-accept`, the wallet submits one credential per credential query (the most recently issued one that matches it).
 
@@ -21,6 +23,7 @@ When a verifier answers a presentation with a `redirect_uri`, the wallet prints 
 
 ```bash
 eudi wallet accept 'openid4vp://authorize?...' --auto-accept
+eudi wallet accept 'eu-eaa-offer://?credential_offer_uri=...'
 eudi wallet accept 'openid-credential-offer://...'
 eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 ```
@@ -52,8 +55,8 @@ When `accept` or `scan` forwards a flow to a running wallet, that wallet uses it
 
 Scans a QR code from an image file or screen capture and detects the content:
 
-- `openid4vp://`: delegates to `accept` (OID4VP presentation)
-- `openid-credential-offer://`: delegates to `accept` (OID4VCI issuance)
+- `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`: delegates to `accept` (OID4VP presentation)
+- `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: delegates to `accept` (OID4VCI issuance)
 - SD-JWT / mDoc raw credential: delegates to `import`
 
 ```bash
@@ -77,7 +80,7 @@ The URLs take exactly the same query parameters as their custom-scheme counterpa
 | Custom scheme | Wallet URL |
 |---------------|------------|
 | `openid4vp://?<params>` or `openid4vp://authorize?<params>` | `http://localhost:8085/authorize?<params>` |
-| `openid-credential-offer://?<params>` | `http://localhost:8085/credential-offer?<params>` |
+| `openid-credential-offer://?<params>`, `haip-vci://?<params>` or `eu-eaa-offer://?<params>` | `http://localhost:8085/credential-offer?<params>` |
 
 To convert a link, replace everything before the `?` with the wallet endpoint URL and keep the query string unchanged.
 

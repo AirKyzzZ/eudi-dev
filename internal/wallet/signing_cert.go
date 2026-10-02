@@ -16,10 +16,8 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"fmt"
-	"math/big"
 	"net"
 	"net/url"
 	"strings"
@@ -69,6 +67,9 @@ func (w *Wallet) signingMaterialForProfile(profile trustListProfile, country str
 	if w == nil {
 		return nil, nil, fmt.Errorf("wallet has no issuer certificate chain")
 	}
+	if country == "" {
+		country = mock.DefaultCertificateCountry
+	}
 	w.mu.RLock()
 	issuerKey, caKey := w.IssuerKey, w.CAKey
 	chain := append([]*x509.Certificate(nil), w.CertChain...)
@@ -80,16 +81,50 @@ func (w *Wallet) signingMaterialForProfile(profile trustListProfile, country str
 	caCert := chain[len(chain)-1]
 	opts := mock.LeafCertOptions{
 		CommonName:            signingLeafCommonName(profile),
-		SerialNumber:          signingLeafSerial(profile),
 		Country:               country,
 		CRLDistributionPoints: crlDistributionPoints(w.IssuerURL),
 	}
+	switch profile.LoTEType {
+	case pidTrustListType:
+		opts.Role = mock.PIDProviderCertificate
+	case walletProviderTrustListType:
+		opts.Role = mock.WalletProviderCertificate
+		var err error
+		issuerKey, err = w.signingStore().key("wallet-provider")
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	opts.IssuingCertificateURL = issuingCertificateURLs(w.IssuerURL)
+	role := string(opts.Role)
+	if role == "" {
+		role = "local"
+	}
+	parentKey, parent, err := w.signingStore().providerCA(caKey, caCert, w.IssuerURL, role, country)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generating provider CA: %w", err)
+	}
+	if !parent.Equal(caCert) {
+		certificateCountry := country
+		if certificateCountry == "" {
+			certificateCountry = mock.DefaultCertificateCountry
+		}
+		base := strings.TrimRight(w.IssuerURL, "/")
+		if base != "" {
+			opts.IssuingCertificateURL = []string{base + "/api/certificates/providers/" + role + "/" + certificateCountry + ".der"}
+			opts.CRLDistributionPoints = []string{base + "/api/crl/providers/" + role + "/" + certificateCountry}
+		}
+	}
 	opts.DNSNames, opts.IPAddresses, opts.URIs = issuerSubjectAltNames(w.IssuerURL)
-	leafCert, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, opts)
+	leafCert, err := w.signingStore().certificate(parentKey, parent, &issuerKey.PublicKey, opts, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating signing leaf certificate: %w", err)
 	}
-	return issuerKey, []*x509.Certificate{leafCert, caCert}, nil
+	certs := []*x509.Certificate{leafCert, parent}
+	if !parent.Equal(caCert) {
+		certs = append(certs, caCert)
+	}
+	return issuerKey, certs, nil
 }
 
 // ISO/IEC 18013-5 Table B.3 requires a CRL distribution point URI in document signer
@@ -100,6 +135,55 @@ func crlDistributionPoints(issuerURL string) []string {
 		return nil
 	}
 	return []string{issuer + "/api/crl"}
+}
+
+func issuingCertificateURLs(issuerURL string) []string {
+	issuer := strings.TrimRight(strings.TrimSpace(issuerURL), "/")
+	if issuer == "" {
+		return nil
+	}
+	return []string{issuer + "/api/certificates/ca.der"}
+}
+
+func (w *Wallet) WalletProviderSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+	return w.signingMaterialForProfile(walletProviderTrustListProfile(), "")
+}
+
+func (w *Wallet) AccessSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+	return w.auxiliarySigningMaterial("access", mock.LeafCertOptions{CommonName: "EUDI Dev Test Access", Role: mock.AccessCertificate})
+}
+
+func (w *Wallet) RegistrarSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+	return w.auxiliarySigningMaterial("registrar", mock.LeafCertOptions{CommonName: "EUDI Dev Test Registrar", Role: mock.RegistrarCertificate})
+}
+
+func (w *Wallet) TrustListSigningMaterial(operator, country string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+	return w.auxiliarySigningMaterial("trustlist", mock.LeafCertOptions{CommonName: "EUDI Dev Test List Operator", Role: mock.TrustListCertificate, Organization: operator, Country: country})
+}
+
+func (w *Wallet) auxiliarySigningMaterial(keyRole string, opts mock.LeafCertOptions) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
+	if w == nil {
+		return nil, nil, fmt.Errorf("wallet has no signing material")
+	}
+	w.mu.RLock()
+	caKey, chain, issuer := w.CAKey, append([]*x509.Certificate(nil), w.CertChain...), w.IssuerURL
+	w.mu.RUnlock()
+	if caKey == nil || len(chain) < 2 {
+		return nil, nil, fmt.Errorf("wallet has no access certificate authority")
+	}
+	key, err := w.signingStore().key(keyRole)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts.IssuingCertificateURL = issuingCertificateURLs(issuer)
+	opts.CRLDistributionPoints = crlDistributionPoints(issuer)
+	opts.DNSNames, opts.IPAddresses, opts.URIs = issuerSubjectAltNames(issuer)
+	ca := chain[len(chain)-1]
+	leaf, err := w.signingStore().certificate(caKey, ca, &key.PublicKey, opts, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	return key, []*x509.Certificate{leaf, ca}, nil
 }
 
 // TrustAnchorCertificate holds the lock because a reset can replace the chain
@@ -133,11 +217,16 @@ func (w *Wallet) StatusListSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certifi
 		return issuerKey, chain, nil
 	}
 	caCert := chain[len(chain)-1]
-	leaf, err := mock.GenerateLeafCertWithOptions(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{
+	var err error
+	issuerKey, err = w.signingStore().key("status")
+	if err != nil {
+		return nil, nil, err
+	}
+	leaf, err := w.signingStore().certificate(caKey, caCert, &issuerKey.PublicKey, mock.LeafCertOptions{
 		CommonName:            "EUDI Dev Status List Signer",
 		StatusListSigner:      true,
 		CRLDistributionPoints: crlDistributionPoints(w.IssuerURL),
-	})
+	}, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating status list signer certificate: %w", err)
 	}
@@ -196,13 +285,4 @@ func signingLeafCommonName(profile trustListProfile) string {
 		return label
 	}
 	return label + " (" + id + ")"
-}
-
-func signingLeafSerial(profile trustListProfile) *big.Int {
-	sum := sha256.Sum256([]byte("oid4vc-dev/signing-leaf/" + trustListProfileKey(profile)))
-	serial := new(big.Int).SetBytes(sum[:16])
-	if serial.Sign() <= 0 {
-		serial = big.NewInt(2)
-	}
-	return serial
 }

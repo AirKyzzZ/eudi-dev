@@ -872,11 +872,6 @@ test.describe("Credential Issuing via UI", () => {
     await page.locator("#issue-submit").click();
     await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
 
-    await page.locator("#issue-btn").click();
-    await page.locator("#issue-vct").fill("urn:example:e2e-nodesc");
-    await page.locator("#issue-submit").click();
-    await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
-
     const described = page.locator(
       '.credential-card[data-vct="urn:example:e2e-desc"]',
     );
@@ -884,7 +879,6 @@ test.describe("Credential Issuing via UI", () => {
       '.credential-card[data-vct="urn:example:e2e-nodesc"]',
     );
     await expect(described.locator(".about-btn")).toHaveCount(1);
-    await expect(plain.locator(".about-btn")).toHaveCount(0);
 
     await expect(described).not.toHaveClass(/desc-open/);
     await described.locator(".about-btn").click();
@@ -892,6 +886,14 @@ test.describe("Credential Issuing via UI", () => {
     await expect(described.locator(".cred-desc-body")).toContainText(
       "A sample description",
     );
+    await page.locator("#issue-btn").click();
+    await page.locator("#issue-vct").fill("urn:example:e2e-nodesc");
+    await page.locator("#issue-submit").click();
+    await expect(page.locator("#issue-overlay")).not.toHaveClass(/active/);
+
+    await expect(plain).toBeVisible();
+    await expect(plain.locator(".about-btn")).toHaveCount(0);
+    await expect(described).toHaveClass(/desc-open/);
     await described.locator(".about-btn").click();
     await expect(described).not.toHaveClass(/desc-open/);
 
@@ -1068,6 +1070,21 @@ test.describe("Stored XSS", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(res.headers()["x-content-type-options"]).toBe("nosniff");
   });
+});
+
+test("EUDI offer scheme reports missing offer parameters through issuance", async ({ page }) => {
+  await page.goto(WALLET_URL);
+  page.on("dialog", (dialog) => dialog.dismiss());
+  await page.locator("#offer-input").fill("eu-eaa-offer://");
+  const responsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST" &&
+    ["/api/offers", "/api/presentations"].includes(new URL(response.url()).pathname)
+  );
+  await page.locator("#process-btn").click();
+  const response = await responsePromise;
+  expect(new URL(response.url()).pathname).toBe("/api/offers");
+  expect(response.status()).toBe(400);
+  expect((await response.json()).error).toContain("credential_offer");
 });
 
 test.describe("Mobile layout", () => {

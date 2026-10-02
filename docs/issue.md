@@ -92,7 +92,7 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 |---------------|--------------------------------|------------------------------------------------|
 | `--claims`    | None                           | Claims as JSON string or `@filepath`           |
 | `--key`       | None                           | Private key file (PEM or JWK). Ephemeral if omitted |
-| `--cert`      | None                           | Certificate chain file (PEM, leaf first) embedded as x5c. Requires `--key` |
+| `--cert`      | None                           | Certificate chain file (PEM, leaf first) embedded as x5chain. Requires `--key` |
 | `--doc-type`  | `eu.europa.ec.eudi.pid.1`      | Document type                                  |
 | `--namespace` | `eu.europa.ec.eudi.pid.1`      | Namespace                                      |
 | `--exp`       | `720h` (30 days)               | Expiration duration                            |
@@ -107,7 +107,7 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 | `--status-list-uri` | None                    | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`                     | Status list index to embed in credential       |
 
-Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set: fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements, matching the [EUDI PID Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/main/rulebooks/pid/pid-rulebook.md) (version 1.7).
+Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set: fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements, matching the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md).
 
 `issue jwt --pid` puts the same claim set in a plain JWT VC for verifier testing.
 
@@ -121,7 +121,7 @@ Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (
 
 With `--wallet`, the issuer key and certificate depend on the supplied flags:
 
-- By default, the wallet uses its issuer key and a certificate for the selected trust profile, signed by the shared CA.
+- By default, the wallet uses its issuer key and a certificate for the selected trust profile. New wallets sign this certificate through a provider intermediate CA. Existing direct CA chains remain supported.
 - `--key` supplies another issuer key. The wallet creates a certificate for it under the shared CA.
 - `--key` with `--cert` uses the supplied key and chain. Trust profile and registration metadata flags are skipped, and the credential type is registered as an import.
 
@@ -131,6 +131,8 @@ A supplied chain that includes its self-signed root produces a warning in debug 
 - `/api/registrar/wrp`
 - `/api/trustlist`
 - `/api/trustlists`
+
+Issued PID signatures include protected certificate URLs and SHA-256 fingerprints when the wallet has a certificate hosting URL. SD-JWT references PEM and mdoc references DER. Offline issuance has no hosting endpoint. See [test certificates](test-certificates.md) for certificate persistence, signing roles and the applicable EUDI versions.
 
 Without explicit status list flags, `--wallet` registers the credential in the wallet's own status list.
 

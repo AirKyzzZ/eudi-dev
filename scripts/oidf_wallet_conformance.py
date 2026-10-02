@@ -574,19 +574,18 @@ def fetch_wallet_materials(wallet_url: str, wallet_issuer_url: str, wallet_ca_ce
     )
 
 
-def credential_leaf_der(detail: dict) -> bytes | None:
-    """The DER signer certificate of a stored credential: the first x5c entry
-    of an SD-JWT, the x5chain of an mdoc issuerAuth (COSE header 33)."""
+def credential_chain_der(detail: dict) -> list[bytes]:
+    """Read the x5c or COSE x5chain in leaf to issuer order."""
     raw = detail.get("raw")
     if not isinstance(raw, str) or not raw:
-        return None
+        return []
     fmt = str(detail.get("format", ""))
     try:
         if "sd-jwt" in fmt or "jwt" in fmt:
             header_b64 = raw.split("~")[0].split(".")[0]
             header = json.loads(base64.urlsafe_b64decode(header_b64 + "=" * (-len(header_b64) % 4)))
             x5c = header.get("x5c") or []
-            return base64.b64decode(x5c[0]) if x5c else None
+            return [base64.b64decode(cert) for cert in x5c]
         import cbor2  # noqa: PLC0415 (installed into the runner venv)
 
         padded = raw + "=" * (-len(raw) % 4)
@@ -596,21 +595,26 @@ def credential_leaf_der(detail: dict) -> bytes | None:
             chain = header_map.get(33)
             if chain is None:
                 continue
-            return chain[0] if isinstance(chain, list) else chain
+            return chain if isinstance(chain, list) else [chain]
     except Exception:  # noqa: BLE001
-        return None
-    return None
+        return []
+    return []
 
 
-def chains_to_wallet_ca(leaf_der: bytes, ca_pem: str) -> bool:
-    from cryptography import x509 as cx509
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives import hashes
+def chains_to_wallet_ca(chain_der: list[bytes], ca_pem: str) -> bool:
+    from cryptography import x509
 
+    if not chain_der:
+        return False
     try:
-        leaf = cx509.load_der_x509_certificate(leaf_der)
-        ca = cx509.load_pem_x509_certificate(ca_pem.encode("utf-8"))
-        ca.public_key().verify(leaf.signature, leaf.tbs_certificate_bytes, ec.ECDSA(hashes.SHA256()))
+        chain = [x509.load_der_x509_certificate(cert) for cert in chain_der]
+        ca = x509.load_pem_x509_certificate(ca_pem.encode("utf-8"))
+        if chain[-1] != ca:
+            chain.append(ca)
+        for child, parent in zip(chain, chain[1:]):
+            if not parent.extensions.get_extension_for_class(x509.BasicConstraints).value.ca:
+                return False
+            child.verify_directly_issued_by(parent)
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -627,8 +631,8 @@ def baseline_credential_ids(wallet_url: str, wallet_ca_cert: Path) -> set[str]:
         if not cred_id:
             continue
         detail = wallet_request(wallet_url, "GET", f"/api/credentials/{cred_id}")
-        leaf = credential_leaf_der(detail)
-        if leaf is None or not chains_to_wallet_ca(leaf, ca_pem):
+        chain = credential_chain_der(detail)
+        if not chains_to_wallet_ca(chain, ca_pem):
             continue
         baseline.add(cred_id)
     return baseline
@@ -980,7 +984,7 @@ def follow_redirect(redirect_uri: str) -> None:
 
 def wallet_api_path_for_request(request_url: str) -> str:
     parsed = urllib.parse.urlsplit(request_url)
-    if parsed.scheme in {"openid-credential-offer", "haip-vci"}:
+    if parsed.scheme in {"openid-credential-offer", "haip-vci", "eu-eaa-offer"}:
         return "/api/offers"
     if parsed.scheme in {"openid4vp", "eudi-openid4vp", "haip-vp"}:
         return "/api/presentations"

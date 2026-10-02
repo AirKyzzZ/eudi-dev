@@ -56,7 +56,7 @@ Pass `-e EUDI_DEV_STORAGE=...` (or `--storage` on the command) to keep the state
 
 ### Stateless container
 
-Containers with the same `EUDI_DEV_SEED` derive the same holder, issuer, CA and TLS keys. Verifiers can keep trusting the CA across restarts without persistent storage. The wallet creates new CA and TLS certificates on each start, with random serial numbers. Their bytes change, but their keys and subjects stay the same.
+Containers with the same `EUDI_DEV_SEED` derive the same holder, issuer, CA, TLS and role-specific signing keys. Verifiers can keep trusting the CA across restarts without persistent storage. A fresh memory store creates new certificates with unique serial numbers. Their keys and subjects stay the same. File and Postgres storage retain the certificates across restarts.
 
 The image's seed `eudi-dev` is public, so anyone can derive those keys (see [SECURITY.md](../SECURITY.md)). The startup summary shows `Keys: derived from the built-in seed`, and `wallet serve` warns when that seed is used with `--demo` or a persistent backend (`file` or Postgres). Set your own value with `-e EUDI_DEV_SEED=<seed>` (or `--seed`) for a test bench, or an empty value for random keys. `auto` seeds the memory backend only and leaves every other backend with random keys.
 
@@ -86,8 +86,8 @@ The database stores private keys unencrypted, just like the file backend (see [S
 | `/api/trustlist` | GET | Legacy trust list endpoint. Returns the PID trust list when one is registered, otherwise the first available trust list profile |
 | `/api/trustlists` | GET | JSON index of all trust list profiles registered in the wallet. Each entry includes a relative `path` plus optional `advertised_url` / legacy `url` |
 | `/api/trustlists/<id>` | GET | ETSI trust list JWT for one trust list profile |
-| `https://<wallet>:8086/.well-known/openid-credential-issuer` | GET | OpenID Credential Issuer metadata with `issuer_info` / `registrar_dataset` authorization data. JSON by default, the signed JWT form (`application/jwt`) when the Accept header asks for only that |
-| `https://<wallet>:8086/.well-known/jwt-vc-issuer` | GET | JWT VC issuer metadata for wallet-issued SD-JWTs. Exposes the signing key by `kid` and leaf `x5c` chain |
+| `https://<wallet>:8086/.well-known/openid-credential-issuer` | GET | Issuer metadata with registrar data and a registration certificate in `issuer_info`. JSON by default, access-certificate-signed JWT when the request accepts only `application/jwt` |
+| `https://<wallet>:8086/.well-known/jwt-vc-issuer` | GET | JWT VC issuer metadata for wallet-issued SD-JWTs. Exposes the signing key by `kid` and its certificate chain |
 | `/api/registrar/wrp` | GET | Registrar-style signed dataset for provider entitlements and `providesAttestations`. Supports query filters such as `identifier`, `entitlement`, and `providesattestation` |
 | `/api/credentials` | GET/POST | List all credentials / import a credential |
 | `/api/credentials/<id>/status` | GET/POST | Resolve or set the revocation status for a credential |
@@ -97,6 +97,8 @@ The database stores private keys unencrypted, just like the file backend (see [S
 | `/api/config/preferred-format` | PUT | Set credential format preference (`dc+sd-jwt` / `mso_mdoc` / `jwt_vc_json` / empty) |
 | `/api/config` | GET | Instance introspection (PID baseline, directories, URLs, behavior) |
 | `/api/shutdown` | POST | Stop the wallet server process |
+
+The [HTTP API reference](wallet/http-api.md) also lists certificate retrieval, provider CRLs and trust list history endpoints. See [test certificates](test-certificates.md) for the EUDI profiles and known testing limits.
 
 ## Typical verifier integration test flow
 

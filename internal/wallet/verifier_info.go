@@ -16,7 +16,9 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -385,7 +387,11 @@ func SignRegistrationCertificateJWT(claims map[string]any, signingKey *ecdsa.Pri
 	}
 	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c
+		digest := sha256.Sum256(signerCerts[0].Raw)
+		header["x5t#S256"] = base64.RawURLEncoding.EncodeToString(digest[:])
 	}
+	// TS 119 475 V1.2.1 §5.2.1 requires JAdES B-B. TS 119 182-1 V1.2.1 §5.1.11 requires iat after July 2025.
+	header["iat"] = time.Now().Unix()
 	return signJSONWebSignature(claims, signingKey, header)
 }
 

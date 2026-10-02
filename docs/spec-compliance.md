@@ -2,6 +2,8 @@
 
 This page records support for specifications used by the EUDI Architecture and Reference Framework. Unsupported mechanisms are reported when encountered ([ADR-0013](adr/0013-only-the-eudi-stack-is-supported.md)).
 
+The [EUDI version table and test certificate profiles](test-certificates.md) record the versions checked on 1 October 2026.
+
 Two settings control validation:
 
 - `--mode strict` rejects validation violations. `--mode debug` reports them and continues where the flow can proceed. Advisory findings remain warnings in either mode. Findings identify the specification and rule they refer to.
@@ -53,9 +55,9 @@ Two settings control validation:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Credential offer parsing | Implemented | `openid-credential-offer://` and `haip-vci://` schemes |
+| Credential offer parsing | Implemented | `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://` schemes |
 | Pre-authorized code grant | Implemented | With optional `tx_code` |
-| Authorization code grant | Implemented | Requires wallet `client_id` / `redirect_uri` configuration. Uses PAR, DPoP and client attestation when advertised. Without PAR, it uses the authorization endpoint directly. Attestation JWTs include the draft-07 claims accepted by drafts 08 and 10. Newer proof methods are negotiated through metadata ([ADR-0014](adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md), [wallet attestation](wallet/issuing.md#wallet-attestation)) |
+| Authorization code grant | Implemented | The server defaults `client_id` to its origin and `redirect_uri` to that origin plus `/callback`. Uses PAR, DPoP and client attestation when advertised. Without PAR, it uses the authorization endpoint directly. Attestation JWTs include the draft-07 claims accepted by drafts 08 and 10. Newer proof methods are negotiated through metadata ([ADR-0014](adr/0014-pinned-draft-versions-stay-supported-alongside-the-latest.md), [wallet attestation](wallet/issuing.md#wallet-attestation)) |
 | Pushed Authorization Request (PAR) | Implemented | Used by the authorization code flow |
 | Token endpoint | Implemented | Exchanges pre-authorized code or authorization code for access token |
 | Credential endpoint | Implemented | Uses OID4VCI 1.0 final `proofs.jwt` or `proofs.attestation` (Appendix F.1 and F.3, chosen from the configuration's `proof_types_supported`) and sends `credential_identifier` or `credential_configuration_id` as required (§8.2 forbids both together and forbids either one where the token response did not require it) |
@@ -74,8 +76,9 @@ Two settings control validation:
 | Signed Credential Issuer Metadata verification | Implemented | `typ`, an asymmetric `alg`, a `sub` matching the issuer identifier and a valid signature over the `x5c` leaf are all checked. Anchoring the signer to a configured trust anchor is attempted. A signer that matches no anchor is logged as unanchored and accepted (§12.2.3) |
 | Credential configuration display and claims | Implemented | Reads `credential_metadata` (§12.2.4) for consent. Stores the first display entry's name, description, logo, colors and background image for credential cards and presentation dialogs. Default image handling fetches once through the restricted HTTP client, caps input at 4 MB and 32 megapixels, and caches at 256 KB after downscaling. See [display images](wallet/serve.md#display-images) for on-demand fetching. Invalid CSS Color Level 3 values are dropped with a warning. Contrast below 3:1 is warned about. Display findings never fail issuance |
 | Authorization server selection | Implemented | The offer's `authorization_server` grant parameter selects the entry to use, and a value matching no entry of `authorization_servers` stops the flow (§12.2.4). The selected server's `grant_types_supported` is checked against the grant the issuance uses before the code is used. Strict mode refuses a stated mismatch. Debug mode warns and continues with the first advertised server whose metadata lists the grant, and stays with the selected one when none does |
-| Credential Issuer metadata publication | Implemented | Wallet serves `/.well-known/openid-credential-issuer` as unsigned `application/json` by default and as signed `application/jwt` to a client that asks for it (§12.2.2), with `issuer_info` / `registrar_dataset` |
+| Credential Issuer metadata publication | Implemented | Wallet serves `/.well-known/openid-credential-issuer` as `application/json` by default and as `application/jwt` when requested (§12.2.2). The Access Certificate key signs the JWT. Both forms include `issuer_info` with a Registrar signed registration certificate and the existing registrar dataset |
 | Registrar-style issuer authorization data | Implemented | Wallet serves `/api/registrar/wrp` with dynamic `entitlements` and `providesAttestations` filters for PID and non-PID attestation sets |
+| Provider registration status and revocation | Not implemented | Registration certificates are generated for testing. There is no registration status or revocation service. See [test certificates](test-certificates.md) for the EUDI specification versions and remaining limits |
 | Wallet HTTPS certificate verification | Implemented | Strict mode checks the chain, hostname and validity dates for all destinations and redirects (OpenID4VP 1.0 Final §14.6). Debug skips verification by default. `--tls-verify` overrides either mode. `--tls-ca` adds CA certificates to system trust |
 | HTTPS JWT VC issuer metadata publication | Implemented | Wallet serves `/.well-known/jwt-vc-issuer` with JWKS for wallet-issued SD-JWTs |
 
@@ -138,7 +141,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | SHA-256/384/512 disclosure digests | Implemented | |
 | Disclosure digest integrity check | Implemented | Verifies each disclosure hash appears in `_sd` arrays |
 | `kid` header on generated SD-JWTs | Implemented | Deterministic RFC 7638 thumbprint of the signing key |
-| X.509 trust-chain based issuer key publication | Implemented | Generated SD-JWTs carry leaf `x5c`. Trust anchor remains in wallet trust list |
+| X.509 trust-chain based issuer key publication | Implemented | Generated SD-JWTs carry the leaf and intermediate certificates in `x5c`, with the root omitted. Wallet trust lists publish the service certificates and provider CAs |
 | SD-JWT VC `typ` header | Implemented | Generated credentials carry `dc+sd-jwt`. Reading one also accepts the earlier `vc+sd-jwt` value and reports it as a deviation (strict mode refuses it). |
 | Credentials with no selectively disclosable claims | Implemented | `_sd` is omitted from the payload and the serialization ends in a single tilde (SD-JWT VC §2.2.2.5 and RFC 9901 §4) |
 | Registered claims that cannot be selectively disclosed | Enforced | `iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts` and `status` are embedded plainly when generating a credential (SD-JWT VC §2.2.2.3), and `iat` with them because the generator writes one itself |
@@ -164,7 +167,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Trusted entity list JWT generation | Implemented | Wallet generates ETSI TS 119 602 JSON-binding JWT lists with the required top-level `LoTE` object |
+| Trusted entity list JWT generation | Implemented | V1.1.1 JSON binding with provider signing certificates, English text, postal addresses, self pointers and retained list instances. Updates advance the sequence number |
 | Trusted entity list JWT parsing | Implemented | The signature is not verified (a debugging choice). Requires the ETSI JSON-binding `LoTE` wrapper and accepts current EUDI-style fields such as `ListIssueDateTime` |
 | Certificate chain validation against trusted entity list | Implemented | In `validate` command |
 

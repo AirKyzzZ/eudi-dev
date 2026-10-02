@@ -204,7 +204,7 @@ func (d *DemoRP) handleLogo(w http.ResponseWriter, r *http.Request) {
 
 func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	issuer := d.issuerID()
-	writeJSON(w, http.StatusOK, map[string]any{
+	metadata := map[string]any{
 		"credential_issuer":            issuer,
 		"credential_endpoint":          issuer + "/credential",
 		"deferred_credential_endpoint": issuer + "/deferred_credential",
@@ -261,7 +261,29 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 		}),
-	})
+	}
+	specs := []wallet.IssuedAttestationSpec{{Format: "dc+sd-jwt", VCT: TicketVCT}}
+	for _, cfg := range d.templateConfigurations() {
+		specs = append(specs, wallet.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType})
+	}
+	// The registrar API belongs to the wallet base URL.
+	info, err := wallet.IssuerInfo(d.wallet, d.baseURL(), specs)
+	if err != nil {
+		http.Error(w, "building issuer metadata: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	metadata["issuer_info"] = info
+	if wallet.AcceptsOnlySignedIssuerMetadata(r.Header.Get("Accept")) {
+		jwt, err := wallet.SignCredentialIssuerMetadata(d.wallet, issuer, metadata, time.Now().Add(time.Hour))
+		if err != nil {
+			http.Error(w, "signing issuer metadata: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/jwt")
+		w.Write([]byte(jwt))
+		return
+	}
+	writeJSON(w, http.StatusOK, metadata)
 }
 
 // handleCreateOffer creates a credential offer. ?grant=authorization_code
@@ -322,7 +344,7 @@ func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 		"id":         offer.id,
 		"offer_uri":  offerURI,
 		"wallet_url": base + "/credential-offer?" + params,
-		"scheme_uri": "openid-credential-offer://?" + params,
+		"scheme_uri": "eu-eaa-offer://?" + params,
 	})
 }
 

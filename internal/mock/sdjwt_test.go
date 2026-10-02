@@ -23,6 +23,47 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
 )
 
+// ETSI TS 119 182-1 V1.2.1 §5.1.11 defines the header iat as the signing time.
+func TestGenerateSDJWT_SigningTimeIsIndependentOfIssuanceTime(t *testing.T) {
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	caKey, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := GenerateCACert(caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := GenerateLeafCert(caKey, ca, &key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now()
+	issuedAt := before.Add(-3 * time.Hour).Truncate(time.Hour)
+	raw, err := GenerateSDJWT(SDJWTConfig{
+		CertificateIssuer: "https://issuer.example", Issuer: "https://issuer.example",
+		VCT: DefaultPIDVCT, Key: key, IssuedAt: &issuedAt,
+		CertChain: []*x509.Certificate{leaf, ca},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := sdjwt.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signedAt, ok := parsed.Header["iat"].(float64)
+	if !ok || signedAt < float64(before.Unix()) || signedAt > float64(time.Now().Unix()) {
+		t.Errorf("signature time = %v, want the current signing time", parsed.Header["iat"])
+	}
+	if parsed.Payload["iat"] != float64(issuedAt.Unix()) {
+		t.Errorf("issuance time = %v, want %d", parsed.Payload["iat"], issuedAt.Unix())
+	}
+}
+
 func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 	key, err := GenerateKey()
 	if err != nil {

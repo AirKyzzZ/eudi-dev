@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/gofrs/flock"
 )
 
 // tempPrefix marks an in-flight write. No key the wallet writes starts with
@@ -61,6 +63,27 @@ func (s *fileStore) Read(key string) ([]byte, error) {
 // the process umask, written beside the target and renamed into place, so a
 // concurrent reader or a crash never sees a partial file.
 func (s *fileStore) Write(key string, data []byte, perm fs.FileMode) (Stamp, error) {
+	lock, err := s.writeLock()
+	if err != nil {
+		return Stamp{}, err
+	}
+	defer func() { _ = lock.Close() }()
+	return s.write(key, data, perm)
+}
+
+func (s *fileStore) writeLock() (*flock.Flock, error) {
+	if err := os.MkdirAll(s.root, 0700); err != nil {
+		return nil, err
+	}
+	lock := flock.New(filepath.Join(s.root, tempPrefix+"write.lock"))
+	if err := lock.Lock(); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return lock, nil
+}
+
+func (s *fileStore) write(key string, data []byte, perm fs.FileMode) (Stamp, error) {
 	key, err := cleanKey(key)
 	if err != nil {
 		return Stamp{}, err
@@ -110,7 +133,12 @@ func createTemp(dir, base string, perm fs.FileMode) (*os.File, error) {
 }
 
 func (s *fileStore) Delete(key string) error {
-	key, err := cleanKey(key)
+	lock, err := s.writeLock()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Close() }()
+	key, err = cleanKey(key)
 	if err != nil {
 		return err
 	}
@@ -222,15 +250,17 @@ func fileStamp(info fs.FileInfo) Stamp {
 	return Stamp{Version: strconv.FormatInt(info.ModTime().UnixNano(), 10), Size: info.Size()}
 }
 
-// WriteIf checks the stamp and writes without a lock, so two writers can
-// both pass the check. The wallet keeps one document on this backend and
-// shares no counter through it.
 func (s *fileStore) WriteIf(key string, data []byte, perm fs.FileMode, expected string) (Stamp, error) {
+	lock, err := s.writeLock()
+	if err != nil {
+		return Stamp{}, err
+	}
+	defer func() { _ = lock.Close() }()
 	current, ok := s.Stat(key)
 	if (ok && current.Version != expected) || (!ok && expected != "") {
 		return Stamp{}, ErrConflict
 	}
-	return s.Write(key, data, perm)
+	return s.write(key, data, perm)
 }
 
 func (s *fileStore) Locate(key string) string {

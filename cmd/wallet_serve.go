@@ -93,7 +93,7 @@ Capabilities:
   - Request logging with timestamps
   - Browser-based consent UI for incoming requests
 
-Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://)
+Use --register to also register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)
 so the wallet automatically receives incoming protocol requests.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWalletServe(cmd, &opts)
@@ -107,7 +107,7 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.KeyPath, "key", "", "Holder private key file (PEM/JWK). Uses the stored key or auto-generates one if omitted")
 	cmd.Flags().StringVar(&opts.IssuerKey, "issuer-key", "", "Issuer key for generated credentials (PEM/JWK)")
 	cmd.Flags().StringVar(&opts.SessionTranscript, "session-transcript", "oid4vp", "mDoc session transcript mode: 'oid4vp' (OID4VP 1.0, default) or 'iso' (ISO 18013-7)")
-	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://)")
+	cmd.Flags().BoolVar(&opts.Register, "register", false, "Register OS URL scheme handlers (openid4vp://, eudi-openid4vp://, haip-vp://, openid-credential-offer://, haip-vci://, eu-eaa-offer://)")
 	cmd.Flags().BoolVar(&opts.NoRegister, "no-register", false, "Skip URL scheme registration (overrides --register)")
 	cmd.Flags().BoolVar(&opts.StatusList, "status-list", false, "Embed status list references in generated credentials")
 	cmd.Flags().StringVar(&opts.BaseURL, "base-url", "", "Base URL for the wallet's HTTP endpoints (its host is also reused for HTTPS wallet endpoints)")

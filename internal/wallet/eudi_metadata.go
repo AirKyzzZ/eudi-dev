@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -477,7 +478,7 @@ func buildCredentialConfiguration(spec IssuedAttestationSpec) (string, map[strin
 			"scope":   id,
 			"doctype": spec.DocType,
 			"cryptographic_binding_methods_supported": []string{"cose_key"},
-			"credential_signing_alg_values_supported": []string{"ES256"},
+			"credential_signing_alg_values_supported": []int{-7},
 			"proof_types_supported": map[string]any{
 				"jwt": map[string]any{
 					"proof_signing_alg_values_supported": []string{"ES256"},
@@ -530,16 +531,48 @@ func buildRegistrarDataset(w *Wallet, issuer string) RegistrarDataset {
 	}
 }
 
-func buildIssuerInfo(w *Wallet, issuer string) []IssuerInfoEntry {
-	return []IssuerInfoEntry{
-		{
-			Format: "registrar_dataset",
-			Data:   buildRegistrarDataset(w, issuer),
-		},
+// IssuerInfo includes the registration certificate required by CIR (EU) 2026/1731 Annex XI.
+func IssuerInfo(w *Wallet, issuer string, specs []IssuedAttestationSpec) ([]IssuerInfoEntry, error) {
+	dataset := buildRegistrarDataset(&Wallet{IssuedAttestations: specs}, issuer)
+	_, access, err := w.AccessSigningMaterial()
+	if err != nil {
+		return nil, err
 	}
+	key, chain, err := w.RegistrarSigningMaterial()
+	if err != nil {
+		return nil, err
+	}
+	identifier := access[0].Subject.CommonName
+	for _, attribute := range access[0].Subject.Names {
+		if attribute.Type.String() == "2.5.4.97" {
+			identifier, _ = attribute.Value.(string)
+			break
+		}
+	}
+	now := time.Now()
+	claims := map[string]any{
+		"sub": identifier, "sub_ln": access[0].Subject.Organization[0],
+		"country": access[0].Subject.Country[0], "name": dataset.TradeName,
+		"registry_uri":    dataset.RegistryURI,
+		"srv_description": []map[string]any{{"lang": "en", "value": dataset.SrvDescription[0].Content}},
+		"entitlements":    dataset.Entitlements, "provides_attestations": dataset.ProvidesAttestations,
+		"support_uri": issuer, "info_uri": issuer,
+		"supervisory_authority": map[string]any{"email": dataset.SupervisoryAuthority.Email[0]},
+		"policy_id":             []string{"0.4.0.19475.3.1"},
+		"certificate_policy":    "https://github.com/dominikschlosser/eudi-dev/blob/main/docs/test-certificates.md",
+		"iat":                   now.Unix(), "exp": now.Add(time.Hour).Unix(),
+	}
+	registration, err := SignRegistrationCertificateJWT(claims, key, chain)
+	if err != nil {
+		return nil, err
+	}
+	return []IssuerInfoEntry{
+		{Format: "registrar_dataset", Data: dataset},
+		{Format: "registration_cert", Data: registration},
+	}, nil
 }
 
-func buildOpenIDCredentialIssuerMetadata(w *Wallet, issuer string) map[string]any {
+func buildOpenIDCredentialIssuerMetadata(w *Wallet, issuer string) (map[string]any, error) {
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
 	configs := make(map[string]any)
 	for _, spec := range w.issuedAttestationSpecs() {
@@ -550,12 +583,16 @@ func buildOpenIDCredentialIssuerMetadata(w *Wallet, issuer string) map[string]an
 		configs[id] = cfg
 	}
 
+	info, err := IssuerInfo(w, issuer, w.issuedAttestationSpecs())
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"credential_issuer":                   issuer,
 		"credential_endpoint":                 issuer + "/credential",
 		"credential_configurations_supported": configs,
-		"issuer_info":                         buildIssuerInfo(w, issuer),
-	}
+		"issuer_info":                         info,
+	}, nil
 }
 
 func signJSONWebSignature(payload any, signingKey *ecdsa.PrivateKey, header map[string]any) (string, error) {
@@ -578,10 +615,20 @@ func buildJWSX5C(certs []*x509.Certificate) []string {
 }
 
 func signCredentialIssuerMetadataJWT(w *Wallet, issuer string, exp time.Time) (string, error) {
-	if w == nil || w.IssuerKey == nil {
-		return "", fmt.Errorf("wallet has no issuer signing key")
+	metadata, err := buildOpenIDCredentialIssuerMetadata(w, issuer)
+	if err != nil {
+		return "", err
 	}
-	payload := buildOpenIDCredentialIssuerMetadata(w, issuer)
+	return SignCredentialIssuerMetadata(w, issuer, metadata, exp)
+}
+
+// SignCredentialIssuerMetadata uses an access certificate as TS 119 472-3 V1.1.1 §4.2.2 requires.
+func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]any, exp time.Time) (string, error) {
+	signingKey, signerCerts, err := w.AccessSigningMaterial()
+	if err != nil {
+		return "", err
+	}
+	payload := maps.Clone(metadata)
 	payload["iss"] = issuer
 	payload["sub"] = issuer
 	payload["iat"] = time.Now().Unix()
@@ -592,14 +639,10 @@ func signCredentialIssuerMetadataJWT(w *Wallet, issuer string, exp time.Time) (s
 		"alg": "ES256",
 		"typ": "openidvci-issuer-metadata+jwt",
 	}
-	signerCerts := w.CertChain
-	if derived, err := w.DefaultSigningCertChain(); err == nil && len(derived) > 0 {
-		signerCerts = derived
-	}
 	if x5c := buildJWSX5C(signerCerts); len(x5c) > 0 {
 		header["x5c"] = x5c
 	}
-	return signJSONWebSignature(payload, w.IssuerKey, header)
+	return signJSONWebSignature(payload, signingKey, header)
 }
 
 // SignRequestObjectJWT signs an OpenID4VP authorization request object (JAR)

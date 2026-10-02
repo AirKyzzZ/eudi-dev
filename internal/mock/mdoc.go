@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -55,41 +56,64 @@ func SplitClaimsByNamespace(claims map[string]any, defaultNamespace string) map[
 
 var fullDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
-// cborDateValue wraps date-shaped strings in the CBOR tags ISO 18013-5 uses
-// for them: full-date (tag 1004) for YYYY-MM-DD and tdate (tag 0) for a
-// timestamp. Real PIDs encode birth_date and expiry_date this way, and a
-// verifier that type-checks the element sees a plain text string otherwise.
-func cborDateValue(v any) any {
-	switch val := v.(type) {
-	case string:
-		if fullDatePattern.MatchString(val) {
-			return cbor.Tag{Number: 1004, Content: val}
+// EU PID Rulebook v1.7 §3.1.2 and ISO/IEC 18013-5:2021 Table 5 define date attributes.
+func mdocClaimValue(namespace, name string, value any) any {
+	if namespace == "org.iso.18013.5.1" && name == "driving_privileges" {
+		if privileges, ok := value.([]any); ok {
+			out := make([]any, len(privileges))
+			for i, privilege := range privileges {
+				if fields, ok := privilege.(map[string]any); ok {
+					copy := maps.Clone(fields)
+					for _, date := range []string{"issue_date", "expiry_date"} {
+						if field, ok := fields[date]; ok {
+							copy[date] = mdocDateValue(field, true, false)
+						}
+					}
+					out[i] = copy
+				} else {
+					out[i] = privilege
+				}
+			}
+			return out
 		}
-		if _, err := time.Parse(time.RFC3339, val); err == nil {
-			return cbor.Tag{Number: 0, Content: val}
-		}
-		return val
-	case map[string]any:
-		out := make(map[string]any, len(val))
-		for k, item := range val {
-			out[k] = cborDateValue(item)
-		}
-		return out
-	case []any:
-		out := make([]any, len(val))
-		for i, item := range val {
-			out[i] = cborDateValue(item)
-		}
-		return out
-	default:
-		return v
 	}
+	switch namespace {
+	case PIDNamespace, "org.iso.18013.5.1", "org.iso.23220.photoid.1":
+		switch name {
+		case "birth_date":
+			return mdocDateValue(value, true, false)
+		case "expiry_date", "issuance_date", "issue_date":
+			return mdocDateValue(value, true, true)
+		case "portrait_capture_date":
+			return mdocDateValue(value, false, true)
+		}
+	}
+	return value
+}
+
+func mdocDateValue(value any, fullDate, dateTime bool) any {
+	text, ok := value.(string)
+	if !ok {
+		return value
+	}
+	if fullDate && fullDatePattern.MatchString(text) {
+		if _, err := time.Parse(time.DateOnly, text); err == nil {
+			return cbor.Tag{Number: 1004, Content: text}
+		}
+	}
+	if dateTime {
+		if _, err := time.Parse(time.RFC3339, text); err == nil {
+			return cbor.Tag{Number: 0, Content: text}
+		}
+	}
+	return value
 }
 
 type MDOCConfig struct {
-	DocType   string
-	Namespace string
-	Claims    map[string]any
+	CertificateIssuer string
+	DocType           string
+	Namespace         string
+	Claims            map[string]any
 	// NamespaceClaims optionally maps namespaces to their claims. When set,
 	// Namespace and Claims are ignored and each namespace is emitted
 	// separately in the MSO and IssuerSigned structures.
@@ -148,7 +172,7 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 				"digestID":          digestID,
 				"random":            random,
 				"elementIdentifier": name,
-				"elementValue":      cborDateValue(value),
+				"elementValue":      mdocClaimValue(ns, name, value),
 			}
 
 			itemBytes, err := cbor.Marshal(item)
@@ -246,6 +270,14 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 		chain = WithoutSelfSignedTrustAnchor(chain)
 	}
 	if len(chain) > 0 {
+		// CIR (EU) 2026/1731 Annex I §4.1 requires protected PID certificate references.
+		if strings.HasPrefix(cfg.DocType, "eu.europa.ec.eudi.pid.") && !cfg.KeepTrustAnchor {
+			if reference := SigningCertificateURL(cfg.CertificateIssuer, chain[0], "der"); reference != "" {
+				digest := sha256.Sum256(chain[0].Raw)
+				msg.Headers.Protected[int64(35)] = reference
+				msg.Headers.Protected[int64(34)] = []any{int64(-16), digest[:]}
+			}
+		}
 		if len(chain) == 1 {
 			msg.Headers.Unprotected[int64(33)] = chain[0].Raw
 		} else {

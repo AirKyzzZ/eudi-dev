@@ -317,7 +317,8 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 		switch format {
 		case "sdjwt":
 			return mock.GenerateSDJWT(mock.SDJWTConfig{
-				Issuer: issuer, VCT: vct, ExpiresIn: expiresIn, NotBefore: opts.NotBefore,
+				CertificateIssuer: w.IssuerURL,
+				Issuer:            issuer, VCT: vct, ExpiresIn: expiresIn, NotBefore: opts.NotBefore,
 				Claims: claims, Key: signingKey, HolderKey: holderPub,
 				StatusListURI: statusURI, StatusListIdx: statusIdx, CertChain: certChain,
 				AlwaysDisclosed: alwaysDisclosed, KeepTrustAnchor: keepAnchor,
@@ -330,7 +331,8 @@ func (w *Wallet) IssueCredential(opts IssueOptions) (*IssueResult, error) {
 			})
 		case "mdoc":
 			return mock.GenerateMDOC(mock.MDOCConfig{
-				DocType: docType, NamespaceClaims: splitClaimsByNamespace(claims, namespace),
+				CertificateIssuer: w.IssuerURL,
+				DocType:           docType, NamespaceClaims: splitClaimsByNamespace(claims, namespace),
 				Key: signingKey, HolderKey: holderPub, ExpiresIn: expiresIn, ValidFrom: opts.NotBefore,
 				StatusListURI: statusURI, StatusListIdx: statusIdx, CertChain: certChain,
 				KeepTrustAnchor: keepAnchor,

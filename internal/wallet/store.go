@@ -384,6 +384,7 @@ func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 	}
 
 	w := New(holderKey, issuerKey, false)
+	w.signers = &signingStore{backend: s.backend, prefix: s.prefix, seed: s.seed}
 	w.runtime = s.runtime()
 	w.Templates = s.Templates()
 	if err := w.SetCertificateAuthority(caKey, caCert); err != nil {
@@ -619,7 +620,7 @@ func (s *WalletStore) generateCA() (*ecdsa.PrivateKey, *x509.Certificate, error)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating wallet CA key: %w", err)
 	}
-	caCert, err := mock.GenerateCACert(caKey)
+	caCert, err := mock.GenerateRootCACert(caKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating wallet CA certificate: %w", err)
 	}

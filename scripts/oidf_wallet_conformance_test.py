@@ -209,5 +209,62 @@ class ScreenshotEvidenceTests(unittest.TestCase):
                 api.assert_called_once_with("https://suite/", None, "GET", "api/info/module")
 
 
+class CredentialChainTests(unittest.TestCase):
+    def setUp(self):
+        import datetime
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+
+        self.encoding = serialization.Encoding
+        self.keys = [ec.generate_private_key(ec.SECP256R1()) for _ in range(3)]
+        names = [x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+                 for name in ('root', 'provider', 'signer')]
+        self.certs = []
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for index in range(3):
+            parent = max(0, index - 1)
+            cert = (x509.CertificateBuilder()
+                    .subject_name(names[index]).issuer_name(names[parent])
+                    .public_key(self.keys[index].public_key())
+                    .serial_number(x509.random_serial_number())
+                    .not_valid_before(now - datetime.timedelta(days=1))
+                    .not_valid_after(now + datetime.timedelta(days=30))
+                    .add_extension(x509.BasicConstraints(ca=index < 2, path_length=None), critical=True)
+                    .sign(self.keys[parent], hashes.SHA256()))
+            self.certs.append(cert)
+        self.chain = [cert.public_bytes(self.encoding.DER) for cert in reversed(self.certs)]
+        self.root = self.certs[0].public_bytes(self.encoding.PEM).decode()
+
+    def test_accepts_the_provider_intermediate(self):
+        self.assertTrue(oidf.chains_to_wallet_ca(self.chain[:-1], self.root))
+        self.assertTrue(oidf.chains_to_wallet_ca(self.chain, self.root))
+
+    def test_accepts_direct_root_signing(self):
+        self.assertTrue(oidf.chains_to_wallet_ca(self.chain[1:2], self.root))
+
+    def test_rejects_missing_or_wrong_issuer(self):
+        self.assertFalse(oidf.chains_to_wallet_ca(self.chain[:1], self.root))
+        self.assertFalse(oidf.chains_to_wallet_ca([], self.root))
+        self.assertFalse(oidf.chains_to_wallet_ca(list(reversed(self.chain)), self.root))
+
+    def test_reads_the_sdjwt_chain(self):
+        import base64
+        import json
+        header = {'x5c': [base64.b64encode(cert).decode() for cert in self.chain[:-1]]}
+        encoded = base64.urlsafe_b64encode(json.dumps(header).encode()).rstrip(b'=').decode()
+        self.assertEqual(oidf.credential_chain_der({'format': 'dc+sd-jwt', 'raw': encoded+'.e30.signature~'}), self.chain[:-1])
+
+    def test_reads_the_mdoc_chain(self):
+        import base64
+        import cbor2
+        for certificates in (self.chain[:-1], self.chain[0]):
+            raw = cbor2.dumps({'issuerAuth': [b'', {33: certificates}, b'', b'']})
+            encoded = base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
+            expected = certificates if isinstance(certificates, list) else [certificates]
+            self.assertEqual(oidf.credential_chain_der({'format': 'mso_mdoc', 'raw': encoded}), expected)
+
+
 if __name__ == "__main__":
     unittest.main()

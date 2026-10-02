@@ -1735,8 +1735,8 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	if len(tl.Entities) != 1 {
 		t.Fatalf("expected 1 entity, got %d", len(tl.Entities))
 	}
-	if tl.Entities[0].Name != "EUDI Dev Wallet PID Provider" {
-		t.Errorf("expected entity name 'EUDI Dev Wallet PID Provider', got %q", tl.Entities[0].Name)
+	if tl.Entities[0].Name != "EUDI Dev Test Provider" {
+		t.Errorf("expected test provider organization name, got %q", tl.Entities[0].Name)
 	}
 	if len(tl.Entities[0].Services) != 2 {
 		t.Fatalf("expected 2 services (issuance + revocation), got %d", len(tl.Entities[0].Services))
@@ -1746,15 +1746,15 @@ func TestTrustListAPI_ParseableByTrustlistParser(t *testing.T) {
 	if issuanceSvc.ServiceType != "http://uri.etsi.org/19602/SvcType/PID/Issuance" {
 		t.Errorf("unexpected issuance service type: %s", issuanceSvc.ServiceType)
 	}
-	if len(issuanceSvc.Certificates) != 1 {
-		t.Fatalf("expected 1 certificate in issuance service, got %d", len(issuanceSvc.Certificates))
+	if len(issuanceSvc.Certificates) != 4 {
+		t.Fatalf("expected NL and DE signing certificates and their CAs, got %d", len(issuanceSvc.Certificates))
 	}
 	certPub, ok := issuanceSvc.Certificates[0].PublicKey.(*ecdsa.PublicKey)
 	if !ok {
 		t.Fatal("expected ECDSA public key in issuance certificate")
 	}
-	if !certPub.Equal(&srv.wallet.CAKey.PublicKey) {
-		t.Error("issuance certificate public key does not match wallet CA key")
+	if !certPub.Equal(&srv.wallet.IssuerKey.PublicKey) {
+		t.Error("issuance certificate public key does not match credential signing key")
 	}
 
 	revocationSvc := tl.Entities[0].Services[1]
@@ -1866,8 +1866,8 @@ func TestJWTVCIssuerMetadata_ExposesSigningKeyTrustedByTrustList(t *testing.T) {
 	}
 
 	x5c, ok := jwk["x5c"].([]any)
-	if !ok || len(x5c) != 1 {
-		t.Fatalf("expected single leaf certificate in JWK x5c, got %v", jwk["x5c"])
+	if !ok || len(x5c) != 2 {
+		t.Fatalf("expected leaf and intermediate in JWK x5c, got %v", jwk["x5c"])
 	}
 	leafB64, ok := x5c[0].(string)
 	if !ok {
@@ -2011,8 +2011,8 @@ func TestOpenIDCredentialIssuerMetadata_SignedJWTContainsIssuerInfo(t *testing.T
 	}
 
 	issuerInfo, ok := payload["issuer_info"].([]any)
-	if !ok || len(issuerInfo) != 1 {
-		t.Fatalf("expected single issuer_info entry, got %v", payload["issuer_info"])
+	if !ok || len(issuerInfo) != 2 {
+		t.Fatalf("expected two issuer_info entries, got %v", payload["issuer_info"])
 	}
 	entry, ok := issuerInfo[0].(map[string]any)
 	if !ok {
@@ -2117,8 +2117,8 @@ func TestNonPIDMetadataAndTrustList_DoNotPretendToBePID(t *testing.T) {
 	var metaPayload map[string]any
 	decodeCompactJWTPayload(t, metaResp.Body.String(), &metaPayload)
 	issuerInfo, ok := metaPayload["issuer_info"].([]any)
-	if !ok || len(issuerInfo) != 1 {
-		t.Fatalf("expected single issuer_info entry, got %v", metaPayload["issuer_info"])
+	if !ok || len(issuerInfo) != 2 {
+		t.Fatalf("expected two issuer_info entries, got %v", metaPayload["issuer_info"])
 	}
 	entry, ok := issuerInfo[0].(map[string]any)
 	if !ok {
@@ -2332,12 +2332,12 @@ func TestTrustListsAPI_MixedProfilesExposeMultipleTrustListsAndKeepLegacyPIDDefa
 		t.Fatalf("expected /api/trustlists/local to return local profile, got %v", byIDScheme["LoTEType"])
 	}
 	uris, ok := byIDScheme["SchemeInformationURI"].([]any)
-	if !ok || len(uris) != 1 {
+	if !ok || len(uris) != 2 {
 		t.Fatalf("expected SchemeInformationURI entry, got %v", byIDScheme["SchemeInformationURI"])
 	}
-	uri, ok := uris[0].(map[string]any)
-	if !ok || uri["uriValue"] != "https://localhost:8443/api/trustlists/local" {
-		t.Fatalf("expected per-id SchemeInformationURI, got %v", byIDScheme["SchemeInformationURI"])
+	uri, ok := uris[1].(map[string]any)
+	if !ok || uri["uriValue"] != "https://localhost:8443/api/trustlists/local/history" {
+		t.Fatalf("expected per-id history URI, got %v", byIDScheme["SchemeInformationURI"])
 	}
 }
 
