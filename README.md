@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="docs/assets/logo-mark.svg" alt="eudi-dev logo" width="110">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-readme-dark.png">
+    <img src="docs/assets/logo-readme.png" alt="EUDI Dev Wallet" width="720">
+  </picture>
 </p>
-
-# eudi-dev
 
 [![CI](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/dominikschlosser/eudi-dev/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/dominikschlosser/eudi-dev/graph/badge.svg)](https://codecov.io/gh/dominikschlosser/eudi-dev)
