@@ -254,6 +254,11 @@ func TestProcessCredentialOffer_PreAuthHonorsIssuerProtections(t *testing.T) {
 			if result.CredentialID == "" {
 				t.Error("expected a credential to be imported")
 			}
+			assertImportActivityMatchesStoredCredentials(t, w)
+			importEntry := findLogEntry(w.GetLog(), "credential_imported")
+			if _, ok := importEntry.Details["credential"].(map[string]any)["batch"]; ok {
+				t.Fatal("batch diagnostics changed the legacy import summary")
+			}
 			if !tc.requireKeyAttest {
 				return
 			}

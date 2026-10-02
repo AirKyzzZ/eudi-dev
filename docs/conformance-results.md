@@ -2,6 +2,23 @@
 
 Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
 
+## Check of 2026-10-02 (2.5.1 activity display and deferred exchanges)
+
+The full Go race suite, all 159 browser tests and all 31 Python tests passed. Lint reported no issues. Integration tests checked deferred requests and responses, pending replies, errors, encrypted wire values and plaintext. Immediate and deferred batch import entries were checked against the credentials actually stored. Browser tests opened every returned and imported credential in a batch through its decoder button. CLI tests confirmed unchanged text, verbose and JSON output.
+
+The deferred endpoint capture was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode with file storage. Four Final configurations covered SD-JWT and mdoc, each with plain and encrypted exchanges. All 20 modules passed with zero failing conditions. Two encrypted batch modules also passed after the activity export fix and again on the final build. The final exports contain the encrypted deferred response, its plaintext and all eight imported copies. Every imported token matches a returned token, and all eight stored IDs are distinct. These were targeted checks of deferred issuance and batch activity.
+
+Two load tests used two wallet servers sharing Postgres:
+
+| Run | Issuances | Presentations and callbacks | Duration |
+|---|---:|---:|---:|
+| Default | 160 | 240 | 1.917 s |
+| Stress | 640 | 960 | 18.198 s |
+
+Both passed every correctness check. Each credential appeared once, status indices were unique, every callback arrived and both servers reported the same credential count. Timings are diagnostic and depend on local machine load.
+
+Local evidence is in `/tmp/eudi-dev-ui-review-2026-10-02`. `deferred-verification.json` records the checks. Conformance logs and exports are in `deferred-conformance`, `deferred-batch-export` and `final-batch-copies`. Final load logs are `final-load-default.log` and `final-load-stress.log`.
+
 ## Check of 2026-10-02 (offer links and documentation)
 
 The EUDI offer scheme now routes to issuance in the web UI, including when offer parameters are missing. All 141 browser tests and the full Go race suite passed on file, memory and Postgres storage. The offer parser, format detection and CLI dispatch checks passed. All 30 Python tests, vet, lint and the Docker build passed.

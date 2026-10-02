@@ -202,3 +202,27 @@ func TestWalletLogsCommandClean(t *testing.T) {
 		t.Fatalf("expected logs clean to remove all entries, got %d", got)
 	}
 }
+
+func TestDeferredExchangeEntriesDoNotChangeCLIOutput(t *testing.T) {
+	entry := wallet.LogEntry{Time: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC), Action: "issuance", Detail: "Collected deferred credential", Success: true}
+	for _, opts := range []walletLogPrintOptions{{}, {Verbose: true}, {JSON: true}} {
+		var before, after bytes.Buffer
+		if err := printWalletLogs(&before, []wallet.LogEntry{entry}, opts); err != nil {
+			t.Fatal(err)
+		}
+		entries := []wallet.LogEntry{
+			{Action: "issuance", Details: map[string]any{"event": "deferred_credential_request"}, Payload: &wallet.LogPayload{Label: "Request", Body: "transaction"}},
+			{Action: "issuance", Details: map[string]any{"event": "deferred_credential_response"}, Payload: &wallet.LogPayload{Label: "Response", Body: "credential"}},
+			entry,
+		}
+		if err := printWalletLogs(&after, entries, opts); err != nil {
+			t.Fatal(err)
+		}
+		if after.String() != before.String() {
+			t.Fatalf("CLI output changed for %+v", opts)
+		}
+		if len(entries) != 3 || entries[0].Payload == nil || entries[1].Payload == nil {
+			t.Fatal("printing mutated the activity log")
+		}
+	}
+}

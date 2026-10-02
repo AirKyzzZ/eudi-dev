@@ -151,21 +151,24 @@ func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 // On a presentation clone, keep only the primary copy. The credential sink has already
 // forwarded it to the real wallet without the batch group, so storing siblings there
 // would leave them disconnected.
-func (w *Wallet) storeBatchSiblings(primary *StoredCredential, credResp map[string]any, keys []*ecdsa.PrivateKey, display *CredentialDisplay) {
+func (w *Wallet) storeBatchSiblings(primary *StoredCredential, credResp map[string]any, keys []*ecdsa.PrivateKey, display *CredentialDisplay) []*StoredCredential {
+	if primary == nil {
+		return nil
+	}
+	stored := []*StoredCredential{primary}
 	creds := credentialStringsFromResponse(credResp)
-	if primary == nil || len(creds) <= 1 || len(keys) <= 1 {
-		return
+	if len(creds) <= 1 || len(keys) <= 1 {
+		return stored
 	}
 	if w.credentialSink != nil {
 		log.Printf("[VCI] Batch issued during a presentation is kept as its primary copy only")
-		return
+		return stored
 	}
 	primaryIdx := proofKeyIndex(primary.Raw, keys)
 	group := newCredentialID()
 	w.setBatchFields(primary.ID, group, primary.BindingKeyPEM)
 	primary.BatchGroup = group
 
-	stored := 1
 	for _, raw := range creds {
 		idx := proofKeyIndex(raw, keys)
 		if idx < 0 || idx == primaryIdx {
@@ -184,9 +187,10 @@ func (w *Wallet) storeBatchSiblings(primary *StoredCredential, credResp map[stri
 		if display != nil {
 			w.rememberDisplay(copyCred, display)
 		}
-		stored++
+		stored = append(stored, copyCred)
 	}
-	log.Printf("[VCI] Stored a batch of %d copies (group %s) for one-time-use presentation", stored, group)
+	log.Printf("[VCI] Stored a batch of %d copies (group %s) for one-time-use presentation", len(stored), group)
+	return stored
 }
 
 // Offer one selected batch copy in consent so identical copies do not appear as

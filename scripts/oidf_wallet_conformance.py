@@ -154,7 +154,7 @@ def wallet_request(wallet_url: str, method: str, path: str, payload: dict | None
 def export_wallet_activity(wallet_url: str, output: Path, clear: bool) -> None:
     """Export the wallet activity for this plan and clear it before the next plan reaches the log limit."""
     try:
-        entries = wallet_request(wallet_url, "GET", "/api/log")
+        entries = wallet_request(wallet_url, "GET", "/api/log?view=activity")
         output.write_text(json.dumps(entries, indent=1))
         if clear:
             wallet_request(wallet_url, "DELETE", "/api/log")

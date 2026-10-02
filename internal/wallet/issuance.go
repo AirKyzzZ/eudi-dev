@@ -481,7 +481,7 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 	if err != nil {
 		return nil, fmt.Errorf("importing received credential: %w", err)
 	}
-	w.logCredentialImport(imported, credential, offer.CredentialIssuer)
+	importDetails := credentialImportLogDetails(imported, credential)
 	w.rememberRenewal(imported.ID, refreshToken, CredentialRenewal{
 		Issuer:             offer.CredentialIssuer,
 		TokenEndpoint:      tokenEndpoint,
@@ -491,7 +491,8 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		ClientAuth:         clientAuth,
 	})
 	w.rememberDisplay(imported, display)
-	w.storeBatchSiblings(imported, credResp, proofKeys, display)
+	stored := w.storeBatchSiblings(imported, credResp, proofKeys, display)
+	w.logCredentialImport(imported, offer.CredentialIssuer, importDetails, stored)
 
 	w.notifyCredentialAccepted(metadata, credResp, accessToken, authScheme, dpopKey, &nonces.resource)
 

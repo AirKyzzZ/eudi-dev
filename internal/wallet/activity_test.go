@@ -15,6 +15,7 @@
 package wallet
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -223,4 +224,195 @@ func TestActivityMetadataCaptureKeepsStreamingDecodeSemantics(t *testing.T) {
 	if metadata["token_endpoint"] != "https://issuer.example/token" || payload.Body != body {
 		t.Fatalf("metadata or received body lost: metadata=%v payload=%+v", metadata, payload)
 	}
+}
+
+func TestActivityRecordsDeferredExchanges(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		status    int
+		body      string
+		encrypted bool
+		pending   bool
+	}{
+		{name: "ready", status: 200},
+		{name: "pending", status: 202, body: `{"transaction_id":"test-transaction","interval":3}`, pending: true},
+		{name: "refused", status: 400, body: `{"error":"invalid_transaction_id"}`},
+		{name: "malformed", status: 502, body: `<html>unavailable</html>`, pending: true},
+		{name: "encrypted ready", status: 200, encrypted: true},
+		{name: "encrypted pending", status: 202, body: `{"transaction_id":"test-transaction","interval":3}`, encrypted: true, pending: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := generateTestWallet(t)
+			issuerKey, err := mock.GenerateKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			issuerJWK := testEncJWK(t, &issuerKey.PublicKey)
+			issuerJWK["kid"] = "issuer-encryption"
+			plain := tc.body
+			if plain == "" {
+				body, err := json.Marshal(map[string]any{"credentials": []any{map[string]any{"credential": generateTestCredential(t, w)}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain = string(body)
+			}
+			wire := plain
+			if tc.encrypted {
+				wire, _, err = EncryptJWE([]byte(plain), &w.HolderKey.PublicKey, "holder", "ECDH-ES", "A128GCM", nil, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			var requestWire, requestPlain string
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					rw.Header().Set("Content-Type", "application/json")
+					metadata := map[string]any{"credential_issuer": "http://" + r.Host}
+					if tc.encrypted {
+						metadata["credential_request_encryption"] = map[string]any{
+							"jwks":                 map[string]any{"keys": []any{issuerJWK}},
+							"enc_values_supported": []any{"A128GCM"}, "encryption_required": true,
+						}
+						metadata["credential_response_encryption"] = map[string]any{
+							"alg_values_supported": []any{"ECDH-ES"},
+							"enc_values_supported": []any{"A128GCM"}, "encryption_required": true,
+						}
+					}
+					json.NewEncoder(rw).Encode(metadata)
+					return
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error(err)
+					rw.WriteHeader(500)
+					return
+				}
+				requestWire = string(body)
+				requestPlain = requestWire
+				if tc.encrypted {
+					requestPlain, err = DecryptCompactJWE(requestWire, issuerKey)
+					if err != nil {
+						t.Error(err)
+						rw.WriteHeader(400)
+						return
+					}
+				}
+				rw.WriteHeader(tc.status)
+				io.WriteString(rw, wire)
+			}))
+			defer srv.Close()
+			pending := pendingFor(t, w, srv.URL+"/deferred", 1)
+			pending.Issuer = srv.URL
+			w.AddDeferredIssuance(pending)
+			server := NewServer(w, 0, func() {})
+			attempt := server.attemptDeferredCollection(*pending)
+			if attempt.Pending != tc.pending || attempt.Collected != (tc.status == 200) {
+				t.Fatalf("unexpected collection result: %+v", attempt)
+			}
+			request := findLogEntry(w.GetLog(), "deferred_credential_request")
+			response := findLogEntry(w.GetLog(), "deferred_credential_response")
+			if request == nil || request.Payload == nil || response == nil || response.Payload == nil {
+				t.Fatal("deferred request and response payloads are missing")
+			}
+			if request.Payload.Encrypted != tc.encrypted || response.Payload.Encrypted != tc.encrypted {
+				t.Fatal("deferred encryption flags do not match the exchange")
+			}
+			if tc.encrypted {
+				if request.Payload.Wire != requestWire || response.Payload.Wire != wire {
+					t.Fatal("wire payload differs")
+				}
+				body, err := json.Marshal(request.Payload.Body)
+				if err != nil || string(body) != requestPlain {
+					t.Fatal("decrypted request differs")
+				}
+			} else if request.Payload.Body != requestWire {
+				t.Fatal("request payload differs")
+			}
+			if response.Payload.Body != plain {
+				t.Fatal("response payload differs")
+			}
+			if response.Details["status_code"] != tc.status || response.Details["url"] != pending.DeferredEndpoint || response.Details["transaction_id"] != pending.TransactionID {
+				t.Fatalf("response HTTP context missing: %+v", response.Details)
+			}
+			if response.Success != (tc.status < 400) {
+				t.Fatalf("response success = %v", response.Success)
+			}
+		})
+	}
+}
+
+func assertImportActivityMatchesStoredCredentials(t *testing.T, w *Wallet) {
+	t.Helper()
+	entry := findLogEntry(w.GetLog(), "credential_imported")
+	if entry == nil || entry.Payload == nil {
+		t.Fatal("import activity payload is missing")
+	}
+	stored := w.GetCredentials()
+	if len(stored) == 1 {
+		if entry.Payload.Body != stored[0].Raw {
+			t.Fatal("single import activity does not contain the stored credential")
+		}
+		return
+	}
+	encoded, err := json.Marshal(entry.Payload.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		Credentials []struct {
+			ID  string `json:"credential_id"`
+			Raw string `json:"credential"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Credentials) != len(stored) {
+		t.Fatalf("import activity contains %d credentials, wallet stores %d", len(body.Credentials), len(stored))
+	}
+	seen := make(map[string]bool)
+	for _, item := range body.Credentials {
+		credential, ok := w.GetCredential(item.ID)
+		if !ok || credential.Raw != item.Raw || seen[item.ID] {
+			t.Fatal("import activity does not match the distinct stored credentials")
+		}
+		seen[item.ID] = true
+	}
+}
+
+func TestDeferredBatchImportActivity(t *testing.T) {
+	w := generateTestWallet(t)
+	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), testKey(t)}
+	credentials := make([]any, 0, len(keys))
+	for _, key := range keys {
+		credentials = append(credentials, map[string]any{"credential": fakeSDJWT(t, &key.PublicKey)})
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			json.NewEncoder(rw).Encode(map[string]any{"credential_issuer": "http://" + r.Host})
+			return
+		}
+		json.NewEncoder(rw).Encode(map[string]any{"credentials": credentials})
+	}))
+	defer srv.Close()
+	pending := pendingFor(t, w, srv.URL+"/deferred", 1)
+	pending.Issuer = srv.URL
+	pending.ProofKeyPEMs = nil
+	for _, key := range keys {
+		pem, err := encodeECPrivateKeyPEM(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending.ProofKeyPEMs = append(pending.ProofKeyPEMs, pem)
+	}
+	w.AddDeferredIssuance(pending)
+	server := NewServer(w, 0, func() {})
+	if attempt := server.attemptDeferredCollection(*pending); !attempt.Collected {
+		t.Fatalf("deferred batch was not collected: %+v", attempt)
+	}
+	if len(w.GetCredentials()) != len(keys) {
+		t.Fatal("deferred collection did not store the full batch")
+	}
+	assertImportActivityMatchesStoredCredentials(t, w)
 }

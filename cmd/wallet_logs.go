@@ -99,13 +99,21 @@ func walletLogsCleanCmd() *cobra.Command {
 }
 
 func printWalletLogs(w io.Writer, entries []wallet.LogEntry, opts walletLogPrintOptions) error {
-	if opts.JSON {
-		if entries != nil {
-			entries = append([]wallet.LogEntry{}, entries...)
-			for i := range entries {
-				entries[i].Payload = nil
+	if entries != nil {
+		visible := make([]wallet.LogEntry, 0, len(entries))
+		for _, entry := range entries {
+			// Omit deferred exchange diagnostics to preserve the CLI log output.
+			if event := entry.Details["event"]; event == "deferred_credential_request" || event == "deferred_credential_response" {
+				continue
 			}
+			if opts.JSON {
+				entry.Payload = nil
+			}
+			visible = append(visible, entry)
 		}
+		entries = visible
+	}
+	if opts.JSON {
 		data, err := json.MarshalIndent(entries, "", "  ")
 		if err != nil {
 			return fmt.Errorf("marshaling wallet logs: %w", err)

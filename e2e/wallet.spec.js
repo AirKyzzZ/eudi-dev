@@ -156,7 +156,7 @@ test.describe("Wallet Dashboard", () => {
       await expect.poll(async () => (await tlsConfig()).validation_mode).toBe("debug");
       await page.selectOption("#conf-tls-select", "true");
       await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(true);
-      await page.selectOption("#conf-tls-select", "auto");
+      await page.selectOption("#conf-tls-select", { label: "Follow validation mode" });
       await expect.poll(async () => (await tlsConfig()).tls_verify).toBe(false);
       expect((await tlsConfig()).tls_verify_override).toBeNull();
     } finally {
@@ -249,7 +249,7 @@ test.describe("Wallet loading states", () => {
       await expect(page.locator("#cred-empty")).toBeHidden();
 
       releaseActivity();
-      await expect(page.locator(".log-entry")).toContainText("Credential issued");
+      await expect(page.getByTestId("log-entry")).toContainText("Credential issued");
       await expect(page.getByRole("status", { name: "Loading activity" })).toBeHidden();
       await expect(page.locator("#log-empty")).toBeHidden();
     } finally {
@@ -306,7 +306,7 @@ test.describe("Wallet loading states", () => {
     try {
       await page.goto(WALLET_URL);
       await expect(page.locator(".credential-card")).toHaveCount(2);
-      await expect(page.locator(".log-entry")).toContainText("Original activity");
+      await expect(page.getByTestId("log-entry")).toContainText("Original activity");
       refreshing = true;
       const requests = Promise.all([
         page.waitForRequest((request) => new URL(request.url()).pathname === "/api/credentials"),
@@ -315,11 +315,11 @@ test.describe("Wallet loading states", () => {
       sendEvent();
       await requests;
       await expect(page.locator(".credential-card")).toHaveCount(2);
-      await expect(page.locator(".log-entry")).toContainText("Original activity");
+      await expect(page.getByTestId("log-entry")).toContainText("Original activity");
       await expect(page.getByRole("status", { name: "Loading credentials" })).toBeHidden();
       await expect(page.getByRole("status", { name: "Loading activity" })).toBeHidden();
       releaseRefresh();
-      await expect(page.locator(".log-entry")).toContainText("Updated activity");
+      await expect(page.getByTestId("log-entry")).toContainText("Updated activity");
     } finally {
       sendEvent();
       releaseRefresh();
@@ -1289,7 +1289,12 @@ test.describe("A credential bound to a key the wallet does not hold", () => {
 });
 
 
-test("activity shows protocol payload once with optional credential summary", async ({ page }) => {
+function activityJWT(subject) {
+  return [JSON.stringify({ alg: "none", typ: "JWT" }), JSON.stringify({ sub: subject })]
+    .map(value => Buffer.from(value).toString("base64url")).join(".") + ".fakesig";
+}
+
+test("activity starts collapsed and opens the sent presentation in the decoder", async ({ page }) => {
   await page.route("**/api/log*", route => route.fulfill({ json: [{
     time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Sending presentation response", success: true,
     details: {
@@ -1301,18 +1306,87 @@ test("activity shows protocol payload once with optional credential summary", as
     payload: { label: "Response", body: { vp_token: { pid: ["presented-token"] } } },
   }] }));
   await page.goto(WALLET_URL);
-  const entry = page.locator(".log-entry");
+  const entry = page.getByTestId("log-entry");
+  await expect(entry).toHaveAttribute("data-event", "presentation_response");
+  await expect(entry).toHaveAttribute("data-action", "presentation");
+  await expect(entry.locator(".log-payload pre")).toBeHidden();
+  await entry.getByTestId("log-entry-toggle").click();
   await expect(entry.locator(".log-payload pre")).toBeVisible();
+  const labelColor = await entry.locator(".log-key").first().evaluate(el => getComputedStyle(el).color);
+  await expect(entry.locator(".log-payload-label")).toHaveCSS("color", labelColor);
+  await expect(entry.locator(".log-payload")).toHaveCSS("margin-top", "12px");
   await expect(entry.locator(".log-payload pre")).toContainText("presented-token");
   await expect(entry).not.toContainText("sent_credentials");
   await expect(entry).not.toContainText("presented_credentials");
   await expect(entry).not.toContainText("private-stored-token");
   await expect(entry).not.toContainText("NOT DISCLOSED");
-  await entry.getByText("Presented credentials", { exact: true }).click();
-  await expect(entry.locator(".log-summary").first()).toContainText("given_name");
+  await expect(entry.getByText("Presented credentials", { exact: true })).toHaveCount(0);
+  await expect(entry.locator('[data-testid="log-decoder-link"][data-query-id="pid"][data-token-index="0"]'))
+    .toHaveAttribute("href", "/decoder/?credential=presented-token");
 });
 
-test("encrypted activity keeps plaintext visible and ciphertext expandable at phone width", async ({ page }) => {
+for (const event of ["presentation_response", "interactive_authorization_presentation"]) {
+  test(`encrypted presentation activity opens every sent token for ${event}`, async ({ page }) => {
+    const first = activityJWT("first-presentation");
+    const second = activityJWT("second-presentation");
+    const third = activityJWT("mdoc-presentation");
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.route("**/api/log*", route => route.fulfill({ json: [{
+      time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Sending presentation response", success: true,
+      details: { event },
+      payload: { label: "Response", encrypted: true, wire: "encrypted-response",
+        body: { vp_token: { pid: [first, second], mdl: [third] } } },
+    }] }));
+    await page.goto(WALLET_URL);
+    const entry = page.getByTestId("log-entry");
+    await entry.getByTestId("log-entry-toggle").click();
+    await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-response");
+    const controls = entry.locator(".log-payload-controls");
+    const links = controls.getByTestId("log-decoder-link");
+    await expect(links).toHaveCount(3);
+    await expect(links).toHaveText(["Open 'pid' in decoder", "Open 'pid' in decoder (2)", "Open 'mdl' in decoder"]);
+    await expect(entry.locator(".log-payload-heading .log-payload-view")).toHaveText("Encrypted view");
+    const toggleBounds = await controls.getByTestId("log-payload-toggle").boundingBox();
+    const linkBounds = await links.first().boundingBox();
+    expect(linkBounds.height).toBeGreaterThanOrEqual(28);
+    expect(toggleBounds.height).toBeCloseTo(linkBounds.height, 2);
+    const payloadBounds = await entry.locator(".log-payload > pre").boundingBox();
+    expect(linkBounds.y + linkBounds.height).toBeLessThanOrEqual(payloadBounds.y);
+    for (const [queryID, tokenIndex, token, subject] of [
+      ["pid", 0, first, "first-presentation"],
+      ["pid", 1, second, "second-presentation"],
+      ["mdl", 0, third, "mdoc-presentation"],
+    ]) {
+      const link = entry.locator(`[data-testid="log-decoder-link"][data-query-id="${queryID}"][data-token-index="${tokenIndex}"]`);
+      await expect(link).toHaveAttribute("href", "/decoder/?credential=" + encodeURIComponent(token));
+      const popupPromise = page.waitForEvent("popup");
+      await link.click();
+      const decoder = await popupPromise;
+      await expect(decoder.locator("#input")).toHaveValue(token);
+      await expect(decoder.locator('#output .section[data-section="payload"]')).toContainText(subject);
+      await decoder.close();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+test("request activity formats JSON strings and preserves non-JSON payloads", async ({ page }) => {
+  const bodies = ['{"nonce":"test-nonce","claims":["given_name"]}', "signed.token.value"];
+  await page.route("**/api/log*", route => route.fulfill({ json: bodies.map(body => ({
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Presentation request", success: true,
+    payload: { label: "Request", body, wire: "original-wire-value" },
+  })) }));
+  await page.goto(WALLET_URL);
+  const entries = page.getByTestId("log-entry");
+  await expect(entries).toHaveCount(2);
+  for (const entry of await entries.all()) await entry.getByTestId("log-entry-toggle").click();
+  await expect(entries.nth(0).locator(".log-payload > pre")).toHaveText("signed.token.value");
+  await entries.nth(0).getByTestId("log-wire-toggle").click();
+  await expect(entries.nth(0).locator(".log-wire pre")).toHaveText("original-wire-value");
+  await expect(entries.nth(1).locator(".log-payload > pre")).toHaveText('{\n  "nonce": "test-nonce",\n  "claims": [\n    "given_name"\n  ]\n}');
+});
+
+test("encrypted activity starts with the wire value and toggles plaintext at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
   await page.route("**/api/log*", route => route.fulfill({ json: [{
     time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Credential response", success: true,
@@ -1320,12 +1394,208 @@ test("encrypted activity keeps plaintext visible and ciphertext expandable at ph
     payload: { label: "Response", body: '{"credential":"test-credential"}', encrypted: true, wire: "encrypted-wire-value".repeat(30) },
   }] }));
   await page.goto(WALLET_URL);
-  const entry = page.locator(".log-entry");
-  await expect(entry.locator(".log-encrypted")).toHaveText("Encrypted");
+  const entry = page.getByTestId("log-entry");
+  await expect(entry.locator(".log-payload > pre")).toBeHidden();
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator(".log-payload-view")).toHaveText("Encrypted view");
   await expect(entry.locator(".log-payload > pre")).toBeVisible();
-  await expect(entry.locator(".log-payload > pre")).toContainText("test-credential");
-  await expect(entry.locator(".log-wire pre")).toBeHidden();
-  await entry.getByText("Encrypted wire value", { exact: true }).click();
-  await expect(entry.locator(".log-wire pre")).toBeVisible();
+  await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-wire-value".repeat(30));
+  await expect(entry.locator(".log-payload-label")).toHaveText("Response");
+  const requests = [];
+  page.on("request", request => requests.push(request.url()));
+  const toggle = entry.getByTestId("log-payload-toggle");
+  await expect(toggle).toHaveText("View decrypted");
+  await toggle.click();
+  await expect(toggle).toHaveText("View encrypted");
+  await expect(entry.locator(".log-payload-view")).toHaveText("Decrypted view");
+  await expect(entry.locator(".log-payload > pre")).toHaveText('{\n  "credential": "test-credential"\n}');
+  await toggle.click();
+  await expect(toggle).toHaveText("View decrypted");
+  await expect(entry.locator(".log-payload-view")).toHaveText("Encrypted view");
+  await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-wire-value".repeat(30));
+  expect(requests).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test("encrypted activity without plaintext still shows the wire value", async ({ page }) => {
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Presentation response", success: true,
+    payload: { label: "Response", encrypted: true, wire: "encrypted-wire-value" },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.locator(".log-payload-view")).toHaveText("Encrypted view");
+  await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-wire-value");
+  await expect(entry.getByTestId("log-payload-toggle")).toHaveCount(0);
+});
+
+test("activity details stay visible and decoded request JWTs open in the decoder", async ({ page }) => {
+  const claims = { client_id: "https://verifier.example", nonce: "decoded-nonce" };
+  const jwt = [JSON.stringify({ alg: "ES256", typ: "oauth-authz-req+jwt" }), JSON.stringify(claims)]
+    .map(value => Buffer.from(value).toString("base64url")).join(".") + ".signature";
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Presentation request", success: true,
+    details: { event: "presentation_request", direction: "inbound", request_object: claims, request_origin: "https://origin.example" },
+    payload: { label: "Request object", body: jwt },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.getByText("https://origin.example", { exact: true })).toBeVisible();
+  await expect(entry.locator("details > summary", { hasText: /^Details$/ })).toHaveCount(0);
+  await expect(entry).not.toContainText("decoded-nonce");
+  await expect(entry.locator(".log-payload > pre")).toHaveText(jwt);
+  const popupPromise = page.waitForEvent("popup");
+  await entry.getByTestId("log-decoder-link").click();
+  const decoder = await popupPromise;
+  await expect(decoder.locator("#input")).toHaveValue(jwt);
+  await decoder.close();
+});
+
+test("import activity keeps credential context and links to its original token", async ({ page }) => {
+  const jwt = [JSON.stringify({ alg: "ES256" }), JSON.stringify({ name: "decoded-claim" })]
+    .map(value => Buffer.from(value).toString("base64url")).join(".") + ".signature";
+  await page.route("**/api/log*", route => route.fulfill({ json: [{
+    time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Credential imported", success: true,
+    details: { event: "credential_imported", credential_id: "deleted-credential", format: "jwt_vc_json",
+      raw_credential: jwt, credential: { raw: jwt, claims: { name: "decoded-claim" } } },
+    payload: { label: "Credential", body: jwt },
+  }] }));
+  await page.goto(WALLET_URL);
+  const entry = page.getByTestId("log-entry");
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.getByText("deleted-credential", { exact: true })).toBeVisible();
+  await expect(entry).not.toContainText("decoded-claim");
+  await expect(entry.locator(".log-payload > pre")).toHaveText(jwt);
+  await expect(entry.getByTestId("log-decoder-link"))
+    .toHaveAttribute("href", "/decoder/?credential=" + encodeURIComponent(jwt));
+});
+
+for (const shape of ["encrypted JSON", "JSON", "object", "legacy details", "deferred JSON", "encrypted deferred JSON"]) {
+  test(`credential response decoder links open every batch instance from ${shape}`, async ({ page }) => {
+    const subjects = ["first-instance", "second-instance", "primary-instance"];
+    const tokens = subjects.map(activityJWT);
+    const response = { credentials: tokens.map(credential => ({ credential })) };
+    const encrypted = shape.startsWith("encrypted");
+    const event = shape.includes("deferred") ? "deferred_credential_response" : "credential_response";
+    await page.route("**/api/log*", route => route.fulfill({ json: [
+      { time: "2026-10-01T08:00:00Z", action: "issuance", detail: "Credential response", success: true,
+        details: { event, response },
+        ...(shape === "legacy details" ? {} : { payload: { label: "Response",
+          body: shape === "object" ? response : JSON.stringify(response),
+          ...(encrypted ? { encrypted: true, wire: "encrypted-batch-response" } : {}) } }) },
+      { time: "2026-10-01T08:00:01Z", action: "issuance", detail: "Imported credential primary-id", success: true,
+        details: { event: "credential_imported", credential_id: "primary-id", raw_credential: tokens[2],
+          credential: { raw: tokens[2] } } },
+    ] }));
+    await page.goto(WALLET_URL);
+    const responseEntry = page.locator(`[data-testid="log-entry"][data-event="${event}"]`);
+    await expect(responseEntry).toHaveCount(1);
+    await expect(responseEntry.getByTestId("log-entry-toggle")).toContainText("Credential response (3 copies)");
+    await responseEntry.getByTestId("log-entry-toggle").click();
+    await expect(responseEntry.getByTestId("log-decoder-link")).toHaveText([
+      "Open copy 1 in decoder", "Open copy 2 in decoder", "Open copy 3 in decoder",
+    ]);
+    if (encrypted) await expect(responseEntry.locator(".log-payload > pre")).toHaveText("encrypted-batch-response");
+    else await expect(responseEntry.locator(".log-payload > pre")).toHaveText(JSON.stringify(response, null, 2));
+    for (const [index, token] of tokens.entries()) {
+      const link = responseEntry.locator(`[data-testid="log-decoder-link"][data-credential-index="${index}"]`);
+      await expect(link).toHaveAttribute("href", "/decoder/?credential=" + encodeURIComponent(token));
+      const popupPromise = page.waitForEvent("popup");
+      await link.click();
+      const decoder = await popupPromise;
+      await expect(decoder.locator("#input")).toHaveValue(token);
+      await expect(decoder.locator('#output .section[data-section="payload"]')).toContainText(subjects[index]);
+      await decoder.close();
+    }
+    const imported = page.locator('[data-testid="log-entry"][data-event="credential_imported"]');
+    await expect(imported).toHaveAttribute("data-credential-id", "primary-id");
+    await expect(imported.getByTestId("log-entry-toggle")).toContainText("Imported credential primary-id");
+    await imported.getByTestId("log-entry-toggle").click();
+    await expect(imported.locator(".log-payload-label")).toHaveText("Credential");
+    await expect(imported.getByTestId("log-decoder-link")).toHaveCount(1);
+    await expect(imported.getByTestId("log-decoder-link")).toHaveAttribute("href", "/decoder/?credential=" + encodeURIComponent(tokens[2]));
+  });
+}
+
+for (const shape of ["object", "JSON"]) {
+  test(`batch import activity opens every stored credential from ${shape}`, async ({ page }) => {
+    const subjects = ["first-import", "second-import", "third-import"];
+    const tokens = subjects.map(activityJWT);
+    const body = { credentials: tokens.map((credential, index) => ({ credential_id: `stored-${index}`, credential })) };
+    await page.route("**/api/log*", route => route.fulfill({ json: [{
+      time: "2026-10-02T08:00:00Z", action: "issuance", detail: "Imported credential stored-0", success: true,
+      details: { event: "credential_imported", credential_id: "stored-0", raw_credential: tokens[0] },
+      payload: { label: "Imported credentials", body: shape === "JSON" ? JSON.stringify(body) : body },
+    }] }));
+    await page.goto(WALLET_URL);
+    const entry = page.getByTestId("log-entry");
+    await expect(entry.getByTestId("log-entry-toggle")).toContainText("Imported credential (3 copies)");
+    await entry.getByTestId("log-entry-toggle").click();
+    await expect(entry.getByTestId("log-decoder-link")).toHaveText([
+      "Open copy 1 in decoder", "Open copy 2 in decoder", "Open copy 3 in decoder",
+    ]);
+    await expect(entry.locator(".log-payload-label")).toHaveText("Credential (3 copies)");
+    for (const [index, token] of tokens.entries()) {
+      const link = entry.locator(`[data-testid="log-decoder-link"][data-credential-id="stored-${index}"]`);
+      await expect(link).toHaveAttribute("data-credential-index", String(index));
+      const popupPromise = page.waitForEvent("popup");
+      await link.click();
+      const decoder = await popupPromise;
+      await expect(decoder.locator("#input")).toHaveValue(token);
+      await expect(decoder.locator('#output .section[data-section="payload"]')).toContainText(subjects[index]);
+      await decoder.close();
+    }
+    await expect(entry.locator(".log-payload > pre")).toHaveText(JSON.stringify(body, null, 2));
+  });
+}
+
+test("fetched request objects appear once with HTTP context and a decoder link", async ({ page }) => {
+  const jwt = "request.header.signature";
+  await page.route("**/api/log*", route => route.fulfill({ json: [
+    { time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Fetch request object", success: true,
+      details: { event: "request_object_fetch_request", method: "GET", url: "https://verifier.example/request" },
+      payload: { label: "Request", body: "GET https://verifier.example/request" } },
+    { time: "2026-10-01T08:00:01Z", action: "presentation", detail: "Request object fetch response", success: true,
+      details: { event: "request_object_fetch_response", method: "GET", url: "https://verifier.example/request", status_code: 200 },
+      payload: { label: "Response", encrypted: true, wire: "encrypted-request-object", body: jwt } },
+    { time: "2026-10-01T08:00:02Z", action: "presentation", detail: "Validation warning", success: true, severity: "warning" },
+    { time: "2026-10-01T08:00:03Z", action: "presentation", detail: "Received presentation request", success: true,
+      details: { event: "presentation_request", source: "http", request_origin: "https://origin.example",
+        request_object: { nonce: "decoded-nonce", method: "JWT extension", status_code: 999 } },
+      payload: { label: "Request object", body: jwt } },
+  ] }));
+  await page.goto(WALLET_URL);
+  await expect(page.getByTestId("log-entry")).toHaveCount(3);
+  await expect(page.getByTestId("log-entry").filter({ hasText: "Fetch request object" })).toHaveCount(1);
+  await expect(page.getByTestId("log-entry").filter({ hasText: "Validation warning" })).toHaveCount(1);
+  const entry = page.getByTestId("log-entry").filter({ hasText: "Received presentation request" });
+  await entry.getByTestId("log-entry-toggle").click();
+  await expect(entry.getByText("200", { exact: true })).toBeVisible();
+  await expect(entry.getByText("GET", { exact: true })).toBeVisible();
+  await expect(entry.getByText("https://origin.example", { exact: true })).toBeVisible();
+  await expect(entry.locator(".log-payload > pre")).toHaveText("encrypted-request-object");
+  await expect(entry.getByTestId("log-decoder-link"))
+    .toHaveAttribute("href", "/decoder/?credential=" + jwt);
+  await entry.getByTestId("log-payload-toggle").click();
+  await expect(entry.locator(".log-payload > pre")).toHaveText(jwt);
+  await expect(entry).not.toContainText("decoded-nonce");
+});
+
+for (const scenario of ["different token", "repeated receipt", "failed fetch"]) {
+  test(`request object activity keeps separate entries for ${scenario}`, async ({ page }) => {
+    const received = { time: "2026-10-01T08:00:01Z", action: "presentation", detail: "Received presentation request", success: true,
+      details: { event: "presentation_request", request_object: { nonce: "test-nonce" } },
+      payload: { label: "Request object", body: scenario === "different token" ? "another.token.signature" : "request.header.signature" } };
+    const log = [{ time: "2026-10-01T08:00:00Z", action: "presentation", detail: "Request object fetch response", success: scenario !== "failed fetch",
+      details: { event: "request_object_fetch_response", status_code: scenario === "failed fetch" ? 400 : 200 },
+      payload: { label: "Response", body: "request.header.signature" } }, received];
+    if (scenario === "repeated receipt") log.push(received);
+    await page.route("**/api/log*", route => route.fulfill({ json: log }));
+    await page.goto(WALLET_URL);
+    await expect(page.getByTestId("log-entry")).toHaveCount(2);
+    for (const entry of await page.getByTestId("log-entry").all()) await entry.getByTestId("log-entry-toggle").click();
+    await expect(page.getByTestId("log-decoder-link")).toHaveCount(2);
+  });
+}

@@ -196,10 +196,10 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 
 	// Let the poller schedule retries. Each call performs one request without waiting.
 	nonce := ""
-	credResp, err := deferredCredentialAttempt(
+	credResp, err := s.wallet.deferredCredentialAttempt(
 		mode, metadata,
 		pending.DeferredEndpoint, pending.AccessToken, pending.AuthScheme,
-		pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce, s.wallet.HTTPClient())
+		pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce)
 
 	// An issuer that refuses the authorization may have expired the token
 	// earlier than it said, so one renewal and one retry precede giving up.
@@ -208,10 +208,10 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		if refreshErr == nil {
 			pending = refreshed
 			nonce = ""
-			credResp, err = deferredCredentialAttempt(
+			credResp, err = s.wallet.deferredCredentialAttempt(
 				mode, metadata,
 				pending.DeferredEndpoint, pending.AccessToken, pending.AuthScheme,
-				pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce, s.wallet.HTTPClient())
+				pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce)
 		}
 	}
 
@@ -235,7 +235,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		display = s.wallet.resolveCredentialDisplay(metadata, pending.ConfigurationID)
 	}
 	s.wallet.rememberDisplay(imported, display)
-	s.wallet.storeBatchSiblings(imported, credResp, proofKeys, display)
+	stored := s.wallet.storeBatchSiblings(imported, credResp, proofKeys, display)
 
 	s.wallet.RemoveDeferredIssuance(pending.ID)
 	details := credentialImportLogDetails(imported, credential)
@@ -243,7 +243,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	details["transaction_id"] = pending.TransactionID
 	details["deferred"] = true
 	s.wallet.addProtocolLog("issuance", "credential_imported",
-		fmt.Sprintf("Collected deferred credential %s from %s", imported.ID, pending.Issuer), true, details)
+		fmt.Sprintf("Collected deferred credential %s from %s", imported.ID, pending.Issuer), true, details, credentialImportLogPayload(stored))
 	s.log("  Collected:     deferred %s credential from %s", imported.Format, pending.Issuer)
 
 	// §9.2 lets the Deferred Credential Response carry a notification_id of

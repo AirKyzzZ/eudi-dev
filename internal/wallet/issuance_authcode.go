@@ -407,7 +407,7 @@ func (w *Wallet) completeAuthorizationCodeIssuance(ctx authorizationCodeIssuance
 	if err != nil {
 		return nil, fmt.Errorf("importing received credential: %w", err)
 	}
-	w.logCredentialImport(imported, credential, offer.CredentialIssuer)
+	importDetails := credentialImportLogDetails(imported, credential)
 	w.rememberRenewal(imported.ID, refreshToken, CredentialRenewal{
 		Issuer:             offer.CredentialIssuer,
 		TokenEndpoint:      tokenEndpoint,
@@ -418,7 +418,8 @@ func (w *Wallet) completeAuthorizationCodeIssuance(ctx authorizationCodeIssuance
 		ClientAuth:         clientAuth,
 	})
 	w.rememberDisplay(imported, display)
-	w.storeBatchSiblings(imported, credResp, proofKeys, display)
+	stored := w.storeBatchSiblings(imported, credResp, proofKeys, display)
+	w.logCredentialImport(imported, offer.CredentialIssuer, importDetails, stored)
 
 	w.notifyCredentialAccepted(metadata, credResp, accessToken, authScheme, dpopKey, &nonces.resource)
 
@@ -1432,17 +1433,41 @@ func (e stillPendingError) Error() string {
 // encryption_required is true, and the encryption parameters in the Deferred
 // Credential Request decide the response encryption "regardless of what was
 // sent in the initial Credential Request".
-func deferredCredentialAttempt(mode ValidationMode, metadata map[string]any, endpoint, accessToken, authScheme, transactionID string, responseEncryption map[string]any, dpopKey, holderKey *ecdsa.PrivateKey, nonce *string, clients ...*http.Client) (map[string]any, error) {
+func (w *Wallet) deferredCredentialAttempt(mode ValidationMode, metadata map[string]any, endpoint, accessToken, authScheme, transactionID string, responseEncryption map[string]any, dpopKey, holderKey *ecdsa.PrivateKey, nonce *string) (out map[string]any, err error) {
 	reqBody := map[string]any{"transaction_id": transactionID}
 	if responseEncryption != nil {
 		reqBody["credential_response_encryption"] = responseEncryption
 	}
 	body, contentType, err := prepareCredentialRequestBody(mode, metadata, reqBody)
+	requestPayload := &LogPayload{Label: "Request", Body: string(body)}
+	if contentType == "application/jwt" {
+		requestPayload.Body, requestPayload.Wire, requestPayload.Encrypted = reqBody, string(body), true
+	}
+	requestDetails := map[string]any{
+		"direction": "outbound", "method": "POST", "url": endpoint,
+		"endpoint": "deferred_credential", "transaction_id": transactionID,
+	}
+	if err != nil {
+		requestPayload.Label, requestPayload.Body = "Request (not sent)", reqBody
+		requestDetails["error"] = err.Error()
+	}
+	w.addProtocolLog("issuance", "deferred_credential_request", fmt.Sprintf("Request deferred credential from %s", endpoint), err == nil, requestDetails, requestPayload)
 	if err != nil {
 		return nil, err
 	}
-	respBody, _, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(responseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil, clients...)
-	out, parseErr := parseCredentialResponseBody(respBody, holderKey)
+	respBody, statusCode, reqErr := doDPoPRequest("POST", endpoint, contentType, credentialAccept(responseEncryption), body, authScheme, accessToken, dpopKey, nonce, nil, w.HTTPClient())
+	responsePayload := &LogPayload{Label: "Response"}
+	defer func() {
+		logErr := err
+		var pending stillPendingError
+		if errors.As(err, &pending) {
+			logErr = nil
+		}
+		details := responseMapLogDetails(endpoint, "deferred_credential", nil, logErr)
+		details["method"], details["status_code"], details["transaction_id"] = "POST", statusCode, transactionID
+		w.addProtocolLog("issuance", "deferred_credential_response", fmt.Sprintf("Deferred credential response from %s", endpoint), logErr == nil && statusCode < 400, details, responsePayload)
+	}()
+	out, parseErr := parseCredentialResponseBody(respBody, holderKey, responsePayload)
 	if parseErr != nil {
 		if reqErr != nil {
 			return nil, reqErr

@@ -240,6 +240,27 @@ func credentialImportLogDetails(cred *StoredCredential, raw string) map[string]a
 	return details
 }
 
+type importedCredentialLogItem struct {
+	ID  string `json:"credential_id"`
+	Raw string `json:"credential"`
+}
+
+func credentialImportLogPayload(credentials []*StoredCredential) *LogPayload {
+	if len(credentials) == 0 {
+		return nil
+	}
+	if len(credentials) == 1 {
+		return &LogPayload{Label: "Credential", Body: credentials[0].Raw}
+	}
+	items := make([]importedCredentialLogItem, 0, len(credentials))
+	for _, credential := range credentials {
+		items = append(items, importedCredentialLogItem{ID: credential.ID, Raw: credential.Raw})
+	}
+	return &LogPayload{Label: "Imported credentials", Body: struct {
+		Credentials []importedCredentialLogItem `json:"credentials"`
+	}{Credentials: items}}
+}
+
 func sentCredentialLogDetails(matches []CredentialMatch) []map[string]any {
 	if len(matches) == 0 {
 		return nil

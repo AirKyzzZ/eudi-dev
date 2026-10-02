@@ -44,7 +44,7 @@ The Issue Credential dialog issues credentials from the web UI. It shows format 
 
 Credential cards show the revocation status when a credential carries a status list reference. Credentials on the wallet's own status list show a live Active or Revoked badge plus a Revoke or Activate button. Credentials pointing at an external status list show a Check status action that fetches the list and resolves the current value.
 
-UI controls have stable IDs for browser automation. Credential cards expose `data-credential-id`, `data-format`, `data-vct`, `data-doctype` and `data-status`. For example, select a PID with `.credential-card[data-vct="urn:eudi:pid:1"]`.
+UI controls have stable IDs and data attributes for browser automation. Credential cards expose `data-credential-id`, `data-format`, `data-vct`, `data-doctype` and `data-status`. For example, select a PID with `.credential-card[data-vct="urn:eudi:pid:1"]`.
 
 | Control | ID or selector |
 |---|---|
@@ -57,10 +57,23 @@ UI controls have stable IDs for browser automation. Credential cards expose `dat
 | Set options | `consent-set-<n>-option-<m>`, `consent-set-<n>-none` for optional sets |
 | Query sections | `consent-query-<id>` |
 | Candidate rows | `consent-candidate-<query>-<credential>`, with `data-query` and `data-cred` |
+| Activity entries | `data-testid="log-entry"`, with `data-event` and `data-action` |
+| Open or close an activity entry | `data-testid="log-entry-toggle"` |
+| Switch encrypted or decrypted view | `data-testid="log-payload-toggle"` |
+| Open a token in the decoder | `data-testid="log-decoder-link"` |
+| Show an alternate wire value | `data-testid="log-wire-toggle"` |
+
+Scope activity controls to their entry. Entries for a stored credential also have `data-credential-id`. Presentation decoder links have `data-query-id` and `data-token-index`. Credential response and batch import links have `data-credential-index`. Batch import links also have `data-credential-id` for each stored copy. Token indexes start at zero within each query. Credential indexes start at zero within the entry. The encryption toggle keeps the same selector in both views.
 
 ![Issue credential dialog](../assets/wallet-issue-ui.png)
 
 The header links to GitHub and CLI installation instructions. Local wallets let users change **Auto-accept**. Demo wallets show the fixed setting.
+
+Open an activity entry to see its details and request or response with formatted JSON. A fetched request object and its receipt share one entry, with the HTTP status and response preserved. Deferred collection adds separate request and response entries, including pending replies and errors.
+
+**Open in decoder** opens request JWTs and imported credentials. A batch is shown as one credential with multiple copies, such as **Imported credential (8 copies)**. The import entry includes every stored copy's ID. Both import and credential response entries have **Open copy 1 in decoder** buttons for each copy. Sent presentations have buttons named for their query, such as **Open 'pid' in decoder**.
+
+Encrypted exchanges show the wire value first. **View decrypted** shows the plaintext, and **View encrypted** returns to the wire value. These buttons only change the log display.
 
 **Trust & certificates** lists trust list URLs and offers CA, signing and HTTPS certificates. Verifiers use the CA for wallet-issued credentials. Issuers use it for wallet and key attestations.
 

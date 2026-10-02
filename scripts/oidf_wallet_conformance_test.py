@@ -1,4 +1,9 @@
+import json
+import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from unittest import mock
 
 import oidf_wallet_conformance as oidf
@@ -264,6 +269,46 @@ class CredentialChainTests(unittest.TestCase):
             encoded = base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
             expected = certificates if isinstance(certificates, list) else [certificates]
             self.assertEqual(oidf.credential_chain_der({'format': 'mso_mdoc', 'raw': encoded}), expected)
+
+
+class WalletActivityExportTests(unittest.TestCase):
+    def test_exports_activity_payloads_and_clears_the_log(self):
+        entries = [{
+            "action": "issuance", "details": {"event": "deferred_credential_response", "status_code": 200},
+            "payload": {"label": "Response", "encrypted": True, "wire": "encrypted-response",
+                        "body": '{"credentials":[{"credential":"issued-instance"}]}'},
+        }]
+        requests = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+                response = entries if self.path == "/api/log?view=activity" else [{"action": "issuance"}]
+                self.wfile.write(json.dumps(response).encode())
+
+            def do_DELETE(self):
+                requests.append(self.path)
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "activity.json"
+                oidf.export_wallet_activity(f"http://127.0.0.1:{server.server_port}", output, clear=True)
+                self.assertEqual(json.loads(output.read_text()), entries)
+                self.assertEqual(requests, ["/api/log?view=activity", "/api/log"])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            server.server_close()
 
 
 if __name__ == "__main__":

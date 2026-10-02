@@ -103,6 +103,10 @@ The default CMD starts the wallet server headless with preloaded PID credentials
 → [OIDF conformance status](docs/conformance.md), [runbook](docs/conformance-run.md), and [results](docs/conformance-results.md)
 → [Examples](docs/examples.md)
 
+### Java integration tests
+
+[testcontainers-eudi](https://github.com/dominikschlosser/testcontainers-eudi) starts the wallet in Docker for Java integration tests. Its Java client can issue credentials, accept credential offers and submit presentations.
+
 ## Usage
 
 ```

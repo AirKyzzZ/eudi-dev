@@ -1246,6 +1246,12 @@ test.describe("Custom verifier request builder", () => {
     const { id, schemeURI } = await buildCustom(page, "nationalities[*]");
 
     await present(page, schemeURI);
+    const credentials = await (await fetch(`${BASE}/api/credentials`)).json();
+    const dutchPID = credentials.find(c => c.vct === "urn:eudi:pid:1" && c.format === "dc+sd-jwt");
+    expect(dutchPID).toBeDefined();
+    await page.locator("#consent-edit-selection").click();
+    await page.locator(`#consent-candidate-cred_0-${dutchPID.id}`).click();
+    await page.locator("#consent-selection-done").click();
     await expect(page.locator("#consent-dialog .consent-claim-warn")).toHaveCount(0);
 
     await page.locator("#consent-approve").click();

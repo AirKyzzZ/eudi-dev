@@ -1331,48 +1331,48 @@
     }
     logEmpty.hidden = true;
 
-    log.slice().reverse().forEach(entry => {
+    combineRequestLogs(log).reverse().forEach(entry => {
       const el = document.createElement('div');
       const view = activityView(entry);
-      const hasDetails = view.payload || view.credentials.length > 0 || Object.keys(view.details).length > 0;
-      el.className = 'log-entry' + (hasDetails ? ' has-details' : '') + (view.payload ? ' expanded' : '');
+      const hasDetails = view.payload || view.presentations.length > 0 || Object.keys(view.details).length > 0;
+      el.className = 'log-entry' + (hasDetails ? ' has-details' : '');
+      el.dataset.testid = 'log-entry';
+      el.dataset.event = entry.details?.event || '';
+      el.dataset.action = entry.action;
+      if (entry.details?.credential_id) el.dataset.credentialId = entry.details.credential_id;
       const time = new Date(entry.time).toLocaleTimeString();
       // Profile violations accepted in debug mode are warnings, separate from success and
       // failure.
       const warning = entry.severity === 'warning';
       const statusClass = warning ? 'warning' : (entry.success ? 'success' : 'failure');
       const statusLabel = warning ? '⚠ WARN' : (entry.success ? 'OK' : 'FAIL');
-      let html = '<div class="log-header">' +
+      let html = '<div class="log-header" data-testid="log-entry-toggle">' +
         '<span class="log-chevron">' + (hasDetails ? '▸' : '') + '</span>' +
         '<span class="log-time">' + time + '</span>' +
         '<span class="log-action ' + entry.action + '">' + escHtml(entry.action) + '</span>' +
-        '<span class="log-detail" title="' + escHtml(entry.detail) + '">' + escHtml(entry.detail) + '</span>' +
+        '<span class="log-detail" title="' + escHtml(view.detail) + '">' + escHtml(view.detail) + '</span>' +
         '<span class="log-status ' + statusClass + '">' + statusLabel + '</span>' +
         '</div>';
       if (hasDetails) {
         html += '<div class="log-details">';
-        const context = {};
-        for (const key of ['direction', 'method', 'url', 'submission_uri', 'status_code']) {
-          if (view.details[key] !== undefined) {
-            context[key] = view.details[key];
-            delete view.details[key];
-          }
-        }
-        if (Object.keys(context).length) html += renderLogDetails(context);
-        if (view.payload) html += renderLogPayload(view.payload);
-        if (view.credentials.length) {
-          html += '<details class="log-summary"><summary>Presented credentials</summary>' +
-            renderLogDetails({ credentials: view.credentials }) + '</details>';
-        }
-        if (Object.keys(view.details).length) {
-          const fields = renderLogDetails(view.details);
-          html += view.payload ? '<details class="log-summary"><summary>Details</summary>' + fields + '</details>' : fields;
-        }
+        if (Object.keys(view.details).length) html += renderLogDetails(view.details);
+        if (view.payload) html += renderLogPayload(view.payload, view.decoderInput, view.presentations, view.credentials);
+        else if (view.presentations.length) html += '<div class="log-payload-controls">' + renderLogPresentations(view.presentations) + '</div>';
         html += '</div>';
       }
       el.innerHTML = html;
       if (hasDetails) {
         el.querySelector('.log-header').addEventListener('click', () => el.classList.toggle('expanded'));
+      }
+      const payloadToggle = el.querySelector('.log-payload-toggle');
+      if (payloadToggle) {
+        let showEncrypted = true;
+        payloadToggle.addEventListener('click', () => {
+          showEncrypted = !showEncrypted;
+          el.querySelector('.log-payload > pre').textContent = logPayloadText(showEncrypted ? view.payload.wire : view.payload.body);
+          el.querySelector('.log-payload-view').textContent = showEncrypted ? 'Encrypted view' : 'Decrypted view';
+          payloadToggle.textContent = showEncrypted ? 'View decrypted' : 'View encrypted';
+        });
       }
       logContainer.appendChild(el);
     });
@@ -1382,16 +1382,37 @@
     'client_id', 'response_type', 'response_mode', 'response_uri', 'redirect_uri',
     'submission_uri', 'state', 'nonce'];
 
+  function combineRequestLogs(log) {
+    const entries = [];
+    for (const entry of log) {
+      if (entry.details?.event === 'presentation_request' && entry.success && typeof entry.payload?.body === 'string') {
+        const index = entries.findLastIndex(candidate =>
+          candidate.details?.event === 'request_object_fetch_response' && candidate.success &&
+          !candidate.requestReceived && candidate.payload?.body === entry.payload.body);
+        if (index !== -1) {
+          const fetched = entries[index];
+          entries[index] = {
+            ...fetched,
+            detail: entry.detail,
+            details: { ...activityView(entry).details, ...fetched.details },
+            requestReceived: true,
+          };
+          continue;
+        }
+      }
+      entries.push(entry);
+    }
+    return entries;
+  }
+
   function activityView(entry) {
     const details = { ...entry.details };
-    const credentials = (details.sent_credentials || details.presented_credentials || []).map(c => ({
-      id: c.id, query_id: c.query_id, format: c.format,
-      ...(c.vct ? { vct: c.vct } : {}), ...(c.doc_type ? { doc_type: c.doc_type } : {}),
-      disclosed: c.disclosed,
-    }));
+    const sentTokens = details.vp_token;
     delete details.sent_credentials;
     delete details.presented_credentials;
     let payload = entry.payload;
+    let detail = entry.detail;
+    let decoderInput;
     const event = details.event;
     if (event === 'presentation_response' || event === 'presentation_error_response') {
       if (!payload && details.browser_api_result) {
@@ -1414,9 +1435,9 @@
         if (Object.keys(body).length) payload = { label: 'Response parameters', body };
       }
       for (const key of ['vp_token', 'id_token', 'state', 'browser_api_result', 'error', 'error_description']) delete details[key];
-    } else if (event === 'presentation_request' || event === 'interactive_authorization_presentation_request') {
+    } else if (event === 'presentation_request' || event === 'interactive_authorization_presentation_request' || event === 'request_object_fetch_response') {
       if (details.request_object) {
-        if (payload && typeof payload.body === 'string') details.decoded_request = details.request_object;
+        if (payload && typeof payload.body === 'string') decoderInput = payload.body;
         payload ||= { label: 'Request object (decoded)', body: details.request_object };
         for (const key of Object.keys(details.request_object)) delete details[key];
         delete details.request_object;
@@ -1434,12 +1455,18 @@
         delete details[key];
       }
     }
-    if (event === 'credential_imported' && details.credential) {
-      const { raw, ...summary } = details.credential;
-      payload ||= { label: 'Credential', body: details.raw_credential || raw };
-      for (const key of ['credential_id', 'format', 'vct', 'doc_type', 'raw_credential']) delete details[key];
-      details.credential = summary;
+    if (event === 'credential_imported') {
+      detail = 'Imported credential' + (details.credential_id ? ' ' + details.credential_id : '');
+      const raw = details.raw_credential || details.credential?.raw;
+      if (!payload && typeof raw === 'string') payload = { label: 'Credential', body: raw };
+      if (typeof payload?.body === 'string') {
+        payload = { ...payload, label: 'Credential' };
+        decoderInput = payload.body;
+      }
+      delete details.raw_credential;
+      delete details.credential;
     }
+    if (event === 'request_object_fetch_response' && typeof payload?.body === 'string') decoderInput = payload.body;
     if (!payload && event === 'verifier_response') payload = { label: 'Response', body: '' };
     if (!payload && details.method && details.url) {
       payload = { label: 'Request', body: details.method + ' ' + details.url };
@@ -1453,27 +1480,87 @@
       delete details.notification_event;
     }
     if (payload && event === 'authorization_response') delete details.callback_values;
-    return { payload, details, credentials };
+    const presentations = Object.entries(payload?.body?.vp_token || sentTokens || {}).flatMap(([queryID, tokens]) =>
+      Array.isArray(tokens) ? tokens.flatMap((token, tokenIndex) =>
+        typeof token === 'string' && token ? [{ queryID, token, tokenIndex }] : []) : []);
+    const hasCredentials = event === 'credential_response' || event === 'deferred_credential_response' || event === 'credential_imported';
+    let responseBody = payload?.body;
+    if (hasCredentials && typeof responseBody === 'string') {
+      try { responseBody = JSON.parse(responseBody); } catch (e) { responseBody = null; }
+    }
+    const credentials = hasCredentials && Array.isArray(responseBody?.credentials)
+      ? responseBody.credentials.flatMap((credential, index) =>
+        typeof credential?.credential === 'string' && credential.credential
+          ? [{ token: credential.credential, index, id: credential.credential_id }] : [])
+      : [];
+    const copies = credentials.length > 1 ? ' (' + credentials.length + ' copies)' : '';
+    if (event === 'credential_imported' && credentials.length) {
+      detail = 'Imported credential' + copies;
+      payload = { ...payload, label: 'Credential' + copies };
+      decoderInput = undefined;
+      details.primary_credential_id = details.credential_id;
+      delete details.credential_id;
+    } else if (copies) {
+      detail += copies;
+    }
+    return { payload, detail, details, presentations, credentials, decoderInput };
   }
 
   function logPayloadText(value) {
-    return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    if (typeof value === 'string') {
+      try {
+        return JSON.stringify(JSON.parse(value), null, 2);
+      } catch (e) {
+        return value;
+      }
+    }
+    return JSON.stringify(value, null, 2);
   }
 
-  function renderLogPayload(payload) {
-    let html = '<section class="log-payload"><div class="log-payload-label">' + escHtml(payload.label);
+  function renderLogPayload(payload, decoderInput, presentations, credentials) {
+    const canToggle = payload.encrypted && payload.body != null && payload.wire !== undefined;
+    const showWire = payload.encrypted && payload.wire !== undefined;
+    let html = '<section class="log-payload"><div class="log-payload-heading"><div class="log-payload-label">' + escHtml(payload.label) + '</div>';
     if (payload.encrypted) {
-      html += ' <span class="log-encrypted">Encrypted</span>';
-      if (payload.body != null) html += ' <span class="log-plaintext">Unencrypted payload</span>';
+      const view = showWire ? 'Encrypted view' : (payload.body != null ? 'Decrypted view' : 'Encrypted on wire');
+      html += '<span class="log-payload-view" title="Encrypted on the wire">' + view + '</span>';
     }
+    html += '</div>';
+    let controls = '';
+    if (canToggle) controls += '<button type="button" class="btn log-payload-toggle" data-testid="log-payload-toggle" title="Switch the log display between the wire value and plaintext">View decrypted</button>';
+    if (decoderInput) controls += renderLogDecoderLink(decoderInput);
+    if (presentations.length) controls += renderLogPresentations(presentations);
+    for (const credential of credentials) {
+      const label = credentials.length > 1 ? 'Open copy ' + (credential.index + 1) + ' in decoder' : 'Open in decoder';
+      controls += renderLogDecoderLink(credential.token, label, {
+        'credential-index': credential.index,
+        ...(credential.id ? { 'credential-id': credential.id } : {}),
+      });
+    }
+    if (controls) html += '<div class="log-payload-controls">' + controls + '</div>';
     const missing = payload.encrypted ? 'Plaintext unavailable' : 'No response body available';
-    const body = payload.body == null ? missing : (payload.body === '' ? '(empty body)' : logPayloadText(payload.body));
-    html += '</div><pre>' + escHtml(body) + '</pre>';
-    if (payload.wire !== undefined) {
-      html += '<details class="log-wire"><summary>' + (payload.encrypted ? 'Encrypted wire value' : 'Wire value') +
-        '</summary><pre>' + escHtml(logPayloadText(payload.wire)) + '</pre></details>';
+    const value = showWire ? payload.wire : payload.body;
+    const body = value == null ? missing : (value === '' ? '(empty body)' : logPayloadText(value));
+    html += '<pre>' + escHtml(body) + '</pre>';
+    if (payload.wire !== undefined && !payload.encrypted) {
+      html += '<details class="log-wire"><summary data-testid="log-wire-toggle">Wire value</summary><pre>' + escHtml(logPayloadText(payload.wire)) + '</pre></details>';
     }
     return html + '</section>';
+  }
+
+  function renderLogDecoderLink(value, label = 'Open in decoder', attributes = {}) {
+    const data = Object.entries(attributes).map(([key, val]) => ' data-' + key + '="' + escHtml(String(val)) + '"').join('');
+    return '<a class="btn log-decoder-link" data-testid="log-decoder-link"' + data + ' href="/decoder/?credential=' + encodeURIComponent(value) +
+      '" target="_blank" rel="noopener">' + escHtml(label) + '</a>';
+  }
+
+  function renderLogPresentations(presentations) {
+    let html = '';
+    for (const presentation of presentations) {
+      const label = "Open '" + presentation.queryID + "' in decoder" + (presentation.tokenIndex > 0 ? ' (' + (presentation.tokenIndex + 1) + ')' : '');
+      html += renderLogDecoderLink(presentation.token, label, { 'query-id': presentation.queryID, 'token-index': presentation.tokenIndex });
+    }
+    return html;
   }
 
   function renderLogDetails(details) {

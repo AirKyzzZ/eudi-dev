@@ -5,6 +5,19 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-10-02
+
+### Fixed
+
+- **Activity log display.** Entries start collapsed. Opening an entry shows all detail fields and formatted JSON bodies. Request and Response headings match the other labels and have space above them. Decoder and view controls share a toolbar above the body. CLI output is unchanged.
+- **Activity decoder buttons.** Request JWTs and imported credentials open in the decoder. Batch imports show one credential with its stored copies, such as **Imported credential (8 copies)**, and include each copy's ID. Import and credential response entries have **Open copy 1 in decoder** buttons for every copy, including deferred batches. Sent presentations have buttons named for their query, such as **Open 'pid' in decoder**.
+- **Encrypted activity display.** Show the wire value first. **View decrypted** shows the plaintext and **View encrypted** returns to the wire value. These buttons only change the log display.
+- **Request object activity.** A fetched request object and its receipt share one entry, preserving the HTTP response and warnings.
+- **Deferred issuance activity.** Log deferred endpoint requests and responses with their HTTP status and body, including pending replies and errors. Encrypted exchanges retain the wire value and plaintext.
+- **Conformance activity exports.** Save request and response payloads using the activity API view, including encrypted wire values and plaintext.
+- **Activity automation.** Activity entries and controls have stable `data-testid` selectors. Decoder links identify each presentation query and token index or each credential response index.
+- **HTTPS setting label.** The Conformance panel uses "Follow validation mode" for the default certificate verification setting.
+
 ## [2.5.0] - 2026-10-02
 
 ### Added
@@ -2210,6 +2223,7 @@ OID4VP, OID4VCI, SD-JWT, mDoc, and related SSI/eIDAS 2.0 protocols.
 
 - Added the Apache 2.0 license.
 
+[2.5.1]: https://github.com/dominikschlosser/eudi-dev/releases/tag/v2.5.1
 [1.12.3]: https://github.com/dominikschlosser/oid4vc-dev/releases/tag/v1.12.3
 [1.12.2]: https://github.com/dominikschlosser/oid4vc-dev/releases/tag/v1.12.2
 [1.12.1]: https://github.com/dominikschlosser/oid4vc-dev/releases/tag/v1.12.1
