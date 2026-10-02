@@ -142,7 +142,7 @@ Display images are stored once under content-based names in `assets/`. Credentia
 
 On the file backend the activity log is the top-level `log` field of `wallet.json`. The other backends keep one entry per row (see [Storage backends](#storage-backends)). `wallet logs clean` clears those entries and writes `wallet-log-cleaned-at`. A running wallet server drops in-memory entries older than that marker when it saves. With `--wallet-dir`, both are in that directory.
 
-Keys are P-256 EC keys, generated on first use and reused across invocations. Wallets under the same parent directory share a persisted root CA. New wallets use provider intermediate CAs for credential and wallet provider certificates. Existing stored CAs with a path length of zero continue to sign leaves directly.
+Keys are P-256 EC keys, generated on first use and reused across invocations. Wallets under the same parent directory share a persisted root CA. The generated root permits one intermediate CA. Credential and wallet provider certificates use provider intermediates for their role and country. A configured root with a path length of zero signs those leaves directly.
 
 Generated credentials use the wallet's issuer key. SD-JWT credentials carry a deterministic `kid` and a certificate chain in `x5c`, with the self-signed root omitted. The wallet's trust lists publish the corresponding signing certificates and provider CAs. JWT VC issuer metadata also exposes the credential signing key.
 

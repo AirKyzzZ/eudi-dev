@@ -22,11 +22,13 @@ Confirm every citation the change touches is verbatim and correctly attributed, 
 
 [ADR-0001](0001-debug-by-default-validation-with-opt-in-strict-mode.md) covers what happens to a finding once it is raised.
 
-## The executable check is the OIDF conformance suite
+## Executable checks follow the applicable specification
 
-Citation checking covers each claim. The OpenID Foundation conformance suite verifies the running binary against the same specifications, in both directions. The wallet plans test this wallet ([runbook](../conformance-run.md)). The issuer and verifier plans test the demo issuer and verifier ([runbook](../conformance-run-demorp.md)). The results are recorded in [conformance results](../conformance-results.md). Conformance claims for OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 refer to these recorded runs.
+The versioned specifications and their applicable regulatory adaptations define the requirements. Executable tests provide evidence for the requirements and scenarios they exercise. Each claim needs its specification basis and an appropriate check.
 
-EUDI stays the primary target, and [ADR-0013](0013-only-the-eudi-stack-is-supported.md) bounds the specification set to what the ARF references. The ARF rules the OIDF suite does not cover (registration certificates, over-asking) are checked by this toolkit's own validations.
+The OpenID Foundation conformance suite tests selected OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 plans and variants. The wallet plans test this wallet ([runbook](../conformance-run.md)). The issuer and verifier plans test the demo issuer and verifier ([runbook](../conformance-run-demorp.md)). [Conformance results](../conformance-results.md) record those runs and their limits. Passing these plans does not establish conformance to the full EUDI specification set.
+
+[ADR-0013](0013-only-the-eudi-stack-is-supported.md) bounds the specification set to what the ARF references. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements need checks against their own versioned sources. The toolkit's validations and tests cover implemented rules, including registration certificates and over-asking. Gaps remain explicit in [spec compliance](../spec-compliance.md).
 
 ## Watched sources
 
@@ -36,7 +38,7 @@ The repository uses the OIDF suite for executable conformance tests. Check these
 - [ISO/IEC TS 18013-6:2025](https://www.iso.org/standard/91153.html), mDL test methods against ISO/IEC 18013-5. The source for closing the mdoc certificate profile findings the OIDF suite reports as warnings.
 - The EC Interoperability Test Bed with the EWC conformance testbed ([RFC100](https://github.com/EWC-consortium/eudi-wallet-rfcs/blob/main/ewc-rfc100-interoperability-profile-towards-itb.md), [backend](https://github.com/EWC-consortium/ewc-wallet-conformance-backend)). Its executable tests certify conformance to the EWC RFC profiles of the Large Scale Pilots. ARF and HAIP conformance need separate checks.
 - [eudi-doc-testing-application](https://github.com/eu-digital-identity-wallet/eudi-doc-testing-application), the QA suite for the EC reference wallet apps. Its Gherkin scenarios catalogue EUDI behaviours worth mirroring in tests here.
-- CIR (EU) 2024/2981 and the ETSI TS 119 4xx set, the certification layer. Documents without tooling.
+- CIR (EU) 2024/2981 and the ETSI TS 119 4xx set define regulatory and technical requirements for certification.
 
 ## Consequences
 

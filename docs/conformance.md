@@ -2,6 +2,8 @@
 
 The harness runs OpenID Foundation wallet plans for OID4VP 1.0, OID4VCI 1.0 and HAIP 1.0 against `eudi-dev`. Separate issuer and verifier plans test the bundled demo services.
 
+The applicable versioned specifications define the requirements. These runs provide evidence for the selected plans, variants and test conditions. They do not assess the full EUDI specification set. Certificate profiles, trust lists, registration information, PID rulebooks and other ETSI and ISO requirements also need checks against their own sources. See [spec compliance](spec-compliance.md) and [test certificates](test-certificates.md) for that coverage and its limits.
+
 Related docs:
 
 - [How to run the wallet conformance suite](./conformance-run.md)
@@ -19,7 +21,7 @@ Current local status:
 - Negative modules can end in `REVIEW` after the expected refusal. The local harness accepts that result only when there are no failing conditions.
 - Alpha Final plans use explicit VP module lists. Certifiable HAIP plans run complete and unfiltered.
 
-The latest changes introduced no new regression. The baseline failures remain unresolved.
+The baseline failures remain unresolved.
 
 See [Current conformance results](./conformance-results.md) for the detailed plan matrix, artifact locations, result-page screenshots, and suite exclusions.
 

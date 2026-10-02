@@ -77,7 +77,7 @@ Encrypted exchanges show the wire value first. **View decrypted** shows the plai
 
 **Trust & certificates** lists trust list URLs and offers CA, signing and HTTPS certificates. Verifiers use the CA for wallet-issued credentials. Issuers use it for wallet and key attestations.
 
-A fresh wallet uses a local issuer URL on `https://localhost:<port+1>`. An https `--base-url` becomes the issuer URL directly, so issuer metadata, trust lists, and status lists are served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)).
+The default local issuer URL is `https://localhost:8086`, on `<port+1>` relative to the wallet's HTTP port. An HTTPS `--base-url`, such as `https://eudi-test.dev`, becomes the issuer URL directly, so issuer metadata, trust lists, and status lists are served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)). The [certificate examples](../test-certificates.md#retrieval-revocation-and-alternative-names) use the public demo origin and document localhost separately.
 
 For a local https origin without a terminator, add `--serve-tls`. The wallet then binds the base URL's own port with its own TLS certificate, next to the plain HTTP port. It requires an https `--base-url` with an explicit port. The [demo issuer and verifier conformance run](../conformance-run-demorp.md) uses this because the OIDF suite requires https endpoints.
 

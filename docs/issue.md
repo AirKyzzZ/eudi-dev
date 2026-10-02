@@ -121,7 +121,7 @@ Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (
 
 With `--wallet`, the issuer key and certificate depend on the supplied flags:
 
-- By default, the wallet uses its issuer key and a certificate for the selected trust profile. New wallets sign this certificate through a provider intermediate CA. Existing direct CA chains remain supported.
+- By default, the wallet uses its issuer key and a certificate for the selected trust profile. A provider intermediate CA signs this certificate. A configured root with a path length of zero signs it directly.
 - `--key` supplies another issuer key. The wallet creates a certificate for it under the shared CA.
 - `--key` with `--cert` uses the supplied key and chain. Trust profile and registration metadata flags are skipped, and the credential type is registered as an import.
 
