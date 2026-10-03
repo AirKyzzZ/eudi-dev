@@ -20,6 +20,6 @@ ENV PORT=8085
 ENV EUDI_DEV_STORAGE=memory
 ENV EUDI_DEV_SEED=eudi-dev
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -q --spider http://localhost:${PORT}/ || exit 1
+  CMD wget -q --spider http://localhost:${PORT}/healthz || exit 1
 ENTRYPOINT ["eudi"]
 CMD ["wallet", "serve", "--auto-accept", "--pid", "--port", "8085"]

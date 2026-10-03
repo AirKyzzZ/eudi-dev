@@ -150,6 +150,8 @@ func (s *Server) setupRoutes() {
 
 	// The URL handler checks this endpoint to detect outdated servers.
 	s.routeFunc("GET /api/version", s.handleVersion)
+	s.routeFunc("GET /healthz", s.handleHealth)
+	s.routeFunc("GET /readyz", s.handleReady)
 
 	s.routeFunc("GET /api/credentials", s.withFreshStore(s.handleListCredentials))
 	s.routeFunc("GET /api/deferred", s.withFreshStore(s.handleListDeferred))

@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Path prefix support.** The wallet, its demo issuer and verifier, and the proxy dashboard can be served under a path prefix on a shared host, such as `--base-url https://example.com/some/context`. The reverse proxy may strip the prefix or keep it. Redirects, page links, API links and the session cookie use the prefix the browser sees, taken from `X-Forwarded-Prefix` or the request's host. URLs in credentials and protocol messages always come from `--base-url`. `eudi proxy --dashboard-base-url` sets the dashboard's public URL. See [behind a reverse proxy](docs/reverse-proxy.md).
 - **Outbound proxy for the wallet.** The wallet connects to issuers and verifiers through the proxy configured in `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY`, or with the flags `--https-proxy`, `--http-proxy` and `--no-proxy`. Requests to `localhost` and `host.docker.internal` bypass the proxy.
 
+- **Health probes.** `GET /healthz` answers while the wallet server runs. `GET /readyz` also checks the storage backend and answers `503` when it is unreachable. See [health probes](docs/wallet/http-api.md#health-probes).
+
 ### Changed
 
 - **Content Security Policy.** `base-uri` is now `'self'` instead of `'none'`. Pages served under a path prefix need a `<base>` tag.

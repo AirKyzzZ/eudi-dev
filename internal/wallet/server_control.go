@@ -80,6 +80,24 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, doc)
 }
 
+// handleHealth answers as long as the process serves HTTP, so a liveness probe
+// does not restart the server while its storage is unreachable.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleReady lists the wallet's keys, which needs a working storage backend
+// (a reachable database on the postgres backend).
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if store := s.store.Load(); store != nil {
+		if _, err := store.backend.List(store.prefix); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable", "error": "storage: " + err.Error()})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // SetVersion receives the release version from the serve command.
 func (s *Server) SetVersion(version string) {
 	s.version = version

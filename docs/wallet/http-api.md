@@ -368,6 +368,15 @@ The UI fetches this on page load, so it reports failures that occurred while no 
 | `GET`    | `/api/error` | The last error (`message` and `detail`), or `null` |
 | `DELETE` | `/api/error` | Clear it                                            |
 
+### Health probes
+
+Both endpoints answer `{"status": "ok"}` with `200`. They also answer under a [path prefix](../reverse-proxy.md).
+
+| Method | Path       | Description                                                                                                  |
+|--------|------------|--------------------------------------------------------------------------------------------------------------|
+| `GET`  | `/healthz` | Liveness. Answers while the server runs, even when storage is down |
+| `GET`  | `/readyz`  | Readiness. Reads from the storage backend and answers `503` with an `error` when that fails (for example an unreachable Postgres) |
+
 ### Encrypted request objects (`request_uri_method=post`)
 
 OID4VP 1.0 §5.10 lets the wallet send its capabilities and a public encryption key to the verifier. The verifier can then encrypt the request object for that wallet.

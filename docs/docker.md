@@ -97,6 +97,8 @@ The database stores private keys unencrypted, like the file backend (see [SECURI
 | `/api/config/preferred-format` | PUT | Set credential format preference (`dc+sd-jwt` / `mso_mdoc` / `jwt_vc_json` / empty) |
 | `/api/config` | GET | Instance introspection (PID baseline, directories, URLs, behavior) |
 | `/api/shutdown` | POST | Stop the wallet server process |
+| `/healthz` | GET | Liveness probe. Answers `200` while the server runs |
+| `/readyz` | GET | Readiness probe. Answers `503` while the storage backend is unreachable |
 
 The [HTTP API reference](wallet/http-api.md) also lists certificate retrieval, provider CRLs and trust list history endpoints. See [test certificates](test-certificates.md) for the EUDI profiles and known testing limits.
 
