@@ -383,6 +383,17 @@ The wallet still verifies the certificate of the issuer or verifier (see above).
 
 A running wallet uses the proxy settings it was started with. `wallet accept` and `wallet scan` therefore reject proxy flags when they forward a request to a running wallet. Set them on `wallet serve` instead.
 
+## JSON logs
+
+Log collectors such as Loki or Elasticsearch read structured records. `--log-format json` (or `EUDI_DEV_LOG_FORMAT=json`) prints every line of console output as one JSON record on stdout. This includes the startup summary, the request log and warnings:
+
+```json
+{"time":"2026-10-03T18:56:44.53+02:00","level":"WARN","msg":"OID4VP 1.0 §5.2: nonce is required"}
+{"time":"2026-10-03T18:56:44.61+02:00","level":"INFO","msg":"Encrypting response: response_mode=direct_post.jwt","component":"VP"}
+```
+
+`level` is `WARN` or `ERROR` for warning and error lines and `INFO` otherwise. `component` names the part of the wallet that logged the line, such as `VCI`, `VP`, `DCQL` or `Demo issuer`. A multi-line entry, such as a token response, stays one record. The default `text` prints the colored console output.
+
 ## Changing the conformance settings
 
 The **Conformance** panel in the wallet header controls validation mode, HTTPS certificate verification, HAIP, encrypted requests, the [OpenID4VCI feature level](issuing.md#openid4vci-feature-level), and the key attestation's storage claims (see [SECURITY.md](../../SECURITY.md)). HTTPS verification can follow the mode default or be explicitly enabled or disabled.

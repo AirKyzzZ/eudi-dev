@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/imprint"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/remote"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/serverlog"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/storage"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/web"
@@ -68,6 +70,7 @@ type walletServeOptions struct {
 	Detached                bool
 	ServeTLS                bool
 	DemoVerifierTrust       []string
+	LogFormat               string
 }
 
 func walletServeCmd() *cobra.Command {
@@ -127,6 +130,7 @@ so the wallet automatically receives incoming protocol requests.`,
 	cmd.Flags().StringVar(&opts.ImprintFile, "imprint-file", "", "HTML snippet with the site operator's legal notice, served at /imprint (required for public EU hosting)")
 	cmd.Flags().BoolVar(&opts.ServeTLS, "serve-tls", false, "Serve an https --base-url locally with the wallet's own TLS certificate instead of expecting an external TLS terminator in front (the HTTP port stays bound as well)")
 	cmd.Flags().StringArrayVar(&opts.DemoVerifierTrust, "demo-verifier-trust-anchor", nil, "CA certificate PEM file the demo verifier accepts issuer chains under, next to the wallet's own CA (repeatable). For presentations issued outside this wallet, such as an OIDF conformance suite run")
+	cmd.Flags().StringVar(&opts.LogFormat, "log-format", os.Getenv(serverlog.EnvVar), "Console output format: 'text' (the default) or 'json' (one JSON record per line on stdout, for log collectors) (default $"+serverlog.EnvVar+")")
 	cmd.Flags().BoolVarP(&opts.Detached, "detached", "d", false, "Run the server as a background process and return once it responds. Output goes to <wallet-dir>/serve.log")
 	return cmd, &opts
 }
@@ -353,6 +357,17 @@ func demoResetDescription(opts wallet.DemoOptions) string {
 func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.Detached {
 		return spawnDetachedServe(cmd, opts.Port, opts.Register, opts.NoRegister)
+	}
+	logFormat, err := serverlog.ParseFormat(opts.LogFormat)
+	if err != nil {
+		return fmt.Errorf("--log-format: %w", err)
+	}
+	if logFormat == serverlog.FormatJSON {
+		restore, err := serverlog.RedirectProcessOutput(os.Stdout)
+		if err != nil {
+			return err
+		}
+		defer restore()
 	}
 	clientAuthMode, err := demorp.ParseClientAuthMode(opts.DemoIssuerClientAuth)
 	if err != nil {
@@ -713,6 +728,10 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	}
 
 	srv.SetLogger(func(format string, args ...any) {
+		if logFormat == serverlog.FormatJSON {
+			log.Printf(format, args...)
+			return
+		}
 		timestamp := time.Now().Format("15:04:05")
 		dim.Printf("[%s] ", timestamp)
 		fmt.Printf(format+"\n", args...)

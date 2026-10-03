@@ -72,6 +72,10 @@ Each server checks revisions at request boundaries and reloads changed state. Sa
 
 The database stores private keys unencrypted, like the file backend (see [SECURITY.md](../SECURITY.md)). [ADR-0018](adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md) explains the choice of keyed blobs and its tradeoffs.
 
+## Logs
+
+Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log collector (see [JSON logs](wallet/serve.md#json-logs)).
+
 ## How it works
 
 1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mDoc) and `--auto-accept` (presents matching credentials without user consent)
