@@ -16,7 +16,7 @@ eudi wallet serve --demo --base-url https://eudi-test.dev \
 
 The server starts without opening a browser and loads protected PID credentials from the bundled templates. User templates with the same names, including those in `--templates-dir`, override the baseline used at startup and reset.
 
-Browser flows ask for consent. API submissions provide consent directly. Browser sessions keep dialogs associated with the visitor who started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
+Browser flows ask for consent. API submissions provide consent directly. Each consent dialog appears in the browser session that started the flow. Requests without a browser ID appear in a shared banner where any visitor can answer them.
 
 ### Administrative operations
 
@@ -28,7 +28,7 @@ Visitor URLs are restricted to public network addresses. The wallet checks resol
 
 ### Validation
 
-Demo mode checks OpenID4VP and issuance against HAIP 1.0. Violations appear as activity log warnings while debug mode continues the flow. The UI shows the active settings under **Conformance**.
+Demo mode checks OpenID4VP and issuance against HAIP 1.0. In debug mode, violations appear as warnings in the activity log and the flow continues. The UI shows the active settings under **Conformance**.
 
 Presentation checks cover request delivery, client identification, response encryption, credential formats and algorithms. Unsigned Digital Credentials API requests use the platform origin to identify the caller. Issuance checks cover the grant, PAR, PKCE, DPoP and client authentication. See [specification support](spec-compliance.md) for individual requirements.
 
@@ -73,7 +73,7 @@ The demo starts with four PID credentials: the country-independent EUDI PID (`ur
 
 The verifier page offers both through its credential toggle. The PID request names `urn:eudi:pid:1`, which both credentials match, and the wallet presents one of them. The German PID request names `urn:eudi:pid:de:1`, which only the German credential matches. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
-`POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. Domestic types request SD-JWT VC only: mdocs all share the doctype `eu.europa.ec.eudi.pid.1`, which cannot distinguish the country.
+`POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs share the doctype `eu.europa.ec.eudi.pid.1`, which does not identify the country.
 
 To include a ticket, set `ticket` in the same request:
 
@@ -86,23 +86,23 @@ The consent dialog shows these choices.
 
 ### Shared state
 
-All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them, so the demo always keeps its baseline. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
+All four baseline credentials are protected. The UI, the API and the CLI refuse to delete or revoke them. Visitor credentials can be deleted. Removing baseline protection requires direct access to `wallet.json`.
 
 All visitors share credentials and the activity log. Anyone can issue credentials, delete unprotected credentials and read the log. Use test data only. The UI lists ten credentials per page, and the periodic reset clears visitor data.
 
 ## Rate limits
 
-The compose example limits requests per client address in Caddy. The wallet sees the proxy address, so limits belong in the proxy. Build Caddy with the supplied `Dockerfile` to include the rate-limit plugin.
+The compose example limits requests per client address in Caddy. The wallet only sees the proxy's address, so set rate limits in the proxy. Build Caddy with the supplied `Dockerfile` to include the rate-limit plugin.
 
 Three zones return `429` with `Retry-After` when exceeded:
 
 | Zone | Requests | What it covers |
 |---|---|---|
-| `flows_burst` | 120 per minute | The endpoints that make the wallet fetch a visitor-supplied URL or grow its state until the next reset: presentations, offers, issuance, imports, refreshes, deferred collection, demo issuer offers, verification requests |
-| `flows_hour` | 2000 per hour | The same endpoints, so a script left running is capped between resets |
+| `flows_burst` | 120 per minute | Endpoints that fetch a visitor-supplied URL or add state that persists until the next reset: presentations, offers, issuance, imports, refreshes, deferred collection, demo issuer offers, verification requests |
+| `flows_hour` | 2000 per hour | The same endpoints, to cap a long-running script between resets |
 | `site` | 1200 per minute | All requests, including the UI and the stats report |
 
-The limits allow interactive use while bounding automated traffic. An idle page makes about 14 initial requests, then receives updates through an event stream. Clients behind the same public address share the allowance. Apply equivalent limits if using another reverse proxy.
+The limits allow interactive use while bounding automated traffic. An idle page makes about 14 initial requests, then receives updates through an event stream. Clients behind the same public address share the limit. Apply equivalent limits if using another reverse proxy.
 
 ## Base URL and issuer URL
 
@@ -141,7 +141,7 @@ The hosted wallet returns the authorization URL to the caller:
 
 The flow waits for the issuer to redirect to `/callback`. The wallet then resumes issuance and returns the browser to the wallet UI.
 
-The callback is matched by `state` alone, so the sign-in can happen in any browser that can reach the wallet. This lets `eudi wallet accept` complete an authorization code offer against the hosted demo. The CLI opens the URL locally and follows the flow at `GET /api/offers/{offer_id}` until it reports `completed` or `failed`.
+The callback is matched by `state` alone, so the sign-in can happen in any browser that can reach the wallet. This lets `eudi wallet accept` complete an authorization code offer against the hosted demo. The CLI opens the URL locally and polls `GET /api/offers/{offer_id}` until it reports `completed` or `failed`.
 
 By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud`, `jti` and expiry. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
@@ -153,7 +153,7 @@ The demo issuer trusts the shared wallet CA. It also accepts attestations from o
 
 The ticket records the result in `wallet_attestation`: `trusted` for a chain reaching the wallet CA, `untrusted` for another signer, or `none` when authentication was optional and omitted. The wallet provider's trust list is available at `/api/trustlists/wallet-provider`.
 
-To test a wallet without attestation, use `--demo-issuer-client-auth optional`. The authorization server then also advertises and accepts `none`. It still verifies any attestation that is sent. The default remains required under HAIP 1.0 §4.4.1.
+To test a wallet without attestation, use `--demo-issuer-client-auth optional`. The authorization server then also advertises and accepts `none`. It still verifies any attestation that is sent. The default is `required` (HAIP 1.0 §4.4.1).
 
 ## Verifying the wallet attestation
 
@@ -185,7 +185,7 @@ Pass `--imprint-file` with an HTML snippet containing the operator's name, addre
 
 The demo uses the `eudi_session` cookie to associate consent requests with a browser. It is an opaque session value with `HttpOnly`, `SameSite=Lax` and, for HTTPS connections, `Secure`. The activity log remains shared.
 
-Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences and dismissed banner state use `localStorage`. These values provide UI behavior without third-party tracking. Describe this storage in the deployment's privacy notice.
+Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences and dismissed banner state use `localStorage`. They only store UI state and involve no third-party tracking. Describe this storage in the deployment's privacy notice.
 
 ## Deploying and updating
 
@@ -211,7 +211,7 @@ ENV
 
 The script pulls the image before switching, so an unpublished tag leaves the running demo unchanged. `update` clears the pin and installs the latest release.
 
-`setup` also fixes the wallet data volume's ownership. Docker creates named volumes owned by root while the image runs as uid 1000, which would put the wallet into a crash loop on a fresh host.
+`setup` also sets the owner of the wallet data volume. Docker creates named volumes owned by root, but the image runs as uid 1000. Without the change, the wallet crash-loops on a fresh host.
 
 ### Preview host
 
@@ -235,7 +235,7 @@ PREVIEW_URL=https://preview.demo.example
 
 The strict conformance target runs as a third wallet on a separate subdomain, `strict.eudi-test.dev` in the example. It uses strict validation, HAIP, auto-accept and the default PID baseline.
 
-Caddy permits only GET and HEAD from the public internet. This exposes protocol documents and GET `/authorize` requests. The latter can still start presentation flows. The harness accesses other management operations through an SSH tunnel to `127.0.0.1:18086` on the host.
+Caddy permits only GET and HEAD from the public internet. This exposes protocol documents and GET `/authorize` requests, which can still start presentation flows. The harness performs other management operations through an SSH tunnel to `127.0.0.1:18086` on the host.
 
 `STRICT_TAG` pins its release independently. Its issuance redirect URI uses the `oid4vc-dev-vci-strict` alias on the production conformance service.
 
@@ -264,7 +264,7 @@ Caddy masks client addresses when writing the log: it zeroes the last IPv4 octet
 
 Then open `https://your-domain/stats/`. To turn it off, remove the `handle_path /stats*` block from the Caddyfile and the `stats` service. The anonymized log still counts as processed access data. Describe this logging in the imprint.
 
-Your own tests count in the statistics. One page load produces several requests for assets, wallet state and the event stream. `deploy.sh stats` separates page views from API calls and lists writes separately. Writes include issuance, presentation, imports and deletion from both people and automated tests.
+Your own tests appear in the statistics. One page load produces several requests for assets, wallet state and the event stream. `deploy.sh stats` separates page views from API calls and lists writes separately. Writes include issuance, presentation, imports and deletion from both people and automated tests.
 
 Visitor counts are approximate because addresses are masked. Everyone sharing an IPv4 `/24` is counted together.
 
@@ -272,16 +272,16 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 
 - the access log rotates at 10 MiB, keeps three files and drops anything older than 30 days (about 40 MiB worst case)
 - every container caps its own log at 10 MB with three files, through the `logging` anchor in the compose file (Docker's default is unlimited)
-- the report only reads the current access log file, so a rotation also caps how far back the statistics reach
+- the report only reads the current access log file, so the statistics only cover the period since the last rotation
 
 ## Deployment notes
 
 - Terminate TLS in a reverse proxy (the example uses Caddy with automatic Let's Encrypt) and forward to the wallet's HTTP port. The wallet derives all advertised URLs from `--base-url`.
 - Mount a volume at `/home/app/.eudi-dev` and set `EUDI_DEV_STORAGE=file` and `EUDI_DEV_SEED=`. This persists credentials, keys and the shared CA. Mount the parent of `wallet/` so the CA survives restarts and verifiers can reuse their trust lists.
 - Run one replica when using file storage.
-- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With a proxy the dial time network checks only see the proxy address, not the destination.
-- Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. On typical cloud hosts hairpin NAT makes this work. A compose network alias for the public hostname would resolve to a private address and be blocked.
-- Keep the rate limiting in the proxy. The compose example's Caddyfile ships active `rate_limit` zones (described above).
+- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the connection-time address checks only see the proxy's address, not the destination.
+- Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. This works on cloud hosts that support hairpin NAT. A compose network alias for the public hostname would resolve to a private address and be blocked.
+- Keep the rate limiting in the proxy. The compose example's Caddyfile enables the `rate_limit` zones described above.
 
 ## Pointing the CLI at the demo
 

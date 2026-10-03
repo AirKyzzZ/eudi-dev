@@ -36,7 +36,7 @@
   // The request ID lets a browser without cookies answer the consent it was redirected to.
   function approveURL(id, action) {
     const named = id === openedForRequest ? '?request=' + encodeURIComponent(id) : '';
-    return '/api/requests/' + id + action + named;
+    return 'api/requests/' + id + action + named;
   }
 
   function readActingOwner() {
@@ -49,6 +49,10 @@
     }
   }
 
+  // Paths are relative to the wallet root. The server adds <base href> when the wallet
+  // runs under a path prefix.
+  const appBase = new URL('.', document.baseURI);
+
   const CLIENT_NAME = 'eudi-ui';
   const CLIENT_HEADER = 'X-Eudi-Client';
   const OWNER_HEADER = 'X-Eudi-Owner';
@@ -58,8 +62,10 @@
       const raw = typeof input === 'string' ? input : String((input && (input.url || input.href)) || '');
       // Add the client header to all wallet API calls, including absolute URLs and Request
       // objects.
-      const url = raw.startsWith(window.location.origin) ? raw.slice(window.location.origin.length) : raw;
-      if (!url.startsWith('/api/')) return original(input, init);
+      const target = new URL(raw, document.baseURI);
+      if (target.origin !== window.location.origin || !target.pathname.startsWith(appBase.pathname + 'api/')) {
+        return original(input, init);
+      }
       const opts = Object.assign({}, init);
       const headers = new Headers(opts.headers || (typeof input === 'object' ? input.headers : undefined));
       headers.set(CLIENT_HEADER, CLIENT_NAME + '/' + (window.EUDI_VERSION || 'dev'));
@@ -101,7 +107,7 @@
 
   async function loadDeferred() {
     try {
-      const resp = await fetch('/api/deferred');
+      const resp = await fetch('api/deferred');
       const pending = await resp.json();
       const section = document.getElementById('deferred-section');
       const list = document.getElementById('deferred-list');
@@ -161,7 +167,7 @@
           btn.disabled = true;
           btn.textContent = 'Checking...';
           try {
-            const resp = await fetch('/api/deferred/' + encodeURIComponent(btn.dataset.id) + '/collect', { method: 'POST' });
+            const resp = await fetch('api/deferred/' + encodeURIComponent(btn.dataset.id) + '/collect', { method: 'POST' });
             const result = await resp.json();
             if (result.abandoned) {
               showErrorDialog('Deferred credential was not issued', result.reason || 'The issuer refused it.');
@@ -180,7 +186,7 @@
         btn.addEventListener('click', async () => {
           btn.disabled = true;
           try {
-            await fetch('/api/deferred/' + encodeURIComponent(btn.dataset.id), { method: 'DELETE' });
+            await fetch('api/deferred/' + encodeURIComponent(btn.dataset.id), { method: 'DELETE' });
             await loadDeferred();
             await loadLog();
           } catch (e) {
@@ -200,7 +206,7 @@
     credError.hidden = true;
     try {
       const offset = credentialPage * CREDENTIALS_PER_PAGE;
-      const resp = await fetch('/api/credentials?limit=' + CREDENTIALS_PER_PAGE + '&offset=' + offset);
+      const resp = await fetch('api/credentials?limit=' + CREDENTIALS_PER_PAGE + '&offset=' + offset);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const loadedCredentials = await resp.json();
       if (loadId !== credentialLoadId) return;
@@ -236,7 +242,7 @@
     if (missing.length === 0) return false;
     await Promise.all(missing.map(async id => {
       try {
-        const resp = await fetch('/api/credentials/' + encodeURIComponent(id));
+        const resp = await fetch('api/credentials/' + encodeURIComponent(id));
         candidateDetails.set(id, resp.ok ? await resp.json() : null);
       } catch (e) {
         console.error('Loading credential ' + id + ' failed:', e);
@@ -531,7 +537,7 @@
 
       const openDecoder = () => {
         // The mounted decoder can look up credentials by ID, keeping links short.
-        window.open('/decoder/?id=' + encodeURIComponent(cred.id), '_blank');
+        window.open('decoder/?id=' + encodeURIComponent(cred.id), '_blank');
       };
       card.querySelector('[data-show]').addEventListener('click', openDecoder);
       card.querySelector('.credential-info').addEventListener('click', openDecoder);
@@ -612,7 +618,7 @@
 
   async function setCredentialStatus(id, status) {
     try {
-      const resp = await fetch('/api/credentials/' + id + '/status', {
+      const resp = await fetch('api/credentials/' + id + '/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: status })
@@ -633,7 +639,7 @@
     const badge = document.getElementById('status-' + id);
     if (badge) badge.textContent = 'Checking...';
     try {
-      const resp = await fetch('/api/credentials/' + id + '/status');
+      const resp = await fetch('api/credentials/' + id + '/status');
       const result = await resp.json();
       if (!badge) return;
       if (!resp.ok) {
@@ -657,7 +663,7 @@
 
   async function deleteCredential(id) {
     try {
-      await fetch('/api/credentials/' + id, { method: 'DELETE' });
+      await fetch('api/credentials/' + id, { method: 'DELETE' });
       openDescriptions.delete(id);
       await loadCredentials();
       await loadLog();
@@ -678,7 +684,7 @@
         uri.startsWith('openid-credential-offer://') ||
         uri.startsWith('haip-vci://') ||
         uri.startsWith('eu-eaa-offer://');
-      const endpoint = isVCI ? '/api/offers' : '/api/presentations';
+      const endpoint = isVCI ? 'api/offers' : 'api/presentations';
       expectError();
 
       const resp = await fetch(endpoint, {
@@ -718,7 +724,7 @@
     if (!raw) return;
 
     try {
-      const resp = await fetch('/api/credentials', {
+      const resp = await fetch('api/credentials', {
         method: 'POST',
         body: raw
       });
@@ -846,7 +852,7 @@
 
   async function loadTemplates(force) {
     if (templatesCache && !force) return templatesCache;
-    const resp = await fetch('/api/templates');
+    const resp = await fetch('api/templates');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     templatesCache = await resp.json();
     return templatesCache;
@@ -975,7 +981,7 @@
   async function updateStatusListOption() {
     const autoOption = document.getElementById('issue-status-list-auto');
     try {
-      const resp = await fetch('/api/config');
+      const resp = await fetch('api/config');
       const config = await resp.json();
       const configured = Boolean(config.status_list_url);
       autoOption.disabled = !configured;
@@ -1125,7 +1131,7 @@
     issueSubmit.disabled = true;
     issueSubmit.textContent = 'Issuing...';
     try {
-      const resp = await fetch('/api/issue', {
+      const resp = await fetch('api/issue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -1208,7 +1214,7 @@
         deleteBtn.addEventListener('click', async () => {
           templateError.textContent = '';
           try {
-            const resp = await fetch('/api/templates/' + encodeURIComponent(tpl.name), { method: 'DELETE' });
+            const resp = await fetch('api/templates/' + encodeURIComponent(tpl.name), { method: 'DELETE' });
             if (!resp.ok) {
               const result = await resp.json();
               templateError.textContent = result.error || ('HTTP ' + resp.status);
@@ -1257,7 +1263,7 @@
       return;
     }
     try {
-      const resp = await fetch('/api/templates/' + encodeURIComponent(name), {
+      const resp = await fetch('api/templates/' + encodeURIComponent(name), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
@@ -1280,7 +1286,7 @@
     logLoading.hidden = logLoaded;
     logError.hidden = true;
     try {
-      const resp = await fetch('/api/log?view=activity');
+      const resp = await fetch('api/log?view=activity');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const log = await resp.json();
       if (loadId !== logLoadId) return;
@@ -1302,7 +1308,7 @@
   clearLogBtn.addEventListener('click', async (event) => {
     event.stopPropagation();
     try {
-      await fetch('/api/log', { method: 'DELETE' });
+      await fetch('api/log', { method: 'DELETE' });
       await loadLog();
     } catch (e) {
       console.error('Failed to clear log:', e);
@@ -1550,7 +1556,7 @@
 
   function renderLogDecoderLink(value, label = 'Open in decoder', attributes = {}) {
     const data = Object.entries(attributes).map(([key, val]) => ' data-' + key + '="' + escHtml(String(val)) + '"').join('');
-    return '<a class="btn log-decoder-link" data-testid="log-decoder-link"' + data + ' href="/decoder/?credential=' + encodeURIComponent(value) +
+    return '<a class="btn log-decoder-link" data-testid="log-decoder-link"' + data + ' href="decoder/?credential=' + encodeURIComponent(value) +
       '" target="_blank" rel="noopener">' + escHtml(label) + '</a>';
   }
 
@@ -1587,7 +1593,7 @@
 
   // The request ID lets a browser without cookies access its pending consent.
   function requestsURL() {
-    return '/api/requests' +
+    return 'api/requests' +
       (openedForRequest ? '?request=' + encodeURIComponent(openedForRequest) : '');
   }
 
@@ -1664,7 +1670,7 @@
     }
 
     try {
-      const resp = await fetch('/api/error');
+      const resp = await fetch('api/error');
       presentError(await resp.json());
     } catch (e) {
       console.error('Failed to load last error:', e);
@@ -1672,7 +1678,7 @@
   }
 
   function connectSSE() {
-    const es = new EventSource('/api/requests/stream' +
+    const es = new EventSource('api/requests/stream' +
       (actingOwner ? '?owner=' + encodeURIComponent(actingOwner) : ''));
     es.addEventListener('consent', (event) => {
       try {
@@ -1736,7 +1742,7 @@
   // Reading an error does not consume it. Clear dismissed errors to prevent them from
   // reappearing.
   function dropStoredError() {
-    fetch('/api/error', { method: 'DELETE' }).catch(() => {});
+    fetch('api/error', { method: 'DELETE' }).catch(() => {});
   }
 
   // An error from an earlier request must not replace an active consent dialog.
@@ -1782,7 +1788,7 @@
     consentDialog.innerHTML = html;
     document.getElementById('error-dismiss').addEventListener('click', () => {
       closeConsentOverlay();
-      fetch('/api/error', { method: 'DELETE' }).catch(() => {});
+      fetch('api/error', { method: 'DELETE' }).catch(() => {});
       loadLog();
     });
   }
@@ -2173,7 +2179,7 @@
                 (i === 0 ? '<span class="auto-chip">auto</span>' : '') +
                 // Open decoding in another tab to preserve pending consent.
                 '<a class="btn btn-sm candidate-decode" id="consent-decode-' + escHtml(qid) + '-' + c.credential_id + '"' +
-                  ' href="/decoder/?id=' + encodeURIComponent(c.credential_id) + '" target="_blank" rel="noopener"' +
+                  ' href="decoder/?id=' + encodeURIComponent(c.credential_id) + '" target="_blank" rel="noopener"' +
                   ' title="Open in decoder">Show</a>' +
               '</div>' +
             '</div>' + untrustedAuthorityNote(c) + '</div>';
@@ -2431,7 +2437,7 @@
   // different ownership rules.
   async function loadAppConfig() {
     try {
-      const resp = await fetch('/api/config');
+      const resp = await fetch('api/config');
       const config = await resp.json();
       if (config.version) {
         window.EUDI_VERSION = config.version;
@@ -2518,7 +2524,7 @@
         if (toggle.disabled) return;
         const next = toggle.dataset.enabled !== '1';
         try {
-          const resp = await fetch('/api/config/auto-accept', {
+          const resp = await fetch('api/config/auto-accept', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: next }),
@@ -2581,7 +2587,7 @@
 
   async function setServerConformance(values) {
     try {
-      const resp = await fetch('/api/config/conformance', {
+      const resp = await fetch('api/config/conformance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -2598,7 +2604,7 @@
 
   function resetConformance() {
     if (demoMode) return;
-    fetch('/api/config/conformance', { method: 'DELETE' })
+    fetch('api/config/conformance', { method: 'DELETE' })
       .then((r) => (r.ok ? r.json() : null))
       .then((c) => { if (c) conformanceDefaults = Object.assign({}, conformanceDefaults, c); applyConformanceToControls(); })
       .catch(() => { applyConformanceToControls(); });
@@ -2645,7 +2651,7 @@
   async function loadTrustLists() {
     const row = document.getElementById('trust-list-links');
     try {
-      const resp = await fetch('/api/trustlists');
+      const resp = await fetch('api/trustlists');
       const doc = await resp.json();
       const lists = (doc && doc.trust_lists) || [];
       row.querySelectorAll('.trust-items').forEach(el => el.remove());
@@ -2747,7 +2753,7 @@
   document.getElementById('how-to-use-link').addEventListener('click', (event) => {
     event.preventDefault();
     document.querySelectorAll('.howto-origin').forEach((el) => {
-      el.textContent = window.location.origin;
+      el.textContent = appBase.href.replace(/\/$/, '');
     });
     howtoOverlay.classList.add('active');
   });

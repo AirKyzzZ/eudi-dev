@@ -48,7 +48,7 @@ A configured root with a path length of zero signs provider leaves directly. Thi
 
 PID signatures include protected certificate references required by CIR (EU) 2026/1731 Annex I. SD-JWT uses `x5u` and `x5t#S256`. Mdoc uses `x5u` and SHA-256 `x5t`. Their URLs contain the certificate fingerprint and return PEM for JOSE or DER for COSE. The protected `iat` records signing time independently of the credential's issuance time. Published certificates remain available after renewal. Offline issuance has no certificate hosting endpoint.
 
-Certificates are retained in the selected storage backend. A different subject, changed issuer URL or renewal produces a certificate with a new serial number. Memory storage retains certificates for the lifetime of that store. A seed derives the same keys across process restarts. A fresh memory store generates certificates with new serial numbers.
+Certificates are stored in the selected storage backend. A different subject, changed issuer URL or renewal produces a certificate with a new serial number. Memory storage retains certificates for the lifetime of that store. With a seed, the wallet derives the same keys after a process restart. A fresh memory store generates certificates with new serial numbers.
 
 ## Certificate contents
 
@@ -63,10 +63,10 @@ The [complete certificate examples](test-certificate-examples.md) contain public
 | Signature algorithm | ECDSA with SHA-256 (`1.2.840.10045.4.3.2`) |
 | Serial number | Random positive integer |
 | `notBefore` | Generation time minus one hour |
-| `notAfter` | Generation time plus 3650 days for the root, 1825 days for provider CAs, 365 days for signing leaves; a child certificate's expiry is capped at its issuer's expiry |
-| Subject key identifier (`2.5.29.14`) | SHA-1 of the subject public key BIT STRING value; non-critical |
-| Authority key identifier (`2.5.29.35`) | Issuer's subject key identifier; non-critical; present on issued certificates |
-| Issuer alternative name (`2.5.29.18`) | URI `https://github.com/dominikschlosser/eudi-dev`; non-critical |
+| `notAfter` | Generation time plus 3650 days for the root, 1825 days for provider CAs, 365 days for signing leaves. A child certificate's expiry is capped at its issuer's expiry |
+| Subject key identifier (`2.5.29.14`) | SHA-1 of the subject public key BIT STRING value, non-critical |
+| Authority key identifier (`2.5.29.35`) | Issuer's subject key identifier, non-critical, present on issued certificates |
+| Issuer alternative name (`2.5.29.18`) | URI `https://github.com/dominikschlosser/eudi-dev`, non-critical |
 
 The root's subject and issuer are both `C=NL, O=EUDI Dev Test CA, CN=OID4VC Dev Wallet CA`. It has critical key usage `keyCertSign, cRLSign` (`2.5.29.15`) and critical basic constraints `CA:TRUE, pathlen:1` (`2.5.29.19`).
 
@@ -102,7 +102,7 @@ The access signer's non-critical certificate policies extension (`2.5.29.32`) co
 
 ### Retrieval, revocation and alternative names
 
-The examples use the public demo origin `https://eudi-test.dev`. A configured HTTPS `--base-url` supplies the issuer URL directly, including any base path. Each listed extension is non-critical.
+The examples use the public demo origin `https://eudi-test.dev`. A configured HTTPS `--base-url` sets the issuer URL directly, including any path prefix. Each listed extension is non-critical.
 
 | Certificate | AIA `caIssuers` (`1.3.6.1.5.5.7.1.1`) | CRL distribution point (`2.5.29.31`) | Subject alternative names (`2.5.29.17`) |
 | --- | --- | --- | --- |
@@ -124,7 +124,7 @@ The default local issuer URL is `https://localhost:8086`. The wallet's HTTP UI a
 | CRL distribution point | `https://localhost:8086/api/crl/providers/pid/NL` |
 | Subject alternative names | DNS `localhost`, URI `https://localhost:8086` |
 
-`--docker` uses `host.docker.internal` as the local hostname. An HTTPS `--base-url`, such as `https://eudi-test.dev`, supplies the issuer URL directly instead of deriving a local HTTPS URL. The wallet reuses its stored issuer URL unless `--base-url` or `--docker` selects another one. See [wallet server URLs](wallet/serve.md) for serving and TLS options.
+`--docker` uses `host.docker.internal` as the local hostname. An HTTPS `--base-url`, such as `https://eudi-test.dev`, sets the issuer URL directly instead of a derived local HTTPS URL. The wallet reuses its stored issuer URL unless `--base-url` or `--docker` selects another one. See [wallet server URLs](wallet/serve.md) for serving and TLS options.
 
 An IP-based issuer URL produces an IP subject alternative name instead of a DNS name. Offline issuance has no issuer URL, so certificates omit issuer-based AIA, CRL distribution points and subject alternative names. The fixed issuer contact URI remains present.
 
@@ -132,7 +132,7 @@ An IP-based issuer URL produces an IP subject alternative name instead of a DNS 
 
 Both issuer discovery endpoints serve JSON by default and signed metadata for `Accept: application/jwt`. The signed form includes the access certificate in protected `x5c`. The `issuer_info` array contains registrar data and a registration certificate signed by the test registrar. Registration certificates use the identifier, legal name and country from the access certificate.
 
-Trust lists publish issuance certificates, their provider CAs and status signing certificates. This keeps credentials verifiable across country overrides and certificate renewal. Protected `iat` and `x5t#S256` headers carry the signing time and certificate reference required by JAdES. They use English language code `en`, whole second UTC timestamps, postal addresses and a self pointer. An unchanged list keeps its signed instance until it expires. Changed content or expiry advances the sequence number. Append `/history` to a trust list URL to list its retained instances, then `/history/<sequence>` to retrieve one.
+Trust lists publish issuance certificates, their provider CAs and status signing certificates. This keeps credentials verifiable across country overrides and certificate renewal. Protected `iat` and `x5t#S256` headers carry the signing time and certificate reference required by JAdES. Trust lists use English language code `en`, whole second UTC timestamps, postal addresses and a self pointer. An unchanged list keeps its signed instance until it expires. Changed content or expiry advances the sequence number. Append `/history` to a trust list URL to list its retained instances, then `/history/<sequence>` to retrieve one.
 
 The schema is ETSI's [published JSON binding](https://forge.etsi.org/rep/esi/x19_60201_lists_of_trusted_entities), revision `e84f427f0cde99513b574ef4b5a155ac4a38eab6` from 13 November 2025. The PID and wallet provider lists follow Annexes D and E. Their fictional provider entries are for local interoperability tests.
 
@@ -140,10 +140,10 @@ The schema is ETSI's [published JSON binding](https://forge.etsi.org/rep/esi/x19
 
 The Bundesdruckerei [demo](https://demo.pid-provider.bundesdruckerei.de/) and [preproduction](https://preprod.pid-provider.bundesdruckerei.de/) deployments publish separate credential, status and access certificate material. Their PID paths use P-521 CAs and P-256 signing leaves. Signed issuer metadata uses an access certificate.
 
-EUDI Dev exercises those roles with P-256 keys. The versioned rulebooks determine generated data types and names.
+EUDI Dev implements those roles with P-256 keys. The versioned rulebooks determine generated data types and names.
 
 ## Test scope
 
-The versioned specifications and their applicable regulatory adaptations define the requirements. The [OpenID Foundation conformance tests](https://openid.net/certification/) provide evidence for the selected OpenID4VP, OpenID4VCI and HAIP plans and variants. They do not establish conformance to every EUDI requirement. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements also need checks against their own sources. An OpenID suite warning or pass is evidence about that test, not a replacement for the applicable specification.
+The versioned specifications and their applicable regulatory adaptations define the requirements. The [OpenID Foundation conformance tests](https://openid.net/certification/) provide evidence for the selected OpenID4VP, OpenID4VCI and HAIP plans and variants. They do not establish conformance to every EUDI requirement. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements also need checks against their own sources.
 
 The toolkit tests protocol exchanges, signatures, certificate structure and generated data. Registration certificates simulate provider registration. Their status and revocation lifecycle is not implemented. Official trust, certified hardware protection and physical presence checks require the corresponding ecosystem services. Configured key attestation assurance values simulate a test scenario. See [spec compliance](spec-compliance.md) and [conformance results](conformance-results.md) for implemented checks and remaining protocol limits.

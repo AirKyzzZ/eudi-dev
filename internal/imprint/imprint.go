@@ -44,7 +44,7 @@ const pageTemplate = `<!doctype html>
 </style>
 </head>
 <body>
-<p><a href="/">&larr; Back</a></p>
+<p><a href="./">&larr; Back</a></p>
 %s
 <hr>
 <p class="disclaimer">%s</p>

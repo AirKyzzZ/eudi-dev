@@ -35,11 +35,12 @@ import (
 )
 
 var (
-	proxyTarget   string
-	proxyPort     int
-	dashboardPort int
-	noDashboard   bool
-	allTraffic    bool
+	proxyTarget      string
+	proxyPort        int
+	dashboardPort    int
+	noDashboard      bool
+	dashboardBaseURL string
+	allTraffic       bool
 )
 
 var proxyCmd = &cobra.Command{
@@ -68,6 +69,7 @@ func init() {
 	proxyCmd.Flags().IntVar(&proxyPort, "port", config.DefaultProxyPort, "Proxy listen port")
 	proxyCmd.Flags().IntVar(&dashboardPort, "dashboard", config.DefaultProxyDashboardPort, "Dashboard listen port")
 	proxyCmd.Flags().BoolVar(&noDashboard, "no-dashboard", false, "Disable web dashboard")
+	proxyCmd.Flags().StringVar(&dashboardBaseURL, "dashboard-base-url", "", "Public dashboard URL when a reverse proxy serves it under a path prefix, such as https://example.com/eudi-proxy")
 	proxyCmd.Flags().BoolVar(&allTraffic, "all-traffic", false, "Show all traffic, not just OID4VP/VCI requests")
 	_ = proxyCmd.MarkFlagRequired("target")
 	proxyCmd.AddCommand(proxyLogsCmd())
@@ -108,6 +110,14 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	srv := proxy.NewServer(cfg, writer)
 
+	var dashboard *proxy.Dashboard
+	if !noDashboard {
+		dashboard = proxy.NewDashboard(srv.Store(), dashboardPort)
+		if err := dashboard.SetBaseURL(dashboardBaseURL); err != nil {
+			return fmt.Errorf("--dashboard-base-url: %w", err)
+		}
+	}
+
 	var scanner *proxy.OutputScanner
 	var sub *proxy.Subprocess
 	if len(args) > 0 {
@@ -130,6 +140,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Proxy:     http://localhost:%d\n", proxyPort)
 	if !noDashboard {
 		fmt.Printf("  Dashboard: http://localhost:%d\n", dashboardPort)
+		if dashboardBaseURL != "" {
+			dim.Printf("             %s\n", dashboardBaseURL)
+		}
 	}
 	if len(args) > 0 {
 		fmt.Printf("  Service:   %s\n", strings.Join(args, " "))
@@ -144,8 +157,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	var dashboardServer *http.Server
-	if !noDashboard {
-		dashboard := proxy.NewDashboard(srv.Store(), dashboardPort)
+	if dashboard != nil {
 		dashboardServer = &http.Server{
 			Addr:         fmt.Sprintf(":%d", dashboardPort),
 			Handler:      dashboard.Handler(),

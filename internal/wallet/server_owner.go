@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 )
 
 // Identifies the browser that owns a request. It does not authenticate users
@@ -49,12 +50,20 @@ func newBrowserSession(w http.ResponseWriter, r *http.Request, secure bool) stri
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    id,
-		Path:     "/",
+		Path:     cookiePath(r),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   secure,
 	})
 	return id
+}
+
+// Scope the cookie to the public prefix so apps sharing the host do not receive it.
+func cookiePath(r *http.Request) string {
+	if prefix := publicpath.Prefix(r); prefix != "" {
+		return prefix
+	}
+	return "/"
 }
 
 func browserSession(r *http.Request) string {

@@ -8,6 +8,6 @@ The address check runs in a `net.Dialer.Control` hook (`internal/format/policy.g
 
 ## Consequences
 
-Every HTTP client in the toolkit must be built through `format.NewHTTPClient` or `format.HTTPClientForURL`, or it bypasses the policy. `internal/wallet/issuance.go` therefore keeps a sentinel default client and routes through `doIssuanceRequest`.
+Every HTTP client in the toolkit must be built through `format.NewHTTPClient` or `format.HTTPClientForURL`, or it bypasses the policy. `internal/wallet/issuance.go` therefore keeps a sentinel default client and sends requests through `doIssuanceRequest`.
 
 A demo wallet also has to reach its own endpoints, which resolve to loopback. `AllowOwnOrigins` exempts the operator-configured URLs by exact resolved address and port. A visitor-supplied URL that happens to point at loopback is still blocked.

@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
@@ -209,5 +211,30 @@ func TestWalletServeDemoResetRequiresDemo(t *testing.T) {
 	err := rootCmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "--demo-reset requires --demo") {
 		t.Fatalf("expected --demo-reset validation error, got %v", err)
+	}
+}
+
+func TestWalletServeRejectsBasePathOnWalletRoute(t *testing.T) {
+	serveCmd, _, err := rootCmd.Find([]string{"wallet", "serve"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Earlier tests leave flag values on the shared command.
+	serveCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if slice, ok := f.Value.(pflag.SliceValue); ok {
+			_ = slice.Replace(nil)
+		} else {
+			_ = f.Value.Set(f.DefValue)
+		}
+		f.Changed = false
+	})
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	walletDir = ""
+
+	rootCmd.SetArgs([]string{"wallet", "serve", "--wallet-dir", filepath.Join(tmpDir, "wallet"), "--no-register", "--base-url", "https://mydomain.de/verifier"})
+	err = rootCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "cannot start with /verifier") {
+		t.Fatalf("expected a base path error, got %v", err)
 	}
 }

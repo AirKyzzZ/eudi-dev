@@ -8,7 +8,7 @@ The wallet accepts a credential offer with [`wallet accept`](presenting.md#walle
 
 An authorization code offer requires sign-in at the issuer. The wallet returns the authorization URL because a hosted server cannot open a browser itself. An open wallet tab receives the URL through the event stream and navigates to it.
 
-API callers receive `HTTP 202` with the URL. They should open it only when no wallet tab is handling the flow, so the authorization request is used once:
+API callers receive `HTTP 202` with the URL. They should open it only when no wallet tab is handling the flow, so that the authorization request is used only once:
 
 ```json
 {
@@ -35,17 +35,17 @@ The credential keeps its id, so a verifier query or a UI selection that referred
 
 Renewal uses `grant_type=refresh_token` at the original token endpoint, with the original client authentication method. The wallet stores the method, audience and challenge endpoint with the refresh token. It rebuilds authentication proofs and fetches a fresh attestation challenge for each request.
 
-The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait ten minutes before retrying. The wallet also attempts renewal before presenting a credential that close to expiry, including without a running server. If renewal fails, it presents the stored credential.
+The server checks for renewal every 30 seconds and renews credentials within a minute of expiry. Failed renewals wait ten minutes before retrying. The wallet also attempts renewal before presenting a credential that expires within a minute, including without a running server. If renewal fails, it presents the stored credential.
 
 ## Deferred issuance
 
-An issuer that cannot produce the credential straight away answers the credential request with a `transaction_id`. The wallet collects the credential from the `deferred_credential_endpoint` later, in both issuance flows.
+An issuer that cannot issue the credential immediately responds to the credential request with a `transaction_id`. The wallet collects the credential from the `deferred_credential_endpoint` later, in both issuance flows.
 
-While the credential is not ready the issuer answers with the `issuance_pending` error and an `interval` to wait ([OID4VCI 1.0 §9.3](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)). The wallet waits that interval. Some issuers echo the `transaction_id` back in a success response instead, which the wallet accepts too.
+While the credential is not ready, the issuer responds with the `issuance_pending` error and an `interval` to wait ([OID4VCI 1.0 §9.3](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)). The wallet waits that interval. Some issuers instead return the `transaction_id` in a success response. The wallet accepts this too.
 
-The wallet records the transaction and returns straight away. `wallet serve` collects the credential in the background on the issuer's interval, so a consent dialog or a CLI run never waits for it.
+The wallet records the transaction and returns immediately. `wallet serve` collects the credential in the background at the issuer's interval, so neither the consent dialog nor a CLI command blocks on it.
 
-Accepting such an offer answers `HTTP 202` with the outcome:
+Accepting such an offer returns `HTTP 202` with the outcome:
 
 ```json
 {
@@ -66,7 +66,7 @@ eudi wallet deferred abandon <id>    # stop collecting it
 
 **Check now** polls immediately and reports the result: a credential, `issuance_pending` or a refusal. It schedules the next attempt one interval later. The UI offers the same action.
 
-**Abandon** drops the entry from the schedule. The transaction stays valid at the issuer.
+**Abandon** removes the entry from the schedule. The transaction stays valid at the issuer.
 
 Deferred issuances are saved in the selected storage backend. With file or Postgres storage, collection resumes after a restart. A record is removed when collection succeeds, the issuer returns a final error, the user abandons it, or 24 hours pass. A local `wallet accept` command reports the deferral. Run `wallet serve` to collect the credential.
 
@@ -91,9 +91,9 @@ Debug mode, used by the public demo, handles two issuer deviations:
 - An issuer that requires an attestation but advertises no client authentication method. Advertising is a SHOULD in §10.1, so the wallet attests anyway and warns about the missing advertisement.
 - An issuer that advertises only unauthenticated access (`none`). The wallet proceeds without client authentication and warns.
 
-`--mode strict` attests in both cases and lets the exchange fail at the token endpoint if the issuer refuses.
+`--mode strict` attests in both cases and lets the exchange fail at the token endpoint if the issuer rejects it.
 
-Without `--haip` the wallet attests **only when the authorization server advertises it** by listing `attest_jwt_client_auth` in `token_endpoint_auth_methods_supported`. §8 of the draft asks a client to do that:
+Without `--haip` the wallet attests **only when the authorization server advertises it** by listing `attest_jwt_client_auth` in `token_endpoint_auth_methods_supported`. §8 of the draft recommends this:
 
 > The client SHOULD fetch and parse the Authorization Server metadata and recognize Attestation-Based Client Authentication as a client authentication mechanism if either of the given `token_endpoint_auth_methods_supported` values are present.
 
@@ -101,37 +101,37 @@ Following the metadata also limits correlation. The wallet has one holder key an
 
 ### `--client-attestation`
 
-Advertising the method is a SHOULD, so an issuer may require an attestation without announcing it. `--client-attestation` sends the attestation regardless of metadata:
+Advertising the method is a SHOULD, so an issuer may require an attestation without advertising it. `--client-attestation` sends the attestation regardless of metadata:
 
 ```bash
 eudi wallet serve --client-attestation --auto-accept
 ```
 
-Use it for issuers that require an attestation but omit it from their metadata. Reusing the attestation allows those issuers to correlate the wallet. `GET /api/config` reports the setting as `force_client_attestation`. An authorization server that advertises `private_key_jwt` still gets the client assertion.
+Use it for issuers that require an attestation but omit it from their metadata. Reusing the attestation allows those issuers to correlate the wallet. `GET /api/config` reports the setting as `force_client_attestation`. An authorization server that advertises `private_key_jwt` still receives the client assertion.
 
 ## OpenID4VCI feature level
 
-The wallet implements [OpenID4VCI 1.0](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-final.html), the published final version. `--vci-version` decides whether it also uses what the [1.1 draft](https://openid.github.io/OpenID4VCI/openid-4-verifiable-credential-issuance-1_1-wg-draft.html) adds.
+The wallet implements [OpenID4VCI 1.0](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-final.html), the published final version. `--vci-version` controls whether it also uses features from the [1.1 draft](https://openid.github.io/OpenID4VCI/openid-4-verifiable-credential-issuance-1_1-wg-draft.html).
 
 ```bash
 eudi wallet serve --vci-version 1.1
 ```
 
-`1.0` is the default. The public demo runs `1.1` (`--demo` selects it, `--vci-version 1.0` overrides that).
+`1.0` is the default. The public demo runs `1.1` (`--demo` sets it and `--vci-version 1.0` overrides it).
 
-Every 1.1 feature is negotiated in the issuer's metadata, so 1.1 behaves like 1.0 against an issuer that publishes none of them.
+Every 1.1 feature is negotiated through issuer metadata. Against an issuer that advertises none of them, 1.1 behaves like 1.0.
 
-Like the other conformance settings, the level is changeable at runtime on a locally hosted wallet (see [changing the conformance settings](serve.md#changing-the-conformance-settings)) and reported as `vci_version` by `GET /api/config`.
+Like the other conformance settings, the level can be changed at runtime on a local wallet (see [changing the conformance settings](serve.md#changing-the-conformance-settings)) and reported as `vci_version` by `GET /api/config`.
 
-What 1.1 selects:
+Features enabled by 1.1:
 
 | Feature | 1.0 | 1.1 |
 |---------|-----|-----|
-| Interactive Authorization (1.1 §6), where the issuer publishes `authorization_challenge_endpoint` | Not used. The activity log mentions the flag that would use it, and the redirect flow of §5 runs | Used. See [interactive authorization](#interactive-authorization) |
+| Interactive Authorization (1.1 §6), where the issuer publishes `authorization_challenge_endpoint` | Not used. The activity log names the flag that enables it, and the §5 redirect flow runs | Used. See [interactive authorization](#interactive-authorization) |
 
 ### Interactive authorization
 
-An issuer can make presenting a credential a condition of issuing one. The wallet calls the issuer's Authorization Challenge Endpoint. The issuer answers with an OpenID4VP request. The wallet asks the user and presents what was asked for, and the issuer verifies the presentation as a verifier would. Then it returns an authorization code, and the ordinary token and credential exchange follows.
+An issuer can require a credential presentation before it issues a credential. The wallet calls the issuer's Authorization Challenge Endpoint. The issuer answers with an OpenID4VP request. The wallet asks the user for consent and presents the requested credentials. The issuer verifies the presentation like a verifier. It then returns an authorization code, and the regular token and credential exchange follows.
 
 ```mermaid
 sequenceDiagram
@@ -147,22 +147,22 @@ sequenceDiagram
     Wallet->>AS: Token request<br/>grant_type=authorization_code
 ```
 
-Steps 2 and 3 repeat while the issuer asks for further interactions. A wallet that cannot satisfy one answers with an OpenID4VP error, so the issuer can report why it refuses.
+Steps 2 and 3 repeat while the issuer asks for further interactions. If the wallet cannot complete an interaction, it responds with an OpenID4VP error so the issuer can report the reason.
 
-The presentation asks for consent like any other, since receiving a credential and disclosing one are separate decisions. A wallet in auto-accept mode answers for the user.
+The presentation requires consent like any other presentation (receiving a credential and disclosing one are separate decisions). In auto-accept mode, the wallet approves it automatically.
 
-Challenge requests carry the same wallet attestation headers as token requests, and the built-in demo issuer requires them there unless started with `--demo-issuer-client-auth optional`.
+Challenge requests carry the same wallet attestation headers as token requests. The built-in demo issuer requires them on challenge requests unless it runs with `--demo-issuer-client-auth optional`.
 
 The presentation interaction works without `--vci-redirect-uri`. An issuer that sets `require_interactive_authorization` requires this flow.
 
 The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT uses `ia:<endpoint>` as `aud`. An mdoc uses the `OpenID4VCIIAEHandover` session transcript. If the request contains `expected_origins`, it must name the challenge endpoint's own origin. This prevents one authorization server from forwarding another's request.
 
-The wallet offers two interactions and advertises only what it can complete (§6.2.1):
+The wallet supports two interaction types and advertises only those it can complete (§6.2.1):
 
 - The presentation interaction (`urn:openid:dcp:ia:openid4vp_presentation`), always.
 - The browser interaction (`urn:openid:dcp:ia:auth_via_web`, §6.2.1.2), when a redirect URI is configured and the server publishes an `authorization_endpoint`. The server answers the challenge with a `request_uri`. The wallet builds an authorization request from it (RFC 9126 §4) and opens the sign-in URL in the user's browser, as in the redirect flow. The redirect back to the wallet carries the authorization code, or an `auth_session` when further steps remain at the challenge endpoint.
 
-A server asking for an interaction the wallet did not advertise is refused.
+The wallet rejects a request for an interaction it did not advertise.
 
 The built-in demo issuer uses both. An offer set to "Presentation during issuance" runs the presentation interaction. An offer set to "Browser sign-in" requests the `auth_via_web` interaction from a wallet that advertises it, and falls back to `redirect_to_web` (first-party-apps Section 5.2.2.1.1) for other wallets.
 
@@ -178,4 +178,4 @@ curl -X POST 'http://localhost:8085/issuer/api/offers?grant=authorization_code&a
 curl -X POST http://localhost:8085/api/offers -d '{"uri": "<scheme_uri from above>"}'
 ```
 
-`authorization=presentation` selects "Presentation during issuance" for this offer. Without it the offer defaults to the browser sign-in. The same offer redeemed at `--vci-version 1.0` goes through the browser sign-in, because the demo issuer publishes `authorization_challenge_endpoint` only at 1.1.
+`authorization=presentation` selects "Presentation during issuance" for this offer. Without it the offer defaults to the browser sign-in. The same offer redeemed with `--vci-version 1.0` goes through the browser sign-in, because the demo issuer publishes `authorization_challenge_endpoint` only at 1.1.

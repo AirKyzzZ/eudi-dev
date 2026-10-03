@@ -115,7 +115,7 @@ All 36 verifier modules ended in `REVIEW`, as expected after screenshot upload. 
 
 The four warnings report the same metadata field: `client_attestation_pop_methods_supported`. ABCA draft-10 defines it, but the suite's RFC 8414 schema does not recognize it.
 
-Suite defect in `release-v5.2.4`: under the pre-authorized code grant the client attestation negative modules keep running after their expected token refusal and interrupt themselves ("This is a bug in the test module"). Those six modules are excluded there and covered by the authorization code scenarios.
+Suite defect in `release-v5.2.4`: under the pre-authorized code grant the client attestation negative modules keep running after their expected token refusal and interrupt themselves ("This is a bug in the test module"). These six modules are excluded under that grant. The authorization code scenarios cover them.
 
 ## Run of 2026-09-06 (2.4.0 storage backends)
 
@@ -156,7 +156,7 @@ The expanded local matrix (76 plans: the full supported cross product of the alp
 
 - the 4 condition failures are the two occurrences of the multisigned suite NullPointerException above
 - the 26 warnings are the IACA subject key identifier check on a wallet binary built before the SHA-1 fix (the deployed build and the production run above are clean)
-- one VCI module ended `INTERRUPTED` after a machine-load stall (the harness cancelled it, the same module passes in the neighbouring plans)
+- one VCI module ended `INTERRUPTED` after a machine-load stall (the harness cancelled it, and the same module passes in the neighbouring plans)
 - 18 mdoc VCI plans contain the mdoc batch skips
 
 Variants exercised for the first time in this matrix: `url_query`, `x509_san_dns`, `web-origin`, multisigned requests and the Browser API response modes in the Final plan, plus grant, offer delivery, issuance mode and encryption cross products in VCI. They revealed the two wallet gaps fixed in 2.3.0 (request URI parsing, derived `response_uri`).
@@ -212,10 +212,10 @@ Re-run against the same suite baseline (`release-v5.2.1`), with the server runni
 
 This run exercises credential status for the first time (earlier runs' credentials carried no `status` claim, so the suite skipped `FetchStatusListToken` and everything after it). The status list conditions surfaced two defects in the status list token, both fixed in this run's release:
 
-- the token carried the self-signed trust anchor inside its `x5c` chain, which HAIP 6.1 rejects ("Trust anchor certificate must not be included in x5c chain"). 14 modules
-- the token offered no key-resolution route the Final (non-HAIP) plans accept: that branch verifies with a `jwk` embedded in the header or with `server_jwks`, and `server_jwks` is unreachable in these plans. 17 modules
+- the token carried the self-signed trust anchor inside its `x5c` chain, which HAIP 6.1 rejects ("Trust anchor certificate must not be included in x5c chain"), affecting 14 modules
+- the token offered no key resolution method that the Final (non-HAIP) plans accept. These plans verify with a `jwk` embedded in the header or with `server_jwks`, and `server_jwks` is unreachable there. This affected 17 modules
 
-The token carries `x5c` without the trust anchor (the anchored route HAIP validates) and the signing key in a `jwk` header (Token Status List §5.1 requires only `typ`, and `jwk` is a registered JOSE header per RFC 7515 §4.1.3).
+The token carries `x5c` without the trust anchor (the anchored path HAIP validates) and the signing key in a `jwk` header (Token Status List §5.1 requires only `typ`, and `jwk` is a registered JOSE header per RFC 7515 §4.1.3).
 
 ## Run of 2026-08-05
 
@@ -247,9 +247,9 @@ Full matrix on suite `release-v5.2.2`, the first run on that release: **111 modu
 
 The matrix is 160 modules (154 on release-v5.2.1) because `oid4vp-1final-wallet-negative-test-invalid-client-id-prefix` runs in 6 VP plans (REVIEW in all) since release-v5.2.2 fixed the module (upstream `4f790f161`). It stays out of the DC API plans per its own `@VariantNotApplicableWhen`: an unsigned DC API request carries no `client_id` to corrupt (OID4VP 1.0 Appendix A.2).
 
-Release-v5.2.2 reworked `alternate-happy-flow` to put a decoy origin into an unsigned DC API request's `expected_origins` and check that the wallet ignores it. The monitor derives the `Origin` header of the POST it sends in place of the browser from the submit URL, where the suite serves the page, as a real browser does.
+Release-v5.2.2 reworked `alternate-happy-flow` to put a decoy origin into an unsigned DC API request's `expected_origins` and check that the wallet ignores it. The monitor sends the POST in place of the browser. Like a real browser, it derives the `Origin` header from the submit URL where the suite serves the page.
 
-The 1 condition failure occurs in a module that still finished `PASSED`: a suite pause made the monitor retry an offer submission, the wallet ran the flow twice, and `ValidateAuthorizationCode` compared the code of one flow against the other. Same retry artifact as the 2026-08-08 `issuer_state` failure.
+The 1 condition failure occurs in a module that still finished `PASSED`: a suite pause made the monitor retry an offer submission, the wallet ran the flow twice, and `ValidateAuthorizationCode` compared the code of one flow against the other. This is the same retry artifact as the 2026-08-08 `issuer_state` failure.
 
 ## New release-v5.2.1 Coverage
 

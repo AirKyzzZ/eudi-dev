@@ -1,6 +1,6 @@
 # Issue
 
-Issue test SD-JWT, JWT, or mDOC credentials. The output is signed with an ephemeral P-256 key by default (the public JWK goes to stderr).
+Issue test SD-JWT, JWT, or mDOC credentials. The output is signed with an ephemeral P-256 key by default (the public JWK is printed to stderr).
 
 ```bash
 eudi issue sdjwt
@@ -111,7 +111,7 @@ Without `--claims`, a minimal PID-like claim set is used (given_name, family_nam
 
 `issue jwt --pid` puts the same claim set in a plain JWT VC for verifier testing.
 
-`--vct urn:eudi:pid:de:1` selects the German PID: fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the predefined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names changes what `--pid` issues. See [templates](templates.md).
+`--vct urn:eudi:pid:de:1` selects the German PID: fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the predefined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names overrides the claim set that `--pid` issues. See [templates](templates.md).
 
 `--template` supplies the claim set and defaults for type, namespace, and expiry. Explicit flags override the template. `--claims` overrides individual top level claims. `--omit` removes claims from the result. See [templates](templates.md) for the file format and the `templates` commands.
 
@@ -121,9 +121,9 @@ Every SD-JWT claim is selectively disclosable by default. `--always-disclosed` (
 
 With `--wallet`, the issuer key and certificate depend on the supplied flags:
 
-- By default, the wallet uses its issuer key and a certificate for the selected trust profile. A provider intermediate CA signs this certificate. A configured root with a path length of zero signs it directly.
+- By default, the wallet uses its issuer key and a certificate for the selected trust profile. A provider intermediate CA signs this certificate. If the configured root has a path length of zero, the root signs it directly.
 - `--key` supplies another issuer key. The wallet creates a certificate for it under the shared CA.
-- `--key` with `--cert` uses the supplied key and chain. Trust profile and registration metadata flags are skipped, and the credential type is registered as an import.
+- `--key` with `--cert` uses the supplied key and chain. Trust profile and registration metadata flags are ignored, and the credential type is registered as an import.
 
 A supplied chain that includes its self-signed root produces a warning in debug mode and is rejected in strict mode. The wallet stores the credential and registers its type. That registration supplies metadata for:
 
@@ -136,16 +136,16 @@ Issued PID signatures include protected certificate URLs and SHA-256 fingerprint
 
 Without explicit status list flags, `--wallet` registers the credential in the wallet's own status list.
 
-If a wallet server is running for the same wallet directory, `--wallet` issues through its REST API (see [remote control](wallet/http-api.md#automatic-routing-single-writer)). Otherwise the command writes directly into the store and the embedded URLs resolve once `wallet serve` runs.
+If a wallet server is running for the same wallet directory, `--wallet` issues through its REST API (see [remote control](wallet/http-api.md#automatic-routing-single-writer)). Otherwise the command writes directly into the store and the embedded URLs resolve once `wallet serve` is running.
 
-Trust lists come from the wallet's issued-attestation registry:
+Trust lists are built from the wallet's issued-attestation registry:
 
 - each issued or imported credential type contributes one registry entry
 - entries with the same trust list profile fields are grouped into one trust list
 - the legacy `/api/trustlist` endpoint serves the PID trust list first
 - `/api/trustlists` lists every group with its ID (`pid`, `local`), a relative `path`, and an optional `advertised_url`
 
-Without trust-metadata flags, the defaults follow the credential type:
+Without trust-metadata flags, the defaults depend on the credential type:
 
 - PID attestation types default to the PID trust list and entitlement profile
 - other attestation types default to `Non_Q_EAA_Provider` plus the local ETSI-shaped trust list profile
@@ -168,7 +168,7 @@ These flags set the stored trust and issuer metadata for the credential type:
 
 ### Display metadata
 
-These flags set the card appearance of the imported credential and apply with `--wallet` on all three subcommands. Colors must fit OpenID4VCI 1.0 §12.2.4 (an invalid one is dropped with a warning). Images pass the same address policy and size cap as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
+These flags set the card appearance of the imported credential and apply with `--wallet` on all three subcommands. Colors must conform to OpenID4VCI 1.0 §12.2.4 (an invalid one is dropped with a warning). Images are subject to the same address policy and size limit as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
 
 | Flag | Default | Description |
 |------|---------|-------------|

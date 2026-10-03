@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/statuslist"
 )
 
@@ -52,9 +53,11 @@ func (s *Server) handleTrustList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTrustListIndex(w http.ResponseWriter, r *http.Request) {
 	issuer := strings.TrimRight(strings.TrimSpace(s.wallet.IssuerURL), "/")
-	writeJSON(w, http.StatusOK, map[string]any{
-		"trust_lists": BuildTrustListIndexEntries(s.wallet, issuer),
-	})
+	entries := BuildTrustListIndexEntries(s.wallet, issuer)
+	for i := range entries {
+		entries[i].Path = publicpath.Prefix(r) + entries[i].Path
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"trust_lists": entries})
 }
 
 func (s *Server) handleTrustListByID(w http.ResponseWriter, r *http.Request) {

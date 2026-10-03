@@ -1263,14 +1263,14 @@ func (w *Wallet) CredentialsJSONWindow(offset, limit int) ([]byte, error) {
 	return json.Marshal(w.listedSummaries(offset, limit))
 }
 
-// CredentialsListingJSONWindow omits raw credentials and claims to keep refreshes small.
+// CredentialsListingWindow omits raw credentials and claims to keep refreshes small.
 // Full details remain available through the credential endpoint and decoder.
-func (w *Wallet) CredentialsListingJSONWindow(offset, limit int) ([]byte, error) {
+func (w *Wallet) CredentialsListingWindow(offset, limit int) []map[string]any {
 	summaries := w.listedSummaries(offset, limit)
 	for _, s := range summaries {
 		TrimCredentialListing(s)
 	}
-	return json.Marshal(summaries)
+	return summaries
 }
 
 // TrimCredentialListing omits raw credentials and claims from overview responses.

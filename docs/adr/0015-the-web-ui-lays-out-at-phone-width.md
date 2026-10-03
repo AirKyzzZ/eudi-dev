@@ -10,4 +10,4 @@ Credential types can be long unbroken strings, and cards also need room for badg
 
 ## Consequences
 
-Check layout changes at 375px and 320px before release. An element that forces horizontal scrolling at those widths is a defect. Old headless Chrome clamps its window to a desktop minimum, so narrow checks use device emulation (CDP `Emulation.setDeviceMetricsOverride`) instead of `--window-size`.
+Check layout changes at 375px and 320px before release. An element that forces horizontal scrolling at those widths is a defect. Old headless Chrome enforces a desktop minimum window size, so narrow checks use device emulation (CDP `Emulation.setDeviceMetricsOverride`) instead of `--window-size`.

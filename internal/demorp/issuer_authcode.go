@@ -886,7 +886,7 @@ var loginPageTemplate = template.Must(template.New("login").Parse(`<!DOCTYPE htm
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
 <title>EUDI Test Demo Issuer</title>
 <style>
 :root { --bg:#1a1b26; --bg-surface:#24283b; --text:#c0caf5; --text-dim:#8b93b8; --border:#3b4261; --accent:#7aa2f7; }

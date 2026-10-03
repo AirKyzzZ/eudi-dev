@@ -30,4 +30,4 @@ Add support when the EUDI ARF or a referenced specification defines the mechanis
 
 Findings must distinguish unsupported key resolution from a missing key or failed fetch. `SECURITY.md` and `docs/spec-compliance.md` describe the supported mechanisms.
 
-A Request Object under a `decentralized_identifier:` or `verifier_attestation:` client identifier has its key in a place this wallet does not resolve. A request passed with no finding would look verified. So `VerifyRequestObjectSignature` reports which key it would have needed and where it would come from. It does the same for a bare `client_id`, whose key would have to be pre-registered, and this wallet registers nothing.
+A Request Object under a `decentralized_identifier:` or `verifier_attestation:` client identifier has its key in a place this wallet does not resolve. A request accepted without a finding would look verified. `VerifyRequestObjectSignature` therefore reports which key it needs and where that key would come from. It does the same for a bare `client_id`, whose key would have to be pre-registered. This wallet has no pre-registered clients.

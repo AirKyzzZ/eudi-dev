@@ -2,15 +2,15 @@
 
 `internal/storage` stores the wallet's credentials, keys, certificates, display assets and user templates. Each value is a blob under a slash-separated key. Wallet data sits under the wallet's prefix. The shared CA sits one level above it.
 
-Three backends implement `Store`: `file` writes the existing wallet directory layout, `memory` shares one store within a process, and `postgres` stores one row per key. Wallet servers using the same database and wallet prefix share persisted state.
+Three backends implement `Store`: `file` uses the existing wallet directory layout, `memory` shares one store within a process, and `postgres` stores one row per key. Wallet servers using the same database and wallet prefix share persisted state.
 
-Choose the backend with `--storage` or `EUDI_DEV_STORAGE`. Commands and tests that open a store without an explicit backend use the environment variable. The CLI defaults to `file`. The container image sets `memory`. Persistent deployments use `file` with a volume or a Postgres URL. `auto` selects files when a state directory was named, is empty, or contains wallet state. It selects memory when the directory is absent or contains only `instances/` and `remote.json`.
+Choose the backend with `--storage` or `EUDI_DEV_STORAGE`. Commands and tests that open a store without an explicit backend use the environment variable. The CLI defaults to `file`. The container image sets `memory`. Persistent deployments use `file` with a volume or a Postgres URL. `auto` selects `file` when a state directory is set explicitly, is empty, or contains wallet state. It selects `memory` when the directory is absent or contains only `instances/` and `remote.json`.
 
 ## What stays outside the layer
 
 The instance registry (`instances/*.json`), active remote target and detached server log stay in local files. The CLI uses them to find processes on this machine. It identifies a running wallet by its directory on every backend. `/api/config` reports that directory.
 
-Files the user points at by path (a credential, a template, a key PEM) are read from the filesystem. The layer holds only the tool's own state.
+Files the user passes by path (a credential, a template, a key PEM) are read from the filesystem. The layer holds only the tool's own state.
 
 ## Postgres schema
 
@@ -38,4 +38,4 @@ File compare-and-swap operations use a lock shared by processes for signing keys
 
 The keys, the CA and every credential are stored in the clear on every backend (ADR-0003). Anyone with access to the stored CA key can sign certificates trusted by verifiers that use this CA.
 
-Postgres is the only external backend. Another engine is another `Store` implementation behind the same keys.
+Postgres is the only external backend. Adding another engine means adding another `Store` implementation that uses the same keys.

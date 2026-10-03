@@ -145,8 +145,8 @@ Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/pat
 - `OIDF_SUITE_DIR`: use an existing conformance suite checkout for runner/templates instead of downloading the latest release archive
 - `OIDF_SUITE_TAG`: expected conformance suite tag when `OIDF_SUITE_DIR` or `OIDF_SUITE_URL` is used
 - `OIDF_WALLET_DIR`: reuse a specific wallet store
-- `EUDI_DEV_HOME`: the home of the wallet the wrapper starts (default `<run dir>/home`, so the wallet stays out of the instance registry of your own home)
-- `EUDI_DEV_STORAGE`: the storage backend the wallet under test keeps its state on (`file`, the default, `memory`, or a `postgres://` URL). The wrapper passes the environment through to `wallet serve`. Run the matrix once per backend before a release
+- `EUDI_DEV_HOME`: the home directory of the wallet the wrapper starts (default `<run dir>/home`, so the wallet stays out of the instance registry of your own home)
+- `EUDI_DEV_STORAGE`: the storage backend of the wallet under test (`file`, the default, `memory`, or a `postgres://` URL). The wrapper passes the environment through to `wallet serve`. Run the matrix once per backend before a release
 - `OIDF_WALLET_URL`: an externally managed wallet to test (for example the strict conformance host). The wrapper then starts no wallet of its own, drives that one over its API, and fetches its CA from `/api/certificates/ca`
 - `OIDF_WALLET_BASE_URL`: public https base URL for the wallet (a tunnel terminating TLS in front of the wallet port). Required for tunnel-based hosted runs because the hosted suite fetches the wallet status list itself
 - `OIDF_WALLET_ISSUER_URL`: override the wallet HTTPS issuer URL if needed. Defaults to `OIDF_WALLET_BASE_URL` when that is set
@@ -155,8 +155,8 @@ Set `OIDF_TLS_VERIFY=true|false` to override this default. Use `OIDF_TLS_CA=/pat
 - `OIDF_VCI_REDIRECT_URI`: override the configured OID4VCI redirect URI
 - `OIDF_VCI_ALIAS`: convenience alias used by the default `OIDF_VCI_REDIRECT_URI`
 - `OIDF_SUITE_URL`: override the suite tarball URL. Defaults to the latest upstream release archive
-- `OIDF_VP_MODULES`: comma separated module names to run instead of each VP plan's own list, for targeted reproductions (a plan with one module of interest). Never for certification runs
-- `OIDF_MODULE_IDLE_TIMEOUT`: seconds without `run-test-plan.py` output before the harness cancels the stuck modules on the suite (they record as that module's failure and the plan continues). A run that produces no output after the cancel is terminated. Defaults to `180`, set `0` to disable
+- `OIDF_VP_MODULES`: comma separated module names to run instead of each VP plan's own list, for targeted reproductions (a plan with one module of interest). Do not use it for certification runs
+- `OIDF_MODULE_IDLE_TIMEOUT`: seconds without `run-test-plan.py` output before the harness cancels the stuck modules on the suite (the suite records each as a failure and the plan continues). If the run still produces no output after the cancel, the harness terminates it. Defaults to `180`, set `0` to disable
 - `OIDF_REQUEST_TIMEOUT`: seconds the monitor waits for a suite API response. Defaults to `20`, set `60` on a loaded machine
 - `EUDI_REMOTE_TIMEOUT`: how long the wallet waits for a counterparty, as a Go duration (`45s`, `2m`). The wrapper sets `120s` because the suite can take tens of seconds to answer under load (the wallet's own default is `15s`). An unparseable value is ignored
 - `OIDF_KEEP_SUITE_DB`: set to `1` to keep the local suite database after a run. By default the wrapper drops it, since a database holding many runs slows the server enough to stall a run
@@ -167,7 +167,7 @@ Hosted mode creates private plans on the OIDF service.
 
 The hosted suite fetches the wallet status list itself, so the wallet needs a public https origin.
 
-The default hosted target is the demo service. Certification runs go to the production service, which needs its own token. The token comes from `OIDF_TOKEN` in `.env` (or export `CONFORMANCE_TOKEN`). Tokens are per instance (a production token gets 401 on the demo host).
+The default hosted target is the demo service. Certification runs go to the production service, which needs its own token. The token comes from `OIDF_TOKEN` in `.env` (or export `CONFORMANCE_TOKEN`). Tokens are per instance (a production token returns 401 on the demo host).
 
 On the production service the wrapper runs only the certifiable HAIP plans, complete and unfiltered. The alpha Final plans run against the local suite or the hosted demo service.
 
@@ -212,4 +212,4 @@ To clear the account's plans on the hosted service between attempts:
 scripts/oidf-delete-hosted-plans.sh
 ```
 
-It deletes every plan the token owns on `CONFORMANCE_SERVER` (default production). Published plans are immutable and are listed and kept.
+It deletes every plan the token owns on `CONFORMANCE_SERVER` (default production). Published plans are immutable. The script lists them and keeps them.

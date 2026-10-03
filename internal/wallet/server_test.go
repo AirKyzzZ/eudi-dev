@@ -469,8 +469,8 @@ func TestStaticFiles_JS(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "/api/credentials") {
-		t.Error("expected app.js to reference /api/credentials")
+	if !strings.Contains(w.Body.String(), "'api/credentials") {
+		t.Error("expected app.js to reference api/credentials")
 	}
 }
 

@@ -56,11 +56,12 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 | `--port`         | `9090`  | Proxy listen port                        |
 | `--dashboard`    | `9091`  | Dashboard listen port                    |
 | `--no-dashboard` | `false` | Disable web dashboard                    |
+| `--dashboard-base-url` | None | Public dashboard URL when a reverse proxy serves it under a path prefix, such as `https://example.com/eudi-proxy` (see [behind a reverse proxy](reverse-proxy.md#proxy-dashboard)) |
 | `--all-traffic`  | `false` | Show all traffic                          |
 | `--json`         | `false` | NDJSON output to stdout (global flag)    |
 | `-- <command>`   | None    | Launch target as subprocess, scan stdout |
 
-`eudi proxy logs [dashboard-url]` reads a proxy that is already running:
+`eudi proxy logs [dashboard-url]` reads the traffic of a running proxy:
 
 | Flag             | Default | Description                                        |
 |------------------|---------|----------------------------------------------------|
@@ -83,9 +84,9 @@ eudi proxy logs http://localhost:9091 --follow
 eudi proxy logs https://proxy.internal.example --follow
 ```
 
-Output matches the proxy terminal, with decode links pointing to its dashboard. `--follow` streams new traffic and reconnects after a disconnect or restart. On reconnect, it reads any missed entries still in the proxy's history. `--json` prints the recorded traffic once and cannot be combined with `--follow`.
+The output matches the proxy's terminal output, with decode links to its dashboard. `--follow` streams new traffic and reconnects after a disconnect or restart. On reconnect, it reads any missed entries still in the proxy's history. `--json` prints the recorded traffic once and cannot be combined with `--follow`.
 
-The argument is the dashboard URL (port 9091 by default). A proxy started without `--all-traffic` records only OID4VP/VCI requests, so only those can be read back.
+The argument is the dashboard URL (port 9091 by default). A proxy started without `--all-traffic` records only OID4VP/VCI requests, so `logs` shows only those.
 
 ## Example output
 
@@ -149,4 +150,4 @@ The proxy also scans the subprocess's stdout for JWT and SD-JWT credentials and 
   - `[VP] SD-JWT presentation created: ...`
 - Output of a service launched with `--` appears with a `[service]` prefix.
 - `--all-traffic` shows the hidden requests too (health checks, favicon)
-- `--json` pipes to `jq`: `eudi proxy --target ... --json | jq '.credentials'`
+- Pipe `--json` output to `jq`: `eudi proxy --target ... --json | jq '.credentials'`

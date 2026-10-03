@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 )
 
 // DemoOptions configures the demo profile: a shared, anonymous environment
@@ -105,7 +106,7 @@ func (s *Server) DemoEnabled() bool {
 const maxRequestBodyBytes = 1 << 20
 
 func (s *Server) Handler() http.Handler {
-	return httpsec.Headers(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := httpsec.Headers(s.guardAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.demo != nil && demoBlockedRoute(r) {
 			writeJSON(w, http.StatusForbidden, map[string]string{
 				"error": "endpoint disabled in public demo mode",
@@ -115,6 +116,14 @@ func (s *Server) Handler() http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		s.mux.ServeHTTP(w, r)
 	})))
+	// Wrap outside the API guard and the demo checks. They compare paths such as
+	// /api/shutdown, so the prefix must be gone by then.
+	return publicpath.Wrap(publicpath.Options{
+		BaseURL: s.wallet.BaseURL,
+		OnMismatch: func(observed string) {
+			s.log("Warning: a request came in with %s, but --base-url is %s. Check the proxy routes or --base-url.", observed, s.wallet.BaseURL)
+		},
+	}, inner)
 }
 
 // guardAPI wraps a handler with the cross-origin guard, naming the URLs this

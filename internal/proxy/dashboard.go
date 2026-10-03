@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/httpsec"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/web"
 )
 
@@ -35,12 +36,37 @@ var streamKeepaliveInterval = 20 * time.Second
 var streamWriteTimeout = 2 * time.Minute
 
 type Dashboard struct {
-	store *Store
-	port  int
+	store   *Store
+	port    int
+	baseURL string
 }
 
 func NewDashboard(store *Store, port int) *Dashboard {
 	return &Dashboard{store: store, port: port}
+}
+
+// SetBaseURL sets the dashboard's public URL, such as https://example.com/eudi-proxy
+// when a reverse proxy serves it there.
+func (d *Dashboard) SetBaseURL(raw string) error {
+	first, err := publicpath.FirstSegment(raw)
+	if err != nil {
+		return err
+	}
+	if dashboardRoots()[first] {
+		return fmt.Errorf("the dashboard base URL path cannot start with /%s because the dashboard uses that path itself", first)
+	}
+	d.baseURL = raw
+	return nil
+}
+
+func dashboardRoots() map[string]bool {
+	roots := map[string]bool{"api": true, "decode": true}
+	if entries, err := fs.ReadDir(staticFiles, "static"); err == nil {
+		for _, entry := range entries {
+			roots[entry.Name()] = true
+		}
+	}
+	return roots
 }
 
 func (d *Dashboard) Handler() http.Handler {
@@ -54,10 +80,16 @@ func (d *Dashboard) Handler() http.Handler {
 	mux.Handle("/decode/", http.StripPrefix("/decode", decodeMux))
 
 	sub, _ := fs.Sub(staticFiles, "static")
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	index, _ := fs.ReadFile(sub, "index.html")
+	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))
 
 	// Apply security headers because captured traffic contains untrusted input.
-	return httpsec.Headers(mux)
+	return publicpath.Wrap(publicpath.Options{
+		BaseURL: d.baseURL,
+		OnMismatch: func(observed string) {
+			log.Printf("Warning: a dashboard request came in with %s, but --dashboard-base-url is %s", observed, d.baseURL)
+		},
+	}, httpsec.Headers(mux))
 }
 
 func (d *Dashboard) ListenAndServe() error {

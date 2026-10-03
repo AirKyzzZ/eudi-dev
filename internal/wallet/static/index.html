@@ -14,7 +14,7 @@
       <img src="logo.svg" alt="" class="header-logo">
       <h1>EUDI Dev Wallet</h1>
       <span class="header-links" id="header-links">
-        <a href="/decoder/" id="decoder-link">Decoder</a>
+        <a href="decoder/" id="decoder-link">Decoder</a>
         <a href="#" id="how-to-use-link">How to use</a>
         <a href="#" id="get-cli-link">Get the CLI</a>
         <a href="#" id="conformance-link">Conformance</a>
@@ -57,8 +57,8 @@
         <button class="btn" id="templates-btn">Templates</button>
       </div>
       <div class="actions-hint">
-        No offer at hand? <a href="/issuer/">Get one from the demo issuer</a>
-        &middot; <a href="/verifier/">Present to the demo verifier</a>
+        No offer at hand? <a href="issuer/">Get one from the demo issuer</a>
+        &middot; <a href="verifier/">Present to the demo verifier</a>
       </div>
     </div>
 
@@ -119,7 +119,7 @@
     </div>
     <div class="footer-row">
       <span id="footer-version"></span>
-      <a href="/imprint" id="imprint-link" hidden>Imprint</a>
+      <a href="imprint" id="imprint-link" hidden>Imprint</a>
       <span id="demo-note" hidden></span>
     </div>
     <div class="footer-disclaimer">Unofficial, independent open source project. Not affiliated with or endorsed by the European Commission or the European Union.</div>
@@ -145,7 +145,7 @@
         <pre>eudi wallet register</pre>
       </div>
       <p class="dialog-hint">On macOS, <code>wallet register</code> makes <code>openid4vp://</code>, <code>eudi-openid4vp://</code>, <code>haip-vp://</code>, <code>openid-credential-offer://</code>, <code>haip-vci://</code> and <code>eu-eaa-offer://</code> links open in this wallet. See the <a href="https://github.com/dominikschlosser/eudi-dev/blob/main/docs/wallet.md" target="_blank" rel="noopener">wallet documentation</a> for all endpoints.</p>
-      <p class="dialog-hint">Try the <a href="/issuer/" target="_blank">demo issuer</a> or <a href="/verifier/" target="_blank">demo verifier</a>.</p>
+      <p class="dialog-hint">Try the <a href="issuer/" target="_blank">demo issuer</a> or <a href="verifier/" target="_blank">demo verifier</a>.</p>
       <div class="consent-buttons">
         <button class="btn" id="howto-close">Close</button>
       </div>
@@ -219,8 +219,8 @@
           <dt>Trust anchor</dt>
           <dd>
             <span class="trust-links">
-              <a id="ca-cert-pem-link" href="/api/certificates/ca">PEM</a>
-              <a id="ca-cert-jwks-link" href="/api/certificates/ca?format=jwks">JWKS</a>
+              <a id="ca-cert-pem-link" href="api/certificates/ca">PEM</a>
+              <a id="ca-cert-jwks-link" href="api/certificates/ca?format=jwks">JWKS</a>
             </span>
             <span class="trust-item-hint">Trust this CA. Attestations include only the signing certificate, which can change.</span>
           </dd>
@@ -228,7 +228,7 @@
           <dt>Signing key</dt>
           <dd>
             <span class="trust-links">
-              <a id="signing-jwks-link" href="/.well-known/jwt-vc-issuer">JWKS</a>
+              <a id="signing-jwks-link" href=".well-known/jwt-vc-issuer">JWKS</a>
             </span>
             <span class="trust-item-hint">Signs credentials, wallet attestations and key attestations.</span>
           </dd>
@@ -236,8 +236,8 @@
           <dt id="tls-row-label">TLS</dt>
           <dd id="tls-row">
             <span class="trust-links">
-              <a id="tls-cert-pem-link" href="/api/certificates/tls">PEM</a>
-              <a id="tls-cert-jwks-link" href="/api/certificates/tls?format=jwks">JWKS</a>
+              <a id="tls-cert-pem-link" href="api/certificates/tls">PEM</a>
+              <a id="tls-cert-jwks-link" href="api/certificates/tls?format=jwks">JWKS</a>
             </span>
             <span class="trust-item-hint">Wallet HTTPS certificate for certificate pinning.</span>
           </dd>

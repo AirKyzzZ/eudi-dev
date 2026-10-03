@@ -80,8 +80,8 @@ The matrix is fixed in the wrapper. Use the official runner `--rerun` selector f
 - keeps the VCI suite alias aligned with the configured `redirect_uri` and helper-page paths
 - disables the suite's VCI browser helper page and drives the same offer URL directly through the wallet API
 - drives Browser API `dc_api` / `dc_api.jwt` presentation requests through the wallet's `/api/dc-api` endpoint
-- sets the wallet's conformance mode before each submission through `PUT /api/config/conformance`. Final modules run non-HAIP and HAIP modules run enforced, whatever flags the wallet was started with
-- starts the wallet-initiated VCI modules itself: the suite seeds no offer there, so the harness sends the wallet an offer for the suite's issuer and the configured credential, without `issuer_state`
+- sets the wallet's conformance mode before each submission through `PUT /api/config/conformance`. Final modules run without HAIP checks and HAIP modules run with them, regardless of the wallet's startup flags
+- starts the wallet-initiated VCI modules itself. The suite provides no offer for them, so the harness sends the wallet an offer for the suite's issuer and the configured credential, without `issuer_state`
 - passes explicit VP module lists for the alpha Final scenarios and runs the certifiable HAIP plans complete
 - monitors waiting modules and automatically submits presentation requests, Browser API requests, credential offers, verifier redirects, and negative-review screenshot placeholders
 - prints the created local `plan-detail.html?plan=...` URLs
@@ -96,7 +96,7 @@ The wallet runs a conformance test with its normal keys:
 
 ## What the Suite Does Not Cover
 
-The suite issues an authorization code without asking the user to sign in. These plans therefore do not test handing a sign-in URL to a browser. Playwright covers that step against the demo issuer, whose login page consumes each pushed `request_uri` once (RFC 9126 §4).
+The suite issues an authorization code without asking the user to sign in. These plans therefore do not test opening a sign-in URL in a browser. Playwright covers that step against the demo issuer, whose login page accepts each pushed `request_uri` only once (RFC 9126 §4).
 
 ## References
 

@@ -21,9 +21,9 @@ The wrapper excludes modules for features the demo services do not offer. The of
 
 Excluded issuer checks cover signed metadata, required key attestations and credential encryption. Batch checks run only in scenarios that supply a batch offer. Signed verifier scenarios exclude `request-uri-method-post` because the demo verifier serves requests through GET.
 
-The pre-authorized code scenario also leaves out the six client attestation negative modules. Suite release-v5.2.4 breaks them under that grant: after the expected token refusal the module continues into the credential request and the suite interrupts the module with "Condition called when test status is 'WAITING'. This is a bug in the test module". The same modules complete under both authorization code scenarios, where the refusal happens at the PAR endpoint.
+The pre-authorized code scenario also leaves out the six client attestation negative modules. Suite release-v5.2.4 breaks them under that grant: after the expected token refusal the module continues into the credential request and the suite aborts it with "Condition called when test status is 'WAITING'. This is a bug in the test module". The same modules complete under both authorization code scenarios, where the refusal happens at the PAR endpoint.
 
-The harness replaces the human tester the plans expect:
+The harness performs the steps the plans expect from a human tester:
 
 - it pushes a fresh demo credential offer to the suite's exposed `credential_offer` endpoint whenever an issuer-initiated module waits for one (by value, since a `credential_offer_uri` must be https)
 - it signs in at the demo issuer's authorization page as the demo account (alice) and follows the redirect to the suite's callback
@@ -56,9 +56,9 @@ The `--rerun` selector passes through to the official runner exactly as in the w
 
 ## How the Demo Pair Is Served
 
-The verifier plans require the `request_uri` and the `response_uri` to be https, and the HAIP issuer metadata checks require an https credential issuer. The wrapper starts the wallet with an https base URL and `--serve-tls`, so the wallet binds that origin itself with its own TLS certificate (the suite skips certificate verification on outbound calls).
+The verifier plans require the `request_uri` and the `response_uri` to be https, and the HAIP issuer metadata checks require an https credential issuer. The wrapper starts the wallet with an https base URL and `--serve-tls`, so the wallet serves that origin itself over TLS with its own certificate (the suite skips certificate verification on outbound calls).
 
-The suite signs the credentials it presents to the demo verifier under its own CAs (the `vp-signing` CA from `scripts/certs-keys` for SD-JWT VCs, a built-in mdoc IACA root for mdocs). The wrapper passes both to the wallet as `--demo-verifier-trust-anchor` files, so the demo verifier accepts those chains next to the wallet CA it always trusts. The IACA root is published by the suite server at `/mdoc-iaca-root.pem`. When that endpoint is unavailable the wrapper extracts the same certificate from the suite source.
+The suite signs the credentials it presents to the demo verifier under its own CAs (the `vp-signing` CA from `scripts/certs-keys` for SD-JWT VCs, a built-in mdoc IACA root for mdocs). The wrapper passes both to the wallet as `--demo-verifier-trust-anchor` files, so the demo verifier accepts those chains in addition to the wallet CA. The IACA root is published by the suite server at `/mdoc-iaca-root.pem`. When that endpoint is unavailable the wrapper extracts the same certificate from the suite source.
 
 The generated configs also give the suite the wallet CA: as `credential.trust_anchor_pem` in the issuer configs, so the suite validates the demo ticket's certificate chain, and as `client.request_object_trust_anchor_pem` in the verifier configs, so it validates the demo verifier's signed request objects.
 

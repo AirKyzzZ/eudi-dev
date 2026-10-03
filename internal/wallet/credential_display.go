@@ -32,6 +32,7 @@ import (
 	"golang.org/x/image/draw"
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/credtemplate"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 )
 
 // CredentialDisplay is the appearance a §12.2.4 display entry declares for a
@@ -152,7 +153,7 @@ func displayForListing(c StoredCredential) map[string]any {
 
 // displayImageRef references a stored image (a data URI or an "asset:" file) by
 // an endpoint URL the wallet serves, and passes an external http(s) URL through
-// unchanged.
+// unchanged. HTTP handlers add the public prefix with withPublicImagePaths.
 func displayImageRef(id, kind, uri string) string {
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
 		return uri
@@ -601,4 +602,20 @@ func (w *Wallet) rememberDisplay(cred *StoredCredential, d *CredentialDisplay) {
 			return
 		}
 	}
+}
+
+// withPublicImagePaths adds the request's path prefix to the display image paths of a
+// credential summary, so the links work when a proxy serves the wallet under a path prefix.
+func withPublicImagePaths(r *http.Request, summary map[string]any) map[string]any {
+	display, _ := summary["display"].(map[string]any)
+	prefix := publicpath.Prefix(r)
+	if display == nil || prefix == "" {
+		return summary
+	}
+	for _, key := range []string{"logo_uri", "background_uri"} {
+		if p, ok := display[key].(string); ok && strings.HasPrefix(p, "/api/") {
+			display[key] = prefix + p
+		}
+	}
+	return summary
 }

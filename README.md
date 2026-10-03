@@ -53,7 +53,7 @@ When to use something else:
 
 - To certify your own implementation, use the [OpenID Foundation certification program](https://openid.net/certification/).
 - To test a wallet, point it at one of the hosted issuer or verifier services above.
-- To ship a product, use an SDK. Everything here is under `internal/`.
+- To ship a product, use an SDK. All Go packages in this repository are under `internal/`.
 - For proximity flows (BLE, NFC), use Multipaz. This tool implements OID4VP over HTTP.
 - To read a single credential, use a hosted decoder.
 
@@ -81,7 +81,7 @@ go install github.com/dominikschlosser/eudi-dev/v2@latest
 
 This installs the binary as `eudi-dev` (Go names it after the module). The documentation calls the command `eudi`. Link it for the shorter name: `ln -s "$(go env GOPATH)/bin/eudi-dev" "$(go env GOPATH)/bin/eudi"`.
 
-The v2 module path is `github.com/dominikschlosser/eudi-dev/v2`. The `/v2` suffix is required for v2 releases. Earlier v2 tags, through v2.4.2, have an incorrect module path and must be installed from release binaries or built from source.
+The v2 module path is `github.com/dominikschlosser/eudi-dev/v2`. The `/v2` suffix is required for v2 releases. Earlier v2 tags (up to v2.4.2) have an incorrect module path. Install them from release binaries or build them from source.
 
 ### Build locally
 
@@ -141,7 +141,7 @@ eudi completion install
 
 ### Wallet
 
-A stateful testing wallet with CLI-driven OID4VP/VCI flows, QR scanning, and OS URL scheme registration. State lives in files by default, or in memory or Postgres with `--storage`.
+A stateful testing wallet with CLI-driven OID4VP/VCI flows, QR scanning, and OS URL scheme registration. State is stored in files by default, or in memory or Postgres with `--storage`.
 
 ```bash
 eudi issue sdjwt --wallet --template pid-sdjwt         # Issue a PID into the wallet
@@ -153,7 +153,7 @@ eudi wallet scan --screen         # QR scan → auto-dispatch
 eudi wallet logs -f               # Follow persisted wallet interactions
 ```
 
-> **Security:** Anyone who can reach the wallet port controls its credentials. Use localhost or an isolated test network and store test data only. The API rejects requests from other web origins, except `/api/dc-api`, which uses the caller origin and consent dialog. For public hosting, use the `--demo` profile described in [public demo hosting](docs/public-demo.md).
+> **Security:** Anyone who can reach the wallet port controls its credentials. Use localhost or an isolated test network and store test data only. The API rejects requests from other web origins, except `/api/dc-api`, which relies on the caller origin and the consent dialog. For public hosting, use the `--demo` profile described in [public demo hosting](docs/public-demo.md).
 
 `wallet serve` hosts the UI and protocol endpoints, including issuer metadata, trust lists and status lists. Use `issue ... --wallet --template pid-sdjwt` to add a PID. `wallet ca-cert` and `wallet tls-cert` export certificates for verifier trust stores. The same operations are available through the [HTTP API](docs/wallet/http-api.md) for automated tests.
 
@@ -172,9 +172,9 @@ The main commands:
 - `wallet --https-proxy http://proxy:3128` (or `HTTPS_PROXY`) to reach issuers and verifiers through a forward proxy
 - `wallet serve --haip` to check verifiers and issuers against HAIP 1.0
 
-`--haip` adds HAIP 1.0 checks. `--mode strict` stops on findings, while `--mode debug` reports them and continues. This applies to HAIP findings too. See [HAIP enforcement](docs/wallet/presenting.md#haip-10-enforcement).
+`--haip` adds HAIP 1.0 checks. `--mode strict` stops the flow on findings. `--mode debug` reports them and continues. This also applies to HAIP findings. See [HAIP enforcement](docs/wallet/presenting.md#haip-10-enforcement).
 
-When a server already serves the selected wallet directory, CLI commands use its API. After `wallet use <url>`, commands and clicked offer or presentation links go to that target. Discovery lists local instances and the active remote target.
+When a wallet server is running for the selected wallet directory, CLI commands use its API. After `wallet use <url>`, commands and clicked offer or presentation links go to that target. Discovery lists local instances and the active remote target.
 
 Use `/api/trustlists` to list trust list profiles. Each entry has a relative `path` that works with Docker port mappings. The web UI shows these URLs above the certificate downloads.
 
@@ -199,7 +199,7 @@ eudi issue mdoc --claims '{"name":"Test"}' --doc-type com.example.test
 eudi issue sdjwt | eudi decode
 ```
 
-Credential templates hold reusable claim sets (`templates list|show|save|import|delete`). A template carries the credential type, default claims, and the always disclosed claims. Templates work in the CLI, the HTTP API, and the wallet UI.
+Credential templates hold reusable claim sets (`templates list|show|save|import|delete`). A template defines the credential type, default claims, and the always disclosed claims. Templates work in the CLI, the HTTP API, and the wallet UI.
 
 → [Full documentation](docs/issue.md): all flags, round-trip examples
 → [Credential templates](docs/templates.md): template files, management commands, always disclosed claims

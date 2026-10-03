@@ -38,7 +38,7 @@ func (s *Server) handleGetCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "credential not found"})
 		return
 	}
-	writeJSON(w, http.StatusOK, s.wallet.CredentialSummaryWithBatch(cred))
+	writeJSON(w, http.StatusOK, withPublicImagePaths(r, s.wallet.CredentialSummaryWithBatch(cred)))
 }
 
 // Use the local status list for managed entries. Otherwise fetch the list referenced
@@ -272,7 +272,7 @@ func (s *Server) handleIssueCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": issueErr.Error()})
 		return
 	}
-	writeJSON(w, http.StatusCreated, summary)
+	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, summary))
 }
 
 func credentialTypeLabel(summary map[string]any) string {

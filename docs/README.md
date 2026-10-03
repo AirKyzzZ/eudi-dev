@@ -28,6 +28,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA, grouped by task.
 
 - [Docker](docker.md): run the wallet, issuer, and verifier in containers
 - [Public demo hosting](public-demo.md): the hardened `--demo` profile for an internet-facing instance
+- [Behind a reverse proxy](reverse-proxy.md): serve the wallet on its own host or under a path prefix, with Istio and nginx examples
 - [Debug proxy](proxy.md): record and decode OID4VP/OID4VCI traffic
 
 ## Conformance

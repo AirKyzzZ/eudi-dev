@@ -8,4 +8,4 @@ The verifier follows HAIP 1.0. It serves signed request objects by reference and
 
 The built-in issuer and verifier share a CA. A successful exchange between them tests the local flow. Use an external issuer or verifier to test interoperability.
 
-The demo issuer and verifier keep their state in memory. Offers and verification requests expire after ten minutes, and each verification request accepts one answer. Restarting clears that state. Wallet state uses the selected storage backend and survives restarts with files or Postgres.
+The demo issuer and verifier keep their state in memory. Offers and verification requests expire after ten minutes, and each verification request accepts one response. Restarting clears that state. Wallet state uses the selected storage backend and survives restarts with files or Postgres.

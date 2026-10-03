@@ -2,9 +2,9 @@
 
 This public reference set contains the root CA, provider intermediates and signing certificates described in [test certificates](test-certificates.md#certificate-contents). Each entry includes the complete PEM certificate and decoded X.509 contents, including serial number, validity, public key, extensions and signature.
 
-The certificates are generated through the wallet signing APIs at source revision [`44ef415d1ae3`](https://github.com/dominikschlosser/eudi-dev/tree/44ef415d1ae36e69551bf2a2c9de7f850d2d48ba). The reference issuer is `https://eudi-test.dev`, the country is `NL`, and the trust list operator is `EUDI Dev Wallet`. The names and registration identifiers are fictional. The public certificates carry no official trust.
+The certificates are generated with the wallet signing APIs at source revision [`44ef415d1ae3`](https://github.com/dominikschlosser/eudi-dev/tree/44ef415d1ae36e69551bf2a2c9de7f850d2d48ba). The reference issuer is `https://eudi-test.dev`, the country is `NL`, and the trust list operator is `EUDI Dev Wallet`. The names and registration identifiers are fictional. The public certificates carry no official trust.
 
-The decoded values below belong to these reference PEM files. A running wallet, including the public demo, has its own keys, serial numbers, timestamps and signatures. Certificate profiles and configurable values are described in the [profile tables](test-certificates.md#certificate-contents). The [localhost special case](test-certificates.md#localhost-special-case) gives the local issuer URL and corresponding certificate URLs.
+The decoded values below are from these reference PEM files. A running wallet, including the public demo, has its own keys, serial numbers, timestamps and signatures. Certificate profiles and configurable values are described in the [profile tables](test-certificates.md#certificate-contents). The [localhost special case](test-certificates.md#localhost-special-case) gives the local issuer URL and corresponding certificate URLs.
 
 From the repository root, inspect a certificate with:
 

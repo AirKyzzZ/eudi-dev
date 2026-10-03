@@ -48,7 +48,7 @@
   });
 
   harExportBtn.addEventListener("click", function () {
-    fetch("/api/har")
+    fetch("api/har")
       .then(function (r) { return r.blob(); })
       .then(function (blob) {
         var url = URL.createObjectURL(blob);
@@ -165,7 +165,7 @@
       } else {
         label = "View Credential " + (i + 1) + " in Decoder";
       }
-      var href = "/decode/?credential=" + encodeURIComponent(credentials[i]);
+      var href = "decode/?credential=" + encodeURIComponent(credentials[i]);
       html += '<a class="btn credential-link" href="' + escapeHtml(href) + '" target="_blank">' + label + '</a>';
     }
     html += '</div></div>';
@@ -325,7 +325,7 @@
   // Fetch existing entries on every connection. SSE does not replay traffic missed before
   // subscription or during disconnects.
   function syncEntries() {
-    return fetch("/api/entries")
+    return fetch("api/entries")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.length === 0) return;
@@ -353,7 +353,7 @@
   }
 
   function connectSSE() {
-    const es = new EventSource("/api/stream");
+    const es = new EventSource("api/stream");
 
     es.onmessage = function (event) {
       try {

@@ -29,7 +29,7 @@ const ContentSecurityPolicy = "default-src 'self'; " +
 	"font-src 'self'; " +
 	"connect-src 'self'; " +
 	"object-src 'none'; " +
-	"base-uri 'none'; " +
+	"base-uri 'self'; " +
 	"form-action 'self'; " +
 	"frame-ancestors 'none'"
 

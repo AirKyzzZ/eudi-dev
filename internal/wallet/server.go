@@ -31,6 +31,7 @@ import (
 
 	"github.com/dominikschlosser/eudi-dev/v2/internal/config"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
+	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 	"github.com/dominikschlosser/eudi-dev/v2/internal/storage"
 )
 
@@ -47,6 +48,9 @@ type Server struct {
 	issuerTLSCert    *tls.Certificate
 	issuerPort       int
 	parseOpts        oid4vc.ParseOptions
+	// routeRoots holds the first path segment of every route and static file, for
+	// CheckBasePath.
+	routeRoots map[string]bool
 	// store is read without storeSyncMu: the log sink runs inside mutations
 	// that hold it.
 	store       atomic.Pointer[WalletStore]
@@ -117,6 +121,7 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 		s.issuerPort = port + 1
 	}
 	s.mux = http.NewServeMux()
+	s.routeRoots = map[string]bool{}
 	s.setupRoutes()
 	// Read logFunc lazily because SetLogger may run after NewServer.
 	s.parseOpts = oid4vc.ParseOptions{
@@ -128,98 +133,137 @@ func NewServer(w *Wallet, port int, onSave func()) *Server {
 }
 
 func (s *Server) setupRoutes() {
-	s.mux.HandleFunc("GET /authorize", s.withFreshStore(s.handleAuthorize))
-	s.mux.HandleFunc("POST /authorize", s.withFreshStore(s.handleAuthorize))
+	s.routeFunc("GET /authorize", s.withFreshStore(s.handleAuthorize))
+	s.routeFunc("POST /authorize", s.withFreshStore(s.handleAuthorize))
 
 	// Issuers can use this URL when the platform cannot register the
 	// openid-credential-offer:// scheme.
-	s.mux.HandleFunc("GET /credential-offer", s.withFreshStore(s.handleCredentialOfferEndpoint))
+	s.routeFunc("GET /credential-offer", s.withFreshStore(s.handleCredentialOfferEndpoint))
 
-	s.mux.HandleFunc("POST /api/presentations", s.withFreshStore(s.handlePresentationAPI))
-	s.mux.HandleFunc("POST /api/dc-api", s.withFreshStore(s.handleBrowserPresentationAPI))
+	s.routeFunc("POST /api/presentations", s.withFreshStore(s.handlePresentationAPI))
+	s.routeFunc("POST /api/dc-api", s.withFreshStore(s.handleBrowserPresentationAPI))
 
-	s.mux.HandleFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))
-	s.mux.HandleFunc("GET /api/offers/{id}", s.handleOfferStatus)
-	s.mux.HandleFunc("POST /api/credentials/{id}/refresh", s.withFreshStore(s.handleRefreshCredential))
-	s.mux.HandleFunc("GET /callback", s.withFreshStore(s.handleAuthorizationCodeCallback))
+	s.routeFunc("POST /api/offers", s.withFreshStore(s.handleOfferAPI))
+	s.routeFunc("GET /api/offers/{id}", s.handleOfferStatus)
+	s.routeFunc("POST /api/credentials/{id}/refresh", s.withFreshStore(s.handleRefreshCredential))
+	s.routeFunc("GET /callback", s.withFreshStore(s.handleAuthorizationCodeCallback))
 
 	// The URL handler checks this endpoint to detect outdated servers.
-	s.mux.HandleFunc("GET /api/version", s.handleVersion)
+	s.routeFunc("GET /api/version", s.handleVersion)
 
-	s.mux.HandleFunc("GET /api/credentials", s.withFreshStore(s.handleListCredentials))
-	s.mux.HandleFunc("GET /api/deferred", s.withFreshStore(s.handleListDeferred))
-	s.mux.HandleFunc("POST /api/deferred/{id}/collect", s.withFreshStore(s.handleCollectDeferred))
-	s.mux.HandleFunc("DELETE /api/deferred/{id}", s.withFreshStore(s.handleAbandonDeferred))
-	s.mux.HandleFunc("POST /api/credentials", s.withFreshStore(s.handleImportCredential))
-	s.mux.HandleFunc("DELETE /api/credentials", s.withFreshStore(s.handleDeleteAllCredentials))
-	s.mux.HandleFunc("GET /api/credentials/{id}", s.withFreshStore(s.handleGetCredential))
+	s.routeFunc("GET /api/credentials", s.withFreshStore(s.handleListCredentials))
+	s.routeFunc("GET /api/deferred", s.withFreshStore(s.handleListDeferred))
+	s.routeFunc("POST /api/deferred/{id}/collect", s.withFreshStore(s.handleCollectDeferred))
+	s.routeFunc("DELETE /api/deferred/{id}", s.withFreshStore(s.handleAbandonDeferred))
+	s.routeFunc("POST /api/credentials", s.withFreshStore(s.handleImportCredential))
+	s.routeFunc("DELETE /api/credentials", s.withFreshStore(s.handleDeleteAllCredentials))
+	s.routeFunc("GET /api/credentials/{id}", s.withFreshStore(s.handleGetCredential))
 	// Credential images are static and cached, so this route skips reloading the
 	// store.
-	s.mux.HandleFunc("GET /api/credentials/{id}/display/{kind}", s.handleCredentialDisplayImage)
-	s.mux.HandleFunc("DELETE /api/credentials/{id}", s.withFreshStore(s.handleDeleteCredential))
+	s.routeFunc("GET /api/credentials/{id}/display/{kind}", s.handleCredentialDisplayImage)
+	s.routeFunc("DELETE /api/credentials/{id}", s.withFreshStore(s.handleDeleteCredential))
 
-	s.mux.HandleFunc("POST /api/issue", s.withFreshStore(s.handleIssueCredential))
-	s.mux.HandleFunc("POST /api/generate-pid", s.withFreshStore(s.handleGeneratePID))
+	s.routeFunc("POST /api/issue", s.withFreshStore(s.handleIssueCredential))
+	s.routeFunc("POST /api/generate-pid", s.withFreshStore(s.handleGeneratePID))
 
-	s.mux.HandleFunc("GET /api/templates", s.handleListTemplates)
-	s.mux.HandleFunc("GET /api/templates/{name}", s.handleGetTemplate)
-	s.mux.HandleFunc("PUT /api/templates/{name}", s.handlePutTemplate)
-	s.mux.HandleFunc("DELETE /api/templates/{name}", s.handleDeleteTemplate)
+	s.routeFunc("GET /api/templates", s.handleListTemplates)
+	s.routeFunc("GET /api/templates/{name}", s.handleGetTemplate)
+	s.routeFunc("PUT /api/templates/{name}", s.handlePutTemplate)
+	s.routeFunc("DELETE /api/templates/{name}", s.handleDeleteTemplate)
 
-	s.mux.HandleFunc("GET /api/certificates/ca", s.handleCACertificate)
-	s.mux.HandleFunc("GET /api/certificates/ca.der", s.handleCACertificateDER)
-	s.mux.HandleFunc("GET /api/certificates/providers/{role}/{country}", s.handleProviderCertificateDER)
-	s.mux.HandleFunc("GET /api/certificates/signers/{certificate}", s.handleSigningCertificate)
-	s.mux.HandleFunc("GET /api/crl/providers/{role}/{country}", s.handleProviderCRL)
-	s.mux.HandleFunc("GET /api/certificates/tls", s.handleTLSCertificate)
+	s.routeFunc("GET /api/certificates/ca", s.handleCACertificate)
+	s.routeFunc("GET /api/certificates/ca.der", s.handleCACertificateDER)
+	s.routeFunc("GET /api/certificates/providers/{role}/{country}", s.handleProviderCertificateDER)
+	s.routeFunc("GET /api/certificates/signers/{certificate}", s.handleSigningCertificate)
+	s.routeFunc("GET /api/crl/providers/{role}/{country}", s.handleProviderCRL)
+	s.routeFunc("GET /api/certificates/tls", s.handleTLSCertificate)
 
-	s.mux.HandleFunc("GET /api/requests", s.withFreshStore(s.handleListRequests))
-	s.mux.HandleFunc("GET /api/requests/stream", s.withFreshStore(s.handleRequestStream))
-	s.mux.HandleFunc("POST /api/requests/{id}/approve", s.withFreshStore(s.handleApproveRequest))
-	s.mux.HandleFunc("POST /api/requests/{id}/deny", s.withFreshStore(s.handleDenyRequest))
+	s.routeFunc("GET /api/requests", s.withFreshStore(s.handleListRequests))
+	s.routeFunc("GET /api/requests/stream", s.withFreshStore(s.handleRequestStream))
+	s.routeFunc("POST /api/requests/{id}/approve", s.withFreshStore(s.handleApproveRequest))
+	s.routeFunc("POST /api/requests/{id}/deny", s.withFreshStore(s.handleDenyRequest))
 
-	s.mux.HandleFunc("GET /api/trustlist", s.withFreshStore(s.handleTrustList))
-	s.mux.HandleFunc("GET /api/trustlists", s.withFreshStore(s.handleTrustListIndex))
-	s.mux.HandleFunc("GET /api/trustlists/{id}", s.withFreshStore(s.handleTrustListByID))
-	s.mux.HandleFunc("GET /api/trustlist/history", s.withFreshStore(s.handleTrustListHistory))
-	s.mux.HandleFunc("GET /api/trustlist/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
-	s.mux.HandleFunc("GET /api/trustlists/{id}/history", s.withFreshStore(s.handleTrustListHistory))
-	s.mux.HandleFunc("GET /api/trustlists/{id}/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
-	s.mux.HandleFunc("GET /api/registrar/wrp", s.withFreshStore(s.handleRegistrarWRPList))
-	s.mux.HandleFunc("GET /api/registrar/wrp/{identifier}", s.withFreshStore(s.handleRegistrarWRPByIdentifier))
+	s.routeFunc("GET /api/trustlist", s.withFreshStore(s.handleTrustList))
+	s.routeFunc("GET /api/trustlists", s.withFreshStore(s.handleTrustListIndex))
+	s.routeFunc("GET /api/trustlists/{id}", s.withFreshStore(s.handleTrustListByID))
+	s.routeFunc("GET /api/trustlist/history", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET /api/trustlist/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET /api/trustlists/{id}/history", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET /api/trustlists/{id}/history/{sequence}", s.withFreshStore(s.handleTrustListHistory))
+	s.routeFunc("GET /api/registrar/wrp", s.withFreshStore(s.handleRegistrarWRPList))
+	s.routeFunc("GET /api/registrar/wrp/{identifier}", s.withFreshStore(s.handleRegistrarWRPByIdentifier))
 
-	s.mux.HandleFunc("GET /api/statuslist", s.withFreshStore(s.handleStatusList))
-	s.mux.HandleFunc("GET /api/crl", s.withFreshStore(s.handleCRL))
-	s.mux.HandleFunc("GET /api/credentials/{id}/status", s.withFreshStore(s.handleGetCredentialStatus))
-	s.mux.HandleFunc("POST /api/credentials/{id}/status", s.withFreshStore(s.handleSetCredentialStatus))
+	s.routeFunc("GET /api/statuslist", s.withFreshStore(s.handleStatusList))
+	s.routeFunc("GET /api/crl", s.withFreshStore(s.handleCRL))
+	s.routeFunc("GET /api/credentials/{id}/status", s.withFreshStore(s.handleGetCredentialStatus))
+	s.routeFunc("POST /api/credentials/{id}/status", s.withFreshStore(s.handleSetCredentialStatus))
 
-	s.mux.HandleFunc("GET /.well-known/jwt-vc-issuer", s.withFreshStore(s.handleJWTVCIssuerMetadata))
-	s.mux.HandleFunc("GET /.well-known/openid-credential-issuer", s.withFreshStore(s.handleOpenIDCredentialIssuerMetadata))
+	s.routeFunc("GET /.well-known/jwt-vc-issuer", s.withFreshStore(s.handleJWTVCIssuerMetadata))
+	s.routeFunc("GET /.well-known/openid-credential-issuer", s.withFreshStore(s.handleOpenIDCredentialIssuerMetadata))
 
-	s.mux.HandleFunc("POST /api/next-error", s.withFreshStore(s.handleSetNextError))
-	s.mux.HandleFunc("DELETE /api/next-error", s.withFreshStore(s.handleClearNextError))
-	s.mux.HandleFunc("PUT /api/config/preferred-format", s.withFreshStore(s.handleSetPreferredFormat))
-	s.mux.HandleFunc("PUT /api/config/auto-accept", s.withFreshStore(s.handleSetAutoAccept))
-	s.mux.HandleFunc("PUT /api/config/conformance", s.withFreshStore(s.handleSetConformance))
-	s.mux.HandleFunc("DELETE /api/config/conformance", s.withFreshStore(s.handleResetConformance))
-	s.mux.HandleFunc("GET /api/config", s.withFreshStore(s.handleGetConfig))
-	s.mux.HandleFunc("POST /api/shutdown", s.handleShutdown)
+	s.routeFunc("POST /api/next-error", s.withFreshStore(s.handleSetNextError))
+	s.routeFunc("DELETE /api/next-error", s.withFreshStore(s.handleClearNextError))
+	s.routeFunc("PUT /api/config/preferred-format", s.withFreshStore(s.handleSetPreferredFormat))
+	s.routeFunc("PUT /api/config/auto-accept", s.withFreshStore(s.handleSetAutoAccept))
+	s.routeFunc("PUT /api/config/conformance", s.withFreshStore(s.handleSetConformance))
+	s.routeFunc("DELETE /api/config/conformance", s.withFreshStore(s.handleResetConformance))
+	s.routeFunc("GET /api/config", s.withFreshStore(s.handleGetConfig))
+	s.routeFunc("POST /api/shutdown", s.handleShutdown)
 
-	s.mux.HandleFunc("GET /api/log", s.withFreshLog(s.handleLog))
-	s.mux.HandleFunc("DELETE /api/log", s.withFreshLog(s.handleClearLog))
+	s.routeFunc("GET /api/log", s.withFreshLog(s.handleLog))
+	s.routeFunc("DELETE /api/log", s.withFreshLog(s.handleClearLog))
 
-	s.mux.HandleFunc("GET /api/error", s.withFreshStore(s.handleLastError))
-	s.mux.HandleFunc("DELETE /api/error", s.withFreshStore(s.handleClearLastError))
+	s.routeFunc("GET /api/error", s.withFreshStore(s.handleLastError))
+	s.routeFunc("DELETE /api/error", s.withFreshStore(s.handleClearLastError))
 
 	// Returns 404 until SetImprint supplies a legal notice.
-	s.mux.HandleFunc("GET /imprint", s.handleImprint)
-	s.mux.HandleFunc("GET /.well-known/security.txt", handleSecurityTxt)
+	s.routeFunc("GET /imprint", s.handleImprint)
+	s.routeFunc("GET /.well-known/security.txt", handleSecurityTxt)
 
 	// Embedded files have no modification time, so http.FileServer cannot provide
 	// cache validators. Require revalidation to prevent browsers from mixing HTML and
 	// JS from different releases.
 	sub, _ := fs.Sub(staticFiles, "static")
-	s.mux.Handle("/", noStaleCache(s.withBrowserSession(http.FileServer(http.FS(sub)))))
+	if entries, err := fs.ReadDir(sub, "."); err == nil {
+		for _, entry := range entries {
+			s.routeRoots[entry.Name()] = true
+		}
+	}
+	index, _ := fs.ReadFile(sub, "index.html")
+	s.route("/", noStaleCache(s.withBrowserSession(publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))))
+}
+
+func (s *Server) route(pattern string, h http.Handler) {
+	s.recordRouteRoot(pattern)
+	s.mux.Handle(pattern, h)
+}
+
+func (s *Server) routeFunc(pattern string, h func(http.ResponseWriter, *http.Request)) {
+	s.recordRouteRoot(pattern)
+	s.mux.HandleFunc(pattern, h)
+}
+
+func (s *Server) recordRouteRoot(pattern string) {
+	if _, path, found := strings.Cut(pattern, " "); found {
+		pattern = path
+	}
+	root, _, _ := strings.Cut(strings.TrimPrefix(pattern, "/"), "/")
+	if root != "" {
+		s.routeRoots[root] = true
+	}
+}
+
+// CheckBasePath rejects a --base-url whose path starts with a segment the wallet
+// serves, such as /api. Call after the last Mount or Handle.
+func (s *Server) CheckBasePath() error {
+	first, err := publicpath.FirstSegment(s.wallet.BaseURL)
+	if err != nil {
+		return err
+	}
+	if s.routeRoots[first] {
+		return fmt.Errorf("the --base-url path cannot start with /%s because the wallet uses that path itself", first)
+	}
+	return nil
 }
 
 func noStaleCache(h http.Handler) http.Handler {
@@ -430,14 +474,14 @@ func (s *Server) Shutdown() {
 // Mount strips the prefix before passing the request to the handler. Call before
 // ListenAndServe.
 func (s *Server) Mount(prefix string, h http.Handler) {
-	s.mux.Handle(prefix+"/", http.StripPrefix(prefix, h))
+	s.route(prefix+"/", http.StripPrefix(prefix, h))
 	// The bare prefix would otherwise fall through to the UI file server.
-	s.mux.Handle("GET "+prefix, http.RedirectHandler(prefix+"/", http.StatusMovedPermanently))
+	s.route("GET "+prefix, http.RedirectHandler(prefix+"/", http.StatusMovedPermanently))
 }
 
 // Handle must be called before ListenAndServe.
 func (s *Server) Handle(pattern string, h http.Handler) {
-	s.mux.Handle(pattern, h)
+	s.route(pattern, h)
 }
 
 func (s *Server) triggerSave() {

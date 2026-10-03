@@ -79,7 +79,7 @@ func TestLoadPageRunsNoScript(t *testing.T) {
 	if strings.Contains(html, "javascript:") {
 		t.Error("page uses a javascript: URL, which the Content-Security-Policy blocks")
 	}
-	if !strings.Contains(html, `<a href="/">`) {
-		t.Error("page has no back link to the site root")
+	if !strings.Contains(html, `<a href="./">`) {
+		t.Error("page has no back link to the page that links it")
 	}
 }

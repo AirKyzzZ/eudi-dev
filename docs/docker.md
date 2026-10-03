@@ -35,7 +35,7 @@ The demo persists its state in files on the volume and generates its own keys, s
 
 Open the wallet at `http://localhost:8085`, the issuer at `/issuer/`, the verifier at `/verifier/` or the decoder at `/decoder/`. HTTPS issuer endpoints use port 8086 and a self-signed certificate.
 
-The full deployment (TLS termination, rate limiting, usage statistics, persistence) is the compose example in [examples/public-demo](../examples/public-demo/), described in [public demo hosting](public-demo.md).
+For a full deployment (TLS termination, rate limiting, usage statistics, persistence), see the compose example in [examples/public-demo](../examples/public-demo/) and [public demo hosting](public-demo.md).
 
 ## Storage
 
@@ -43,16 +43,16 @@ The image defaults to `EUDI_DEV_STORAGE=memory` and `EUDI_DEV_SEED=eudi-dev`. It
 
 To store state on a volume at `/home/app/.eudi-dev`, set `EUDI_DEV_STORAGE=file`.
 
-Pass `-e EUDI_DEV_STORAGE=...` (or `--storage` on the command) to keep the state elsewhere:
+Pass `-e EUDI_DEV_STORAGE=...` (or `--storage` on the command) to select another backend:
 
 | Value | State lives in |
 |-------|----------------|
-| `memory` | The process. Gone when the container stops (the image default) |
+| `memory` | The process. Lost when the container stops (the image default) |
 | `file` | The wallet directory, on a volume mounted at `/home/app/.eudi-dev`. Set `EUDI_DEV_SEED=` as well, so a private CA persists |
-| `auto` | Files when a state directory is mounted or named, memory otherwise |
+| `auto` | Files when a state directory is mounted or configured, otherwise memory |
 | `postgres://user:pass@host:5432/db` | Rows in `eudi_dev_state`, with a sequence for write versions. Created on first use |
 
-`eudi wallet use http://localhost:8085` drives the container from the CLI over its HTTP API on every backend (see [remote control](wallet/http-api.md#remote-control)).
+`eudi wallet use http://localhost:8085` controls the container from the CLI through its HTTP API with any backend (see [remote control](wallet/http-api.md#remote-control)).
 
 ### Stateless container
 
@@ -66,11 +66,11 @@ docker run --read-only -p 8085:8085 -p 8086:8086 -e EUDI_DEV_SEED=my-bench ghcr.
 
 ### Shared database
 
-Containers using the same database and wallet prefix share credentials, keys and the CA. [examples/load-test](../examples/load-test/README.md) runs two wallet servers on one database behind an nginx ingress, the target for load and performance tests.
+Containers using the same database and wallet prefix share credentials, keys and the CA. [examples/load-test](../examples/load-test/README.md) runs two wallet servers on one database behind an nginx ingress. It is the target for load and performance tests.
 
 Each server checks revisions at request boundaries and reloads changed state. Saves update changed entities and their section revisions. Writes are atomic per row. Concurrent changes to the same entity can overwrite each other. Browser flows and demo requests stay in memory, so route each flow to the same server. See [the storage design](adr/0016-state-goes-through-one-storage-layer.md) for the schema and reload behavior.
 
-The database stores private keys unencrypted, just like the file backend (see [SECURITY.md](../SECURITY.md)). [ADR-0018](adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md) explains the choice of keyed blobs and its tradeoffs.
+The database stores private keys unencrypted, like the file backend (see [SECURITY.md](../SECURITY.md)). [ADR-0018](adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md) explains the choice of keyed blobs and its tradeoffs.
 
 ## How it works
 
@@ -189,7 +189,7 @@ docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/dominikschlosser/eu
   wallet serve --auto-accept --pid --port 8085 --templates-dir /templates
 ```
 
-Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/`, so the shared CA persists alongside the credentials. Select the file backend and an empty seed, so the persisted CA is a private one:
+Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/`, so the shared CA persists alongside the credentials. Select the file backend and an empty seed, so the persisted CA is private:
 
 ```bash
 docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/dominikschlosser/eudi-dev \
@@ -231,7 +231,7 @@ Or set it at startup: `--preferred-format dc+sd-jwt`
 
 ### Credential import
 
-The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mDoc (`mso_mdoc`). Plain JWT VCs are presented without changes.
+The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mDoc (`mso_mdoc`). Plain JWT VCs are presented unchanged.
 
 ```bash
 curl -X POST http://localhost:8085/api/credentials -d 'eyJhbGci...'
@@ -239,7 +239,7 @@ curl -X POST http://localhost:8085/api/credentials -d 'eyJhbGci...'
 
 ### Status list (revocation)
 
-With `wallet serve --pid`, generated credentials carry a status list reference pointing to `https://<host>:<port+1>/api/statuslist`. `--status-list` turns the reference on for any generated credential.
+With `wallet serve --pid`, generated credentials carry a status list reference pointing to `https://<host>:<port+1>/api/statuslist`. `--status-list` adds the reference to every generated credential.
 
 The HTTPS issuer URL uses the same host selection. By default the issuer runs on `https://<host>:<port+1>` and serves `/.well-known/jwt-vc-issuer`, the signed `/.well-known/openid-credential-issuer` endpoint, and `/api/registrar/wrp`.
 
@@ -255,7 +255,7 @@ To trust every spawned wallet from one root, export the shared wallet CA:
 eudi wallet ca-cert --out wallet-ca-cert.pem
 ```
 
-The status list URI and issuer host are written into credentials at generation time. When the verifier runs inside Docker and the wallet on the host (or the other way round), use `--docker` (or `--base-url` for a custom URL) so the status list URL, signed issuer metadata, and registrar endpoints are reachable from both sides:
+The status list URI and issuer host are written into credentials at generation time. When the verifier runs inside Docker and the wallet on the host (or vice versa), use `--docker` (or `--base-url` for a custom URL) so the status list URL, signed issuer metadata, and registrar endpoints are reachable from both sides:
 
 ```bash
 # Wallet on host, verifier in Docker
@@ -290,4 +290,4 @@ curl -X POST http://localhost:8085/api/credentials/<id>/status \
 
 ## Supported response modes
 
-`direct_post` (default) and `direct_post.jwt` (JARM, the response encrypted to the verifier's ephemeral key from the request object).
+`direct_post` (default) and `direct_post.jwt` (JARM, encrypted to the verifier's ephemeral key from the request object).

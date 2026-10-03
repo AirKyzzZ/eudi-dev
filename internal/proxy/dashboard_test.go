@@ -229,3 +229,60 @@ func TestHandleHARContainsFlowID(t *testing.T) {
 		t.Error("expected FlowID to be set")
 	}
 }
+
+func TestDashboardBelowPathPrefix(t *testing.T) {
+	store := NewStore(10)
+	store.Add(&TrafficEntry{Method: "GET", URL: "http://example.com/x", StatusCode: 200})
+	for _, tc := range []struct {
+		name, baseURL, prefixPath string
+		headers                   map[string]string
+	}{
+		{name: "base URL, prefix kept", baseURL: "https://mydomain.de/eudi-proxy", prefixPath: "/eudi-proxy"},
+		{name: "base URL, prefix stripped", baseURL: "https://mydomain.de/eudi-proxy"},
+		{name: "forwarded prefix", headers: map[string]string{"X-Forwarded-Prefix": "/eudi-proxy"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDashboard(store, 0)
+			if err := d.SetBaseURL(tc.baseURL); err != nil {
+				t.Fatal(err)
+			}
+			h := d.Handler()
+			get := func(path string) *httptest.ResponseRecorder {
+				req := httptest.NewRequest("GET", tc.prefixPath+path, nil)
+				req.Host = "mydomain.de"
+				for k, v := range tc.headers {
+					req.Header.Set(k, v)
+				}
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, req)
+				return rec
+			}
+			if rec := get("/"); !strings.Contains(rec.Body.String(), `<base href="/eudi-proxy/">`) {
+				t.Fatalf("index: %d %.200s", rec.Code, rec.Body.String())
+			}
+			if rec := get("/api/entries"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "example.com") {
+				t.Fatalf("entries: %d %s", rec.Code, rec.Body.String())
+			}
+			if rec := get("/decode"); rec.Header().Get("Location") != "/eudi-proxy/decode/" {
+				t.Fatalf("decoder redirect: %d %q", rec.Code, rec.Header().Get("Location"))
+			}
+		})
+	}
+}
+
+func TestDashboardAtRootUnchanged(t *testing.T) {
+	h := NewDashboard(NewStore(10), 0).Handler()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "<base") {
+		t.Fatalf("index: %d", rec.Code)
+	}
+}
+
+func TestDashboardRejectsBasePathOnItsRoutes(t *testing.T) {
+	for _, path := range []string{"/api", "/decode/x", "/app.js"} {
+		if err := NewDashboard(NewStore(10), 0).SetBaseURL("https://mydomain.de" + path); err == nil {
+			t.Errorf("base path %s accepted", path)
+		}
+	}
+}

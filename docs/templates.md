@@ -1,6 +1,6 @@
 # Credential Templates
 
-A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. Use the same templates from the CLI, HTTP API and wallet UI.
+A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
 Four predefined templates ship with the binary:
 
@@ -11,20 +11,20 @@ Four predefined templates ship with the binary:
 | `german-pid-sdjwt` | sdjwt | German PID (`urn:eudi:pid:de:1`), which extends the EUDI PID |
 | `german-pid-mdoc` | mdoc | German PID (ISO 18013-5 elements, `eu.europa.ec.eudi.pid.1` plus `eu.europa.ec.eudi.pid.de.1`) |
 
-The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) and carry its Jan Wijnand ('t Hart) example identity. The `german-pid-*` templates follow the [German PID Rulebook 1.0.0 consultation draft](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) and carry the ERIKA MUSTERMANN specimen. Each predefined PID links its rulebook in its display description.
+The `pid-*` templates follow the attribute tables of the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) and use its example identity Jan Wijnand ('t Hart). The `german-pid-*` templates follow the [German PID Rulebook 1.0.0 consultation draft](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) and use the ERIKA MUSTERMANN specimen identity. The display description of each predefined PID links to its rulebook.
 
-The German rulebook adds national attributes (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, and the age thresholds in `age_equal_or_over`). The EU rulebook carries attributes the German eID lacks (`sex`, `document_number`, `personal_administrative_number`, `date_of_issuance`, `birth_family_name`). Some shared attributes differ in encoding. The birth name is `birth_name` in the German PID and `birth_family_name` in the EU PID. The German street address includes the house number where the EU PID has `address.house_number`.
+The German rulebook adds national attributes (`birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date`, and the age thresholds in `age_equal_or_over`). The EU rulebook defines attributes that the German eID does not have (`sex`, `document_number`, `personal_administrative_number`, `date_of_issuance`, `birth_family_name`). Some shared attributes differ in encoding. The birth name is `birth_name` in the German PID and `birth_family_name` in the EU PID. The German PID includes the house number in the street address. The EU PID uses a separate `address.house_number`.
 
-The German SD-JWT PID carries an `aka_vcts` claim naming `urn:eudi:pid:1` ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2), so it matches a request for the country-independent PID. See [credential type inheritance](wallet.md#credential-type-inheritance).
+The German SD-JWT PID contains an `aka_vcts` claim with the value `urn:eudi:pid:1` ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2), so it matches a request for the country-independent PID. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
 The German mdoc PID uses two namespaces:
 
 - `eu.europa.ec.eudi.pid.1` for European elements
 - `eu.europa.ec.eudi.pid.de.1` for national additions: `birth_name`, `academic_title`, `source_document_type`, `raw_eid_birth_date` and `age_over_*`
 
-Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Recognized date attributes use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp. The namespace and attribute name determine the encoding. The German `raw_eid_birth_date` stays a text string.
+Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Recognized date attributes use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp. The namespace and attribute name determine the encoding. The German `raw_eid_birth_date` is encoded as a text string.
 
-Regenerating a PID replaces the mdoc PID with the same namespaces. Give an overridden `german-pid-mdoc` at least one `eu.europa.ec.eudi.pid.de.1` element so it stays distinguishable from `pid-mdoc`.
+Regenerating a PID replaces the mdoc PID with the same namespaces. An override of `german-pid-mdoc` needs at least one `eu.europa.ec.eudi.pid.de.1` element to remain distinguishable from `pid-mdoc`.
 
 `issue ... --pid` uses these templates: the `pid-*` pair by default, the `german-pid-*` pair for `--vct urn:eudi:pid:de:1`. So do the deprecated `wallet generate-pid` and `POST /api/generate-pid`. Saving a user template under the same name overrides the predefined version everywhere. Delete the override to restore the original.
 
@@ -94,13 +94,13 @@ The two image fields (`logo`, `background_image`) take one of three sources:
 - an `https://` URL, fetched once at issuance
 - `embedded:<file>`, a bundled asset (predefined templates only)
 
-A fetched image goes through the wallet's size-capped cache and is embedded as a `data:` URI on the issued credential.
+A fetched image is stored in the wallet's size-limited cache and is embedded as a `data:` URI on the issued credential.
 
 The predefined PID templates set `display`: `background_color` `#3d59a1`, `text_color` `#ffffff`, and `logo` `embedded:logo.svg`. The German PID adds `background_image` `embedded:german-id-specimen.jpg` (the public Personalausweis specimen).
 
 Display values supplied during issuance override individual template fields. Setting only a name keeps the template's images.
 
-The CLI accepts `--display-name`, `--display-description`, `--background-color`, `--text-color`, `--logo`, `--logo-alt` and `--background-image`. The Issue dialog and `POST /api/issue` offer the same fields.
+The CLI accepts `--display-name`, `--display-description`, `--background-color`, `--text-color`, `--logo`, `--logo-alt` and `--background-image`. The Issue dialog and `POST /api/issue` accept the same fields.
 
 ```json
 {
@@ -121,11 +121,11 @@ The CLI accepts `--display-name`, `--display-description`, `--background-color`,
 
 ## Always disclosed claims
 
-Every SD-JWT claim is selectively disclosable by default. The registered claims SD-JWT VC §2.2.2.3 excludes (`iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts`, `status` and `iat`) are always embedded plainly. Claims listed in `always_disclosed` are embedded plainly too, so they cannot be withheld during presentation.
+Every SD-JWT claim is selectively disclosable by default. The registered claims that SD-JWT VC §2.2.2.3 excludes from selective disclosure (`iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts`, `status` and `iat`) are always embedded plainly. Claims listed in `always_disclosed` are embedded plainly too, so they cannot be withheld during presentation.
 
 Entries name top level claims (`issuing_country`) or nested subclaims with dotted paths (`address.country`). A top level entry embeds the whole claim value plainly. A dotted entry keeps the parent selectively disclosable but embeds that subclaim plainly inside the parent's disclosure. Entries that match no claim are ignored.
 
-JWT VCs carry all claims plainly, so the list is ignored there. mDocs reject it (every ISO 18013-5 element is selectively disclosable).
+JWT VCs carry all claims plainly, so the list is ignored there. mdoc issuance rejects it (every ISO 18013-5 element is selectively disclosable).
 
 ## CLI
 
@@ -159,7 +159,7 @@ eudi templates show employee-card > share-me.json
 eudi templates delete employee-card
 ```
 
-All `templates` subcommands accept `--wallet-dir` to target a non default wallet store. With `--remote <url>` (or after `wallet use <url>`) list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
+All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`) list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
 
 ### `templates save`
 

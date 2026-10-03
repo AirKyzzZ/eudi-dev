@@ -89,7 +89,11 @@ func (s *Server) handleListCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := s.wallet.CredentialsListingJSONWindow(offset, limit)
+	listing := s.wallet.CredentialsListingWindow(offset, limit)
+	for _, summary := range listing {
+		withPublicImagePaths(r, summary)
+	}
+	data, err := json.Marshal(listing)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -141,7 +145,7 @@ func (s *Server) handleImportCredential(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": importErr.Error()})
 		return
 	}
-	writeJSON(w, http.StatusCreated, s.wallet.CredentialSummaryWithStatus(*imported))
+	writeJSON(w, http.StatusCreated, withPublicImagePaths(r, s.wallet.CredentialSummaryWithStatus(*imported)))
 }
 
 func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
@@ -237,5 +241,5 @@ func (s *Server) handleRefreshCredential(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, CredentialSummary(*renewed))
+	writeJSON(w, http.StatusOK, withPublicImagePaths(r, CredentialSummary(*renewed)))
 }

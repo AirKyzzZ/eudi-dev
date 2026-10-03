@@ -4,7 +4,7 @@ The wallet can derive generated holder, issuer, CA, TLS and role-specific signin
 
 Existing keys take precedence. The seed is used only when generating a missing key.
 
-With memory storage, the wallet creates new certificates on each start, using random serial numbers. Their bytes change, while keys and subjects stay the same for a given seed. A verifier matches the CA by subject and key, so the chain still verifies. Certificates remain stable while their store exists. Persistent storage retains certificates across restarts. A changed subject, issuer URL or renewal receives a new serial number.
+With memory storage, the wallet creates new certificates on each start, using random serial numbers. Their bytes change, while keys and subjects stay the same for a given seed. A verifier matches the CA by subject and key, so the chain still verifies. Certificates remain stable while their store exists. Persistent storage retains certificates across restarts. A certificate gets a new serial number when its subject or issuer URL changes, or when it is renewed.
 
 ## The image default
 
@@ -14,6 +14,6 @@ The image sets `EUDI_DEV_SEED=eudi-dev` with the memory backend, so every contai
 
 Anyone who knows or guesses a seed can derive every key generated from it (see SECURITY.md). Test environments can choose a private seed or leave it empty.
 
-The seed travels in the environment. The detached server inherits `EUDI_DEV_SEED` and never sees the seed on its command line. The URL handler script carries no seed, so a wallet it starts generates random keys unless the handler's environment sets `EUDI_DEV_SEED`.
+The seed is passed through the environment. The detached server inherits `EUDI_DEV_SEED`, so the seed never appears on its command line. The URL handler script contains no seed, so a wallet it starts generates random keys unless the handler's environment sets `EUDI_DEV_SEED`.
 
 The default container combines memory storage and a fixed public seed, and can run on a read-only filesystem.

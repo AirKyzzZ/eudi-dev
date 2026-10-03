@@ -38,7 +38,7 @@ func TestHeaders(t *testing.T) {
 		t.Error("script-src allows inline script, which defeats the point")
 	}
 	for _, want := range []string{
-		"script-src 'self'", "object-src 'none'", "base-uri 'none'",
+		"script-src 'self'", "object-src 'none'", "base-uri 'self'",
 		"frame-ancestors 'none'", "form-action 'self'", "connect-src 'self'",
 	} {
 		if !strings.Contains(csp, want) {

@@ -4,7 +4,7 @@ The wallet HTTP API has no authentication. CI jobs, Testcontainers tests, curl a
 
 Run the wallet on localhost or an isolated test network, with test credentials only (see `SECURITY.md`).
 
-For public hosting, use `--demo`. It closes the process and filesystem endpoints (`demoBlockedRoute` in `internal/wallet/demo.go`), blocks server-side fetches into private networks and resets state on a schedule. All remaining endpoints and data are public.
+For public hosting, use `--demo`. It disables the process and filesystem endpoints (`demoBlockedRoute` in `internal/wallet/demo.go`), blocks server-side fetches into private networks and resets state on a schedule. All remaining endpoints and data are public.
 
 ## Consequences
 

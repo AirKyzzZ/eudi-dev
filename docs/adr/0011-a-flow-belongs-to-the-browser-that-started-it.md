@@ -14,7 +14,7 @@ The owner determines where UI events appear. It does not authenticate callers. A
 
 ## Unowned flows stay answerable
 
-A flow whose client named no browser is visible and answerable to every caller. That keeps the CLI, curl, CI, Testcontainers, the conformance harness and every URL handler working. `TestBackwardsCompatibility_ClientsThatNameNoBrowser` and `TestUnownedRequestStaysAnswerable` cover it.
+A flow without an owner is visible to every caller, and any caller can answer it. That keeps the CLI, curl, CI, Testcontainers, the conformance harness and every URL handler working. `TestBackwardsCompatibility_ClientsThatNameNoBrowser` and `TestUnownedRequestStaysAnswerable` cover it.
 
 A sign-in prompt goes only to its owner because it navigates the browser. Clients without an owner receive the sign-in URL in the API response.
 
@@ -22,7 +22,7 @@ Errors follow the consent routing rules. Consent requests without an owner appea
 
 ## The redirect carries the request id
 
-A browser the wallet redirects is given the request id in the URL. A call that carries that id reaches and answers that request. This is how a browser that keeps no cookie (inside a cross-site frame, or with cookies turned off) still gets its flow. The id is unguessable and the wallet gave it to that browser, so it serves as a capability.
+When the wallet redirects a browser, the URL includes the request id. A call with that id can answer the request. This lets a browser without the cookie (inside a cross-site frame, or with cookies turned off) still complete its flow. The id is unguessable and the wallet sent it to that browser, so it works as a capability token.
 
 ## Consequences
 

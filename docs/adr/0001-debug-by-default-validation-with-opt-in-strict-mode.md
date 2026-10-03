@@ -8,10 +8,10 @@ Validation has two modes (`internal/wallet/mode.go`). In `debug`, the default, n
 
 ## Consequences
 
-In debug mode, the wallet can present credentials even when the request object signature is invalid. It records the failed check in the activity log. Conformance runs and anything checking spec behaviour must pass `--mode strict`.
+In debug mode, the wallet can present credentials even when the request object signature is invalid. It records the failed check in the activity log. Conformance runs and any test of spec behaviour must use `--mode strict`.
 
 ## Outbound HTTPS
 
 Strict mode verifies HTTPS server certificates by default. Debug mode skips verification. `--tls-verify=true|false` overrides either default for every destination, including redirects. The Conformance panel and API can change the setting or restore the mode default. `--tls-ca` adds CA certificates to system trust.
 
-[OpenID4VP 1.0 Final §14.6](https://openid.net/specs/openid-4-verifiable-presentations-1_0-final.html#section-14.6) requires TLS server certificate checks. Strict mode follows this rule for local and remote endpoints. Developers can disable verification to test servers with invalid certificates. This setting is independent of HAIP and signature checks. Each wallet server owns its HTTP client and TLS settings.
+[OpenID4VP 1.0 Final §14.6](https://openid.net/specs/openid-4-verifiable-presentations-1_0-final.html#section-14.6) requires TLS server certificate checks. Strict mode follows this rule for local and remote endpoints. Developers can disable verification to test servers with invalid certificates. This setting is independent of HAIP and signature checks. Each wallet server has its own HTTP client and TLS settings.
