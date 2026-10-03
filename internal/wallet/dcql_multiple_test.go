@@ -360,3 +360,66 @@ func TestApproveMultipleQuery(t *testing.T) {
 		})
 	}
 }
+
+// One set option combines a multiple query with a query for another credential.
+func TestDCQLMultipleCombinedWithAnotherQueryInOneOption(t *testing.T) {
+	w := pidBaselineWallet(t)
+	query := map[string]any{
+		"credentials": []any{multiplePIDQuery("pid_sdjwt"), consentPIDQuery("pid_mdoc", "mso_mdoc")},
+		"credential_sets": []any{
+			map[string]any{"options": []any{[]any{"pid_sdjwt", "pid_mdoc"}}},
+		},
+	}
+
+	matches, options := w.EvaluateDCQLWithOptions(query)
+	byQuery := map[string]int{}
+	for _, m := range matches {
+		byQuery[m.QueryID]++
+	}
+	if byQuery["pid_sdjwt"] != 2 || byQuery["pid_mdoc"] != 1 {
+		t.Fatalf("matches per query = %v, want both SD-JWT PIDs and one mdoc", byQuery)
+	}
+
+	sdjwt := options.Queries[0]
+	if sdjwt.ID != "pid_sdjwt" || !sdjwt.Multiple {
+		t.Fatalf("first query = %+v, want pid_sdjwt marked multiple", sdjwt)
+	}
+	got := ApplyConsentSelection(options, matches, ConsentResult{
+		Approved:   true,
+		SetChoices: []int{0},
+		Picks:      map[string][]string{"pid_sdjwt": {sdjwt.Candidates[1].CredentialID}},
+	})
+	if len(got) != 2 || got[0].CredentialID != sdjwt.Candidates[1].CredentialID || got[1].QueryID != "pid_mdoc" {
+		t.Errorf("got %+v, want the picked SD-JWT PID and the mdoc", got)
+	}
+}
+
+// A required set with a multiple query and an optional set with another credential.
+func TestDCQLMultipleWithAnOptionalSet(t *testing.T) {
+	w := pidBaselineWallet(t)
+	query := map[string]any{
+		"credentials": []any{multiplePIDQuery("pid_sdjwt"), consentPIDQuery("pid_mdoc", "mso_mdoc")},
+		"credential_sets": []any{
+			map[string]any{"options": []any{[]any{"pid_sdjwt"}}},
+			map[string]any{"options": []any{[]any{"pid_mdoc"}}, "required": false},
+		},
+	}
+
+	matches, options := w.EvaluateDCQLWithOptions(query)
+	if len(matches) != 3 {
+		t.Fatalf("matches = %d, want both SD-JWT PIDs and the optional mdoc", len(matches))
+	}
+
+	skipped := ApplyConsentSelection(options, matches, ConsentResult{Approved: true, SetChoices: []int{0, -1}})
+	if len(skipped) != 2 || skipped[0].QueryID != "pid_sdjwt" || skipped[1].QueryID != "pid_sdjwt" {
+		t.Errorf("skipping the optional set: got %+v, want both SD-JWT PIDs only", skipped)
+	}
+
+	result, err := w.CreateVPTokenMap(matches, PresentationParams{Nonce: "n", ClientID: "https://verifier.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.TokenMap["pid_sdjwt"]) != 2 || len(result.TokenMap["pid_mdoc"]) != 1 {
+		t.Errorf("vp_token = %d SD-JWT and %d mdoc presentations, want 2 and 1", len(result.TokenMap["pid_sdjwt"]), len(result.TokenMap["pid_mdoc"]))
+	}
+}

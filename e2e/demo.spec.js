@@ -999,6 +999,66 @@ test.describe("Consent credential selection", () => {
     expect((result.claims || {}).ticket).toBeFalsy();
   });
 
+  test("a multiple PID next to an optional ticket set sends every PID and can withhold both", async ({ page }) => {
+    await ensureTicket();
+    const req = await openPreparedConsent(page, { type: "pid", format: "sd-jwt", ticket: "optional", multiple: true });
+
+    // The PIDs are not alternatives. Only the optional ticket set is.
+    await expect(page.locator("#consent-selection-row")).toContainText("1 alternative");
+    const note = page.locator("#consent-multiple-pid");
+    await expect(note).toContainText(/Sending (\d+) of \1 matching credentials/);
+    const pidCards = page.locator('#consent-dialog .consent-credential[data-credential-id]:not([data-vct="urn:eudi-test:demo-ticket:1"])');
+    const sentPIDs = await pidCards.count();
+    expect(sentPIDs).toBeGreaterThanOrEqual(2);
+
+    await page.locator("#consent-edit-selection").click();
+    const candidates = page.locator('#consent-query-pid .candidate[role="checkbox"]');
+    await expect(candidates).toHaveCount(sentPIDs);
+    await expect(page.locator("#consent-query-pid .auto-chip")).toHaveCount(sentPIDs);
+    for (let i = 1; i < sentPIDs; i++) await candidates.nth(i).click();
+    await page.locator("#consent-set-1-none").check();
+    await page.locator("#consent-selection-done").click();
+    await expect(note).toContainText(`Sending 1 of ${sentPIDs}`);
+
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    const result = await verifierResult(req.id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.pid).toHaveLength(1);
+    expect(result.claims.ticket).toBeFalsy();
+  });
+
+  test("a combined multiple request sends every PID together with the ticket", async ({ page }) => {
+    await ensureTicket();
+    const req = await openPreparedConsent(page, { type: "pid", format: "sd-jwt", ticket: "combined", multiple: true });
+    const sent = await page.locator("#consent-dialog .consent-credential[data-credential-id]").count();
+
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    const result = await verifierResult(req.id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.pid.length + result.claims.ticket.length).toBe(sent);
+    expect(result.claims.pid.length).toBeGreaterThanOrEqual(2);
+    expect(result.claims.ticket[0].event).toBe("EUDI Interop Fest");
+  });
+
+  test("the verifier page asks for the ticket next to the PID and for multiple", async ({ page }) => {
+    await page.goto(`${BASE}/verifier/`);
+    await page.locator('#credential-toggle [data-credential="pid-ticket"]').click();
+    await expect(page.locator("#ticket-row")).toBeVisible();
+    await page.locator('#ticket-toggle [data-ticket="optional"]').click();
+    await page.locator("#request-multiple").check();
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/verifier/api/requests") && r.request().method() === "POST"),
+      page.locator("#create-request").click(),
+    ]);
+    expect(JSON.parse(resp.request().postData())).toMatchObject({ type: "pid", ticket: "optional", multiple: true });
+    expect(resp.ok()).toBe(true);
+
+    await page.locator('#credential-toggle [data-credential="custom"]').click();
+    await expect(page.locator("#multiple-row")).toBeHidden();
+  });
+
   test("approving straight from the edit screen submits the drafted selection", async ({ page }) => {
     const req = await openConsent(page);
 

@@ -65,6 +65,8 @@ The verifier signs requests delivered from `/verifier/request/{id}` with its acc
 
 The verifier page has a PID format toggle. By default, a PID request accepts either an SD-JWT VC or an mdoc, and the wallet presents one it holds. Select a format to test whether the wallet can present it. The ticket is always an SD-JWT VC.
 
+**Demo ticket + PID** asks for both in one request. **With the PID** offers the ticket together with the SD-JWT PID, or a PID alone. **Optional** asks for a PID and lets the wallet skip the ticket. Tick **multiple** to let the wallet send several credentials for each query, such as both PIDs a wallet holds.
+
 The issuer page has a status list toggle. When enabled, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable and the demo verifier rejects the next presentation once it is revoked.
 
 ### PID credentials

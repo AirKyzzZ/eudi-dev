@@ -52,6 +52,15 @@
     .toggle-option + .toggle-option { border-left: 1px solid var(--border); }
     .toggle-option.selected { background: var(--accent); color: #fff; }
     .grant-hint { font-size: 11px; margin-bottom: 12px; }
+    /* The arrow is drawn with gradients so it takes the theme color. */
+    select { font: inherit; font-size: 12px; padding: 6px 28px 6px 10px; border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); cursor: pointer; appearance: none; -webkit-appearance: none;
+      max-width: 100%; min-width: 0;
+      background: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%) calc(100% - 15px) 50% / 5px 5px no-repeat,
+        linear-gradient(135deg, var(--text-dim) 50%, transparent 50%) calc(100% - 10px) 50% / 5px 5px no-repeat,
+        var(--bg); }
+    select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    select option { background: var(--bg-surface); color: var(--text); }
     .sponsor-info {
       display: flex;
       flex-wrap: wrap;

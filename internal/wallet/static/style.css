@@ -1091,6 +1091,15 @@ header h1 {
   background: var(--bg);
 }
 
+.consent-multiple-note {
+  font-size: 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  background: var(--bg);
+}
+
 .consent-purpose-label {
   display: block;
   font-size: 10px;

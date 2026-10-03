@@ -147,6 +147,7 @@
         <button type="button" class="toggle-option selected" data-credential="ticket" role="radio" aria-checked="true">Demo ticket</button>
         <button type="button" class="toggle-option" data-credential="pid" role="radio" aria-checked="false">PID</button>
         <button type="button" class="toggle-option" data-credential="pid-de" role="radio" aria-checked="false">German PID</button>
+        <button type="button" class="toggle-option" data-credential="pid-ticket" role="radio" aria-checked="false">Demo ticket + PID</button>
         <button type="button" class="toggle-option" data-credential="custom" role="radio" aria-checked="false">Custom</button>
       </div>
     </div>
@@ -161,6 +162,17 @@
     <p class="format-hint" id="format-hint" hidden>
       The request asks for either format and the wallet answers with the one it holds.
     </p>
+    <div class="format-row" id="ticket-row" hidden>
+      <span class="format-label">Ticket</span>
+      <div class="toggle" id="ticket-toggle" role="radiogroup" aria-label="How the request asks for the ticket">
+        <button type="button" class="toggle-option selected" data-ticket="combined" role="radio" aria-checked="true">With the PID</button>
+        <button type="button" class="toggle-option" data-ticket="optional" role="radio" aria-checked="false">Optional</button>
+      </div>
+    </div>
+    <p class="format-hint" id="ticket-hint" hidden></p>
+    <div class="format-row" id="multiple-row">
+      <label class="multiple-option"><input type="checkbox" id="request-multiple"> multiple (the wallet may send several credentials per query)</label>
+    </div>
     <div id="custom-panel" hidden>
       <p class="format-hint">
         Build a DCQL query by hand. Each path selects a claim. A path onto an

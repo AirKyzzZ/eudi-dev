@@ -126,8 +126,15 @@ const FORMAT_HINTS = {
   mdoc: "The request asks for the mdoc PID only. A wallet holding only the SD-JWT VC cannot answer it.",
 };
 
+// Both shapes use DCQL credential_sets (OpenID4VP 1.0 §6.2).
+const TICKET_HINTS = {
+  combined: "One option asks for the SD-JWT PID and the ticket together, the others for a PID alone.",
+  optional: "A required set asks for a PID. A second set asks for the ticket, and the wallet may skip it.",
+};
+
 let pidFormat = "both";
 let credential = "ticket";
+let ticketMode = "combined";
 
 for (const option of document.querySelectorAll("#credential-toggle .toggle-option")) {
   option.addEventListener("click", () => {
@@ -137,9 +144,13 @@ for (const option of document.querySelectorAll("#credential-toggle .toggle-optio
       other.classList.toggle("selected", selected);
       other.setAttribute("aria-checked", String(selected));
     }
-    const showsFormat = credential === "pid" || credential === "pid-de";
+    const showsFormat = credential === "pid" || credential === "pid-de" || credential === "pid-ticket";
     document.getElementById("format-row").hidden = !showsFormat;
     document.getElementById("format-hint").hidden = !showsFormat;
+    document.getElementById("ticket-row").hidden = credential !== "pid-ticket";
+    document.getElementById("ticket-hint").hidden = credential !== "pid-ticket";
+    // A custom request sets multiple per credential.
+    document.getElementById("multiple-row").hidden = credential === "custom";
     document.getElementById("custom-panel").hidden = credential !== "custom";
   });
 }
@@ -290,6 +301,19 @@ function customRequestBody() {
   return body;
 }
 
+document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
+for (const option of document.querySelectorAll("#ticket-toggle .toggle-option")) {
+  option.addEventListener("click", () => {
+    ticketMode = option.dataset.ticket;
+    for (const other of document.querySelectorAll("#ticket-toggle .toggle-option")) {
+      const selected = other === option;
+      other.classList.toggle("selected", selected);
+      other.setAttribute("aria-checked", String(selected));
+    }
+    document.getElementById("ticket-hint").textContent = TICKET_HINTS[ticketMode];
+  });
+}
+
 for (const option of document.querySelectorAll("#format-toggle .toggle-option")) {
   option.addEventListener("click", () => {
     pidFormat = option.dataset.format;
@@ -320,6 +344,10 @@ document.getElementById("create-request").addEventListener("click", async () => 
     if (credential === "pid-de") {
       request.vct = "urn:eudi:pid:de:1";
     }
+    if (credential === "pid-ticket") {
+      request.ticket = ticketMode;
+    }
+    if (document.getElementById("request-multiple").checked) request.multiple = true;
   }
   const resp = await fetch("api/requests", {
     method: "POST",

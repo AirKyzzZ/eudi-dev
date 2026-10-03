@@ -63,8 +63,10 @@ type requestState struct {
 	// ticketWant holds the ticket claim names it asks for.
 	ticketQueryID string
 	ticketWant    []string
-	nonce         string
-	clientID      string
+	// multiple is set when every credential query carries multiple.
+	multiple bool
+	nonce    string
+	clientID string
 	// interactiveEndpoint is set when this request was sent inside an
 	// OpenID4VCI 1.1 §6 exchange. The presentation is then bound to that
 	// Authorization Challenge Endpoint rather than to a client_id and a
@@ -155,6 +157,9 @@ type createRequestBody struct {
 	// one option next to a PID-only option, "optional" adds a second set the
 	// wallet may skip (required: false).
 	Ticket string `json:"ticket"`
+	// Multiple sets multiple on every credential query of the request, so the
+	// wallet can answer each with several credentials (OpenID4VP 1.0 §6.1).
+	Multiple bool `json:"multiple"`
 	// Credentials builds a request by hand, one DCQL credential query each,
 	// used with type "custom".
 	Credentials []customCredentialTO `json:"credentials"`
@@ -248,6 +253,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ticket applies to pid requests, which then ask for the ticket next to the PID"})
 			return
 		}
+
 		wantSDJWT, _, err := normalizePIDFormat(body.Format)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -313,6 +319,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		want:     claims,
 		wantMDOC: mdocClaims,
 		nonce:    randToken(),
+		multiple: body.Multiple,
 		status:   "pending",
 		expires:  time.Now().Add(entryTTL),
 	}
@@ -382,6 +389,11 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			"meta":   map[string]any{"vct_values": []string{TicketVCT}},
 			"claims": ticketDCQLClaims,
 		})
+	}
+	if req.multiple {
+		for _, q := range credentials {
+			q["multiple"] = true
+		}
 	}
 	dcql := map[string]any{"credentials": credentials}
 
@@ -1027,20 +1039,43 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		return nil, log.entries, err
 	}
 
-	if err := check("vp_token holds exactly one presentation",
-		errIf(len(presentations) != 1, "expected 1 presentation, got %d", len(presentations))); err != nil {
-		return nil, log.entries, err
+	// OpenID4VP 1.0 §8.1: "When multiple is omitted, or set to false, the array
+	// MUST contain only one Presentation."
+	if !req.multiple {
+		if err := check("vp_token holds exactly one presentation",
+			errIf(len(presentations) != 1, "expected 1 presentation, got %d", len(presentations))); err != nil {
+			return nil, log.entries, err
+		}
 	}
 
-	var resultClaims map[string]any
-	var err error
+	answered := req.queryID
 	if answeredMDOC {
-		resultClaims, _, err = d.verifyMDOCPresentation(req, presentations[0], log)
-	} else {
-		resultClaims, err = d.verifySDJWTEntry(req, presentations[0], req.vct, req.want, "", log)
+		answered = req.mdocQueryID
 	}
-	if err != nil {
-		return nil, log.entries, err
+	var verified []any
+	for i, presentation := range presentations {
+		label := ""
+		if req.multiple {
+			label = fmt.Sprintf("%s[%d]: ", answered, i)
+		}
+		var claims map[string]any
+		var err error
+		if answeredMDOC {
+			claims, _, err = d.verifyMDOCPresentation(req, presentation, log)
+		} else {
+			claims, err = d.verifySDJWTEntry(req, presentation, req.vct, req.want, label, log)
+		}
+		if err != nil {
+			d.recordPresentation(req, presentation)
+			return nil, log.entries, err
+		}
+		verified = append(verified, claims)
+	}
+	// A multiple request lists the claims of every presentation under its query id.
+	resultClaims := verified[0].(map[string]any)
+	if req.multiple {
+		_ = check(fmt.Sprintf("%s: %d presentation(s) verified", answered, len(verified)), nil)
+		resultClaims = map[string]any{answered: verified}
 	}
 
 	// The ticket entry, when the request asked for one. Its absence is an
@@ -1051,17 +1086,31 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		if len(ticketPresentations) == 0 {
 			_ = log.record("ticket: not presented, which the request allows", nil)
 		} else {
-			if err := check("ticket: vp_token holds exactly one presentation",
-				errIf(len(ticketPresentations) != 1, "expected 1 presentation, got %d", len(ticketPresentations))); err != nil {
-				return nil, log.entries, err
+			if !req.multiple {
+				if err := check("ticket: vp_token holds exactly one presentation",
+					errIf(len(ticketPresentations) != 1, "expected 1 presentation, got %d", len(ticketPresentations))); err != nil {
+					return nil, log.entries, err
+				}
 			}
-			ticketClaims, err := d.verifySDJWTEntry(req, ticketPresentations[0], TicketVCT, req.ticketWant, "ticket: ", log)
-			if err != nil {
-				// Show the failed ticket in the decoder instead of the successful PID.
-				d.recordPresentation(req, ticketPresentations[0])
-				return nil, log.entries, err
+			var tickets []any
+			for i, presentation := range ticketPresentations {
+				label := "ticket: "
+				if req.multiple {
+					label = fmt.Sprintf("ticket[%d]: ", i)
+				}
+				ticketClaims, err := d.verifySDJWTEntry(req, presentation, TicketVCT, req.ticketWant, label, log)
+				if err != nil {
+					// Show the failed ticket in the decoder instead of the successful PID.
+					d.recordPresentation(req, presentation)
+					return nil, log.entries, err
+				}
+				tickets = append(tickets, ticketClaims)
 			}
-			resultClaims["ticket"] = ticketClaims
+			if req.multiple {
+				resultClaims["ticket"] = tickets
+			} else {
+				resultClaims["ticket"] = tickets[0]
+			}
 		}
 	}
 

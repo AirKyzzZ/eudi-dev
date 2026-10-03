@@ -1987,11 +1987,19 @@
       if ((options.sets || []).some(s => s.options.length > 1 || s.optional)) return true;
       return options.queries.some(q => q.candidates.length > 1);
     }
+    // A query that sets multiple sends all its candidates, so they are not alternatives.
     function alternativeCount() {
       let n = 0;
       (options.sets || []).forEach(s => { n += s.options.length - 1 + (s.optional ? 1 : 0); });
-      options.queries.forEach(q => { n += q.candidates.length - 1; });
+      options.queries.forEach(q => { if (!q.multiple) n += q.candidates.length - 1; });
       return n;
+    }
+    function multipleNote(qid) {
+      const q = queryById(qid);
+      if (!q.multiple || q.candidates.length < 2) return '';
+      const sent = activeCandidates(qid).length;
+      return '<div class="consent-multiple-note" id="consent-multiple-' + escHtml(qid) + '">' +
+        'The verifier accepts several credentials here. Sending ' + sent + ' of ' + q.candidates.length + ' matching credentials.</div>';
     }
     function isAutoSelection() {
       return selection.setChoices.every(c => c === 0) &&
@@ -2191,7 +2199,7 @@
               '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="consent-pick-' + escHtml(qid) + '"' + (picked ? ' checked' : '') + ' tabindex="-1" aria-hidden="true">' +
               '<div class="credential-card' + (detail && detail.batch ? ' batch' : '') + '">' + body.html + '</div>' +
               '<div class="candidate-actions">' +
-                (i === 0 ? '<span class="auto-chip">auto</span>' : '') +
+                (multi || i === 0 ? '<span class="auto-chip">auto</span>' : '') +
                 // Open decoding in another tab to preserve pending consent.
                 '<a class="btn btn-sm candidate-decode" id="consent-decode-' + escHtml(qid) + '-' + c.credential_id + '"' +
                   ' href="decoder/?id=' + encodeURIComponent(c.credential_id) + '" target="_blank" rel="noopener"' +
@@ -2304,11 +2312,14 @@
         const n = alternativeCount();
         html += '<div class="consent-selection-row" id="consent-selection-row">' +
           (isAutoSelection()
-            ? 'Auto-selected · ' + n + (n === 1 ? ' alternative' : ' alternatives')
+            ? 'Auto-selected' + (n > 0 ? ' · ' + n + (n === 1 ? ' alternative' : ' alternatives') : '')
             : 'Your selection (auto-choice changed)') +
           '<button class="btn" id="consent-edit-selection">Edit</button></div>';
       }
-      activeQueryIds().forEach(qid => { activeCandidates(qid).forEach(c => { html += credentialCardHtml(c); }); });
+      activeQueryIds().forEach(qid => {
+        html += multipleNote(qid);
+        activeCandidates(qid).forEach(c => { html += credentialCardHtml(c); });
+      });
     } else if (!isIssuance && req.matched_credentials && req.matched_credentials.length > 0) {
       req.matched_credentials.forEach(mc => { html += credentialCardHtml(mc); });
     }
