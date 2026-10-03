@@ -19,9 +19,12 @@
 [![Token Status List](https://img.shields.io/badge/Token%20Status%20List-draft--21-blue)](docs/spec-compliance.md#token-status-list-draft-ietf-oauth-status-list)
 [![ETSI](https://img.shields.io/badge/ETSI-TS%20119%20602-blue)](docs/spec-compliance.md#etsi-ts-119-602-trusted-entity-lists)
 
-An unofficial developer toolkit for the EUDI and OpenID4VC ecosystem. Decode, issue, and present verifiable credentials, run a testing wallet, or proxy live wallet traffic for debugging. The CLI command is `eudi`.
+# Test Wallet and Dev Tools for the EUDI Ecosystem
 
-> **Try it online:** a shared public demo of the wallet and decoder runs at **<https://eudi-test.dev>**. Issue, present, and decode test credentials in the browser. State is shared between all visitors and resets periodically. Use test data only.
+Web/CLI wallet as test target for EUDI issuers and verifiers. 
+Includes tools for decoding credentials, proxying wallet traffic for debugging, DCQL-generation from credentials and more.
+
+> **Try it online:** a shared public demo of the wallet and decoder runs at **<https://eudi-test.dev>**. 
 
 ## Highlights
 
