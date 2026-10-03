@@ -78,7 +78,7 @@ Set `-e EUDI_DEV_LOG_FORMAT=json` to write one JSON record per line for a log co
 
 ## How it works
 
-1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mDoc) and `--auto-accept` (presents matching credentials without user consent)
+1. The container starts with `--pid` (two preloaded EUDI PID credentials, one SD-JWT and one mdoc) and `--auto-accept` (presents matching credentials without user consent)
 2. Your verifier sends an OID4VP authorization request to the wallet's `/authorize` endpoint
 3. The wallet evaluates the DCQL query, finds matching credentials, creates a VP token, and POSTs it to your verifier's `response_uri`
 
@@ -187,7 +187,7 @@ walletURL, _ := wallet.Endpoint(ctx, "http")
 
 ## Custom PID claims
 
-The default CMD loads two EUDI PID credentials (SD-JWT + mDoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates (or adds your own):
+The default CMD loads two EUDI PID credentials (SD-JWT + mdoc) with the EUDI PID Rulebook attributes (`given_name`, `family_name`, `birth_date`, `place_of_birth`, `nationality`, etc.). To customize them, mount a folder of [credential templates](templates.md) that overrides the predefined PID templates (or adds your own):
 
 ```bash
 # my-templates/pid-sdjwt.json overrides the pre-defined PID template
@@ -225,7 +225,7 @@ curl -X DELETE http://localhost:8085/api/next-error
 
 ### Format preference
 
-When the DCQL query matches both SD-JWT and mDoc credentials, choose which format is presented:
+When the DCQL query matches both SD-JWT and mdoc credentials, choose which format is presented:
 
 ```bash
 curl -X PUT http://localhost:8085/api/config/preferred-format \
@@ -237,7 +237,7 @@ Or set it at startup: `--preferred-format dc+sd-jwt`
 
 ### Credential import
 
-The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mDoc (`mso_mdoc`). Plain JWT VCs are presented unchanged.
+The wallet imports SD-JWT (`dc+sd-jwt`), plain JWT VC (`jwt_vc_json`), and mdoc (`mso_mdoc`). Plain JWT VCs are presented unchanged.
 
 ```bash
 curl -X POST http://localhost:8085/api/credentials -d 'eyJhbGci...'

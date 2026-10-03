@@ -432,7 +432,7 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 		return
 	}
 
-	headerColor.Println("mDOC Credential")
+	headerColor.Println("mdoc Credential")
 	headerColor.Println(strings.Repeat("─", 50))
 
 	if doc.IsDeviceResponse {

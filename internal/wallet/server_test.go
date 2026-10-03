@@ -2056,13 +2056,13 @@ func TestOpenIDCredentialIssuerMetadata_SignedJWTContainsIssuerInfo(t *testing.T
 			sawVCT = true
 		case "mso_mdoc":
 			if meta["doctype_value"] != "eu.europa.ec.eudi.pid.1" {
-				t.Fatalf("expected mDoc attestation docType, got %v", meta["doctype_value"])
+				t.Fatalf("expected mdoc attestation docType, got %v", meta["doctype_value"])
 			}
 			sawDocType = true
 		}
 	}
 	if !sawVCT || !sawDocType {
-		t.Fatalf("expected both SD-JWT and mDoc attestation entries, got %v", record["providesAttestations"])
+		t.Fatalf("expected both SD-JWT and mdoc attestation entries, got %v", record["providesAttestations"])
 	}
 }
 

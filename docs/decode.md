@@ -1,6 +1,6 @@
 # Decode
 
-Inspect credentials (SD-JWT, JWT VC, mDOC), OpenID4VCI/VP requests, and ETSI trust lists. The format is detected from the input.
+Inspect credentials (SD-JWT, JWT VC, mdoc), OpenID4VCI/VP requests, and ETSI trust lists. The format is detected from the input.
 
 ```bash
 # Credentials
@@ -32,7 +32,7 @@ eudi decode -f trustlist https://example.com/trust-list.jwt
 1. **URI schemes**: `openid-credential-offer://` / `haip-vci://` / `eu-eaa-offer://` (VCI), `openid4vp://` / `haip-vp://` / `eudi-openid4vp://` (VP)
 2. **HTTP(S) URL with OID4 query params**: `credential_offer` / `credential_offer_uri` (VCI), `client_id` / `response_type` / `request_uri` (VP)
 3. **SD-JWT**: contains `~` separator
-4. **mDOC**: hex or base64url encoded CBOR
+4. **mdoc**: hex or base64url encoded CBOR
 5. **JSON**: inspected for a trust list `LoTE` object and for OID4 marker keys (`credential_issuer` → VCI, `client_id` → VP)
 6. **JWT**: 3 dot-separated parts. Payload inspected for the same markers
 

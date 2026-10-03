@@ -207,7 +207,7 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--storage`             | `file`   | Storage backend: `file`, `memory`, `auto` or a `postgres://` URL. `$EUDI_DEV_STORAGE` when set (see [storage backends](../wallet.md#storage-backends)) |
 | `--seed`                | None     | Derive the generated keys from this string. `auto` seeds the memory backend only. `$EUDI_DEV_SEED` when set (see [seeded keys](../wallet.md#seeded-keys)) |
-| `--session-transcript`  | `oid4vp` | mDoc session transcript mode: `oid4vp` or `iso`  |
+| `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--register`            | `false`  | Register OS URL scheme handlers                  |
 | `--no-register`         | `false`  | Skip URL scheme registration (overrides --register) |
 | `--tls-verify` | mode default | Verify HTTPS certificates (`true` in strict mode, `false` in debug mode) |

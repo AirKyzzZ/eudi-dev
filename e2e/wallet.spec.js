@@ -554,7 +554,7 @@ test.describe("Credential Issuing via UI", () => {
     await page.locator("#issue-cancel").click();
   });
 
-  test("issues an mDoc with a per-attribute namespace", async ({ page }) => {
+  test("issues an mdoc with a per-attribute namespace", async ({ page }) => {
     await page.goto(WALLET_URL);
     await page.locator("#issue-btn").click();
     await page.locator("#issue-format").selectOption("mdoc");

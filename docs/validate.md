@@ -4,7 +4,7 @@ Check a credential's signature, expiry and revocation status. Use `decode` to in
 
 Signature keys are resolved in this order:
 
-1. The credential's x5c (SD-JWT/JWT) or x5chain (mDOC) certificate chain, validated against `--trust-list` when given
+1. The credential's x5c (SD-JWT/JWT) or x5chain (mdoc) certificate chain, validated against `--trust-list` when given
 2. An explicitly provided `--key`
 3. The embedded leaf certificate alone, when no trust list is given. This works offline. The output notes that the chain was not validated
 4. JWT VC Issuer Metadata, for credentials without an embedded certificate
@@ -44,7 +44,7 @@ The status is reported by name (VALID, INVALID, SUSPENDED, an application specif
 
 ## Certificate chain validation
 
-When a trust list is given and the credential contains an x5c (SD-JWT/JWT) or x5chain (mDOC) chain, the chain is validated against the trust list before the signature is verified:
+When a trust list is given and the credential contains an x5c (SD-JWT/JWT) or x5chain (mdoc) chain, the chain is validated against the trust list before the signature is verified:
 
 1. The trust list contains **CA certificates** (trust anchors)
 2. The credential's x5c/x5chain contains `[leaf, ...intermediates]`

@@ -89,7 +89,7 @@ curl -X POST http://localhost:8085/api/issue \
   -H 'Content-Type: application/json' \
   -d '{"format": "sdjwt", "pid": true}'
 
-# Issue an mDoc with custom claims that expires in 24 hours
+# Issue an mdoc with custom claims that expires in 24 hours
 curl -X POST http://localhost:8085/api/issue \
   -H 'Content-Type: application/json' \
   -d '{"format": "mdoc", "claims": {"given_name": "Erika"}, "exp": "24h"}'
@@ -213,7 +213,7 @@ curl -X DELETE http://localhost:8085/api/next-error
 
 ### Preferred credential format
 
-When a DCQL query matches both SD-JWT and mDoc credentials (e.g. both PID formats), the preferred format setting decides which format is presented.
+When a DCQL query matches both SD-JWT and mdoc credentials (e.g. both PID formats), the preferred format setting decides which format is presented.
 
 **Set preference:**
 
@@ -235,7 +235,7 @@ curl -X PUT http://localhost:8085/api/config/preferred-format \
 |--------|--------------------------------|-------------------------|--------------------------------|
 | `GET`  | `/api/config`                  | None                    | Full instance introspection document (see [Introspection](#introspection)) |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "dc+sd-jwt"}`  | Prefer SD-JWT when multiple match |
-| `PUT`  | `/api/config/preferred-format` | `{"format": "mso_mdoc"}`   | Prefer mDoc when multiple match   |
+| `PUT`  | `/api/config/preferred-format` | `{"format": "mso_mdoc"}`   | Prefer mdoc when multiple match   |
 | `PUT`  | `/api/config/preferred-format` | `{"format": "jwt_vc_json"}` | Prefer JWT VC when multiple match |
 | `PUT`  | `/api/config/preferred-format` | `{"format": ""}`            | Clear preference (default)        |
 | `PUT`  | `/api/config/auto-accept`      | `{"enabled": true}`         | Approve every presentation and offer without a consent prompt, until the process restarts. `false` restores the consent prompt. Refused in demo mode |
@@ -254,7 +254,7 @@ Credentials can be imported at runtime via `POST /api/credentials`. The body is 
 |--------|-----------|-----------|
 | SD-JWT | Contains `~` separator | `dc+sd-jwt` |
 | Plain JWT | 3-part JWT without `~` | `jwt_vc_json` |
-| mDoc | CBOR-encoded | `mso_mdoc` |
+| mdoc | CBOR-encoded | `mso_mdoc` |
 
 Plain JWT VCs are presented without changes (no selective disclosure, no KB-JWT). Use `"format": "jwt_vc_json"` in DCQL queries to match them.
 
@@ -420,12 +420,12 @@ curl -X POST http://localhost:8085/api/presentations \
   -H 'Content-Type: application/json' \
   -d '{"uri": "openid4vp://authorize?..."}'
 
-# 6. Switch to mDoc preference
+# 6. Switch to mdoc preference
 curl -X PUT http://localhost:8085/api/config/preferred-format \
   -H 'Content-Type: application/json' \
   -d '{"format": "mso_mdoc"}'
 
-# 7. Next presentation uses mDoc instead of SD-JWT
+# 7. Next presentation uses mdoc instead of SD-JWT
 curl -X POST http://localhost:8085/api/presentations \
   -H 'Content-Type: application/json' \
   -d '{"uri": "openid4vp://authorize?..."}'

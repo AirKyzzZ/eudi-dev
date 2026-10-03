@@ -19,7 +19,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `serve`        | Start wallet HTTP server with web UI, OID4VP endpoints, and optional URL scheme handling |
 | `list`         | List stored credentials                                         |
 | `show`         | Show a stored credential by ID (raw or decoded)                 |
-| `import`       | Import a credential from file, stdin, or raw string (SD-JWT, JWT VC, mDoc) |
+| `import`       | Import a credential from file, stdin, or raw string (SD-JWT, JWT VC, mdoc) |
 | `remove`       | Remove a credential by ID                                       |
 | `generate-pid` | Deprecated. Generate both PID formats. Use `issue ... --wallet --template <name>` instead (see [templates](templates.md)) |
 | `accept`       | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detects) |

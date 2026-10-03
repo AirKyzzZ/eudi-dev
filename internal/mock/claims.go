@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package mock generates test credentials (SD-JWT and mDOC) with default EUDI PID claims.
+// Package mock generates test credentials (SD-JWT and mdoc) with default EUDI PID claims.
 package mock
 
 import (

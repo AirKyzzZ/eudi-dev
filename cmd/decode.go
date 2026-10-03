@@ -40,14 +40,14 @@ var (
 var decodeCmd = &cobra.Command{
 	Use:   "decode [input]",
 	Short: "Auto-detect and decode credentials and OpenID4VCI/VP requests",
-	Long: `Decode and inspect verifiable credentials (JWT, SD-JWT, mDOC), OpenID4VCI/VP requests, and ETSI trust lists.
+	Long: `Decode and inspect verifiable credentials (JWT, SD-JWT, mdoc), OpenID4VCI/VP requests, and ETSI trust lists.
 
 This is a read-only inspection tool. It parses and displays the content, and
 automatically verifies JWT/SD-JWT signatures when issuer metadata can be resolved
 from iss+kid. Use 'validate' for explicit keys, trust lists, and revocation checks.
 
 Accepts:
-  - Credential strings: SD-JWT, JWT, mDOC (hex or base64url)
+  - Credential strings: SD-JWT, JWT, mdoc (hex or base64url)
   - URI schemes: openid-credential-offer://, haip-vci://, eu-eaa-offer://, openid4vp://, haip-vp://, eudi-openid4vp://
   - HTTPS URLs with OID4 query parameters
   - JWT request objects (OID4VP, trust lists)
@@ -181,7 +181,7 @@ func runDecode(cmd *cobra.Command, args []string) error {
 		}
 		doc, err := mdoc.Parse(raw)
 		if err != nil {
-			return fmt.Errorf("parsing mDOC: %w", err)
+			return fmt.Errorf("parsing mdoc: %w", err)
 		}
 		output.PrintMDOC(doc, opts)
 

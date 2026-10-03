@@ -38,7 +38,7 @@ import (
 const clockSkew = time.Minute
 
 // ExtractStatusRef extracts the status list reference from SD-JWT claims or
-// mDOC MSO status. No status claim returns nil. A status_list object missing
+// mdoc MSO status. No status claim returns nil. A status_list object missing
 // the idx or uri Section 6.2 requires returns a reference with Invalid set, so
 // a broken reference is not reported as a missing one.
 func ExtractStatusRef(claims map[string]any) *StatusRef {

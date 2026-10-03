@@ -99,7 +99,7 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 	case format.FormatMDOC:
 		doc, err := mdoc.Parse(input)
 		if err != nil {
-			return nil, fmt.Errorf("parsing mDOC: %w", err)
+			return nil, fmt.Errorf("parsing mdoc: %w", err)
 		}
 		result := output.BuildMDOCJSON(doc)
 
@@ -114,7 +114,7 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 		return result, nil
 
 	default:
-		return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mDOC)")
+		return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mdoc)")
 	}
 }
 

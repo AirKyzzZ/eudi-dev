@@ -277,23 +277,23 @@ Condition counts are from the 2026-08-09 run on suite release-v5.2.2. The screen
 | 1 | VP Final | SD-JWT, `direct_post`, signed `x509_hash` | 507 success / 0 failure. Negative modules ending in `REVIEW` are accepted. | [PNG](./conformance-results/2026-07-30/plan-01-vp-final-sdjwt-direct-post.png) |
 | 2 | VP Final | SD-JWT, `direct_post.jwt`, signed `x509_hash` | 711 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-02-vp-final-sdjwt-direct-post-jwt.png) |
 | 3 | VP Final | SD-JWT, `direct_post`, unsigned `redirect_uri` | 507 success / 0 failure. `response-uri-not-client-id` ends in an accepted `REVIEW` result. | [PNG](./conformance-results/2026-07-30/plan-03-vp-final-sdjwt-unsigned-direct-post.png) |
-| 4 | VP Final | mDoc, `direct_post.jwt`, signed `x509_hash` | 592 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-04-vp-final-mdoc-direct-post-jwt.png) |
+| 4 | VP Final | mdoc, `direct_post.jwt`, signed `x509_hash` | 592 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-04-vp-final-mdoc-direct-post-jwt.png) |
 | 5 | VCI Final | SD-JWT | 1021 success / 0 failure. Includes batch credential issuance. | [PNG](./conformance-results/2026-07-30/plan-05-vci-final-sdjwt.png) |
-| 6 | VCI Final | mDoc | 1055 success / 0 failure. Batch credential issuance `SKIPPED` in this run (the `jwt.keyattest` configuration, see below). | [PNG](./conformance-results/2026-07-30/plan-06-vci-final-mdoc.png) |
+| 6 | VCI Final | mdoc | 1055 success / 0 failure. Batch credential issuance `SKIPPED` in this run (the `jwt.keyattest` configuration, see below). | [PNG](./conformance-results/2026-07-30/plan-06-vci-final-mdoc.png) |
 | 7 | VCI Final | SD-JWT, pre-authorized code | 665 success / 0 failure. | (added after the screenshot run) |
-| 8 | VCI Final | mDoc, pre-authorized code | 671 success / 0 failure. Batch credential issuance `SKIPPED` in this run (the `jwt.keyattest` configuration, see below). | (added after the screenshot run) |
+| 8 | VCI Final | mdoc, pre-authorized code | 671 success / 0 failure. Batch credential issuance `SKIPPED` in this run (the `jwt.keyattest` configuration, see below). | (added after the screenshot run) |
 | 9 | VP HAIP | SD-JWT, `direct_post.jwt` | 751 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-07-vp-haip-sdjwt-direct-post-jwt.png) |
-| 10 | VP HAIP | mDoc, `direct_post.jwt` | 625 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-08-vp-haip-mdoc-direct-post-jwt.png) |
+| 10 | VP HAIP | mdoc, `direct_post.jwt` | 625 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-08-vp-haip-mdoc-direct-post-jwt.png) |
 | 11 | VP HAIP | SD-JWT, `dc_api.jwt` | 579 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-09-vp-haip-sdjwt-dc-api-jwt.png) |
-| 12 | VP HAIP | mDoc, `dc_api.jwt` | 399 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-10-vp-haip-mdoc-dc-api-jwt.png) |
+| 12 | VP HAIP | mdoc, `dc_api.jwt` | 399 success / 0 failure. Includes `ignores-unusable-encryption-key`. | [PNG](./conformance-results/2026-07-30/plan-10-vp-haip-mdoc-dc-api-jwt.png) |
 | 13 | VCI HAIP | SD-JWT | 3978 success / 0 failure. Batch issuance passes in immediate, deferred, and encrypted variants. | [PNG](./conformance-results/2026-07-30/plan-11-vci-haip-sdjwt.png) |
-| 14 | VCI HAIP | mDoc | 4244 success / 1 failure. Batch issuance `SKIPPED` in all three variants in this run (the `jwt.keyattest` configuration, see below). The 1 failure is the retried-submission artifact described above. The module finished `PASSED`. | [PNG](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png) |
+| 14 | VCI HAIP | mdoc | 4244 success / 1 failure. Batch issuance `SKIPPED` in all three variants in this run (the `jwt.keyattest` configuration, see below). The 1 failure is the retried-submission artifact described above. The module finished `PASSED`. | [PNG](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png) |
 
 ## Passing VCI Coverage
 
-- VCI Final SD-JWT and mDoc issuer-initiated authorization code flows pass, including the batch credential issuance module in both formats.
-- VCI Final SD-JWT and mDoc pre-authorized code flows pass, including the notification endpoint and batch issuance.
-- VCI HAIP SD-JWT and mDoc pass for plain immediate issuance, deferred issuance, encrypted credential request variants, FAPI happy-path modules, and FAPI negative authorization-response modules, plus batch issuance in both formats.
+- VCI Final SD-JWT and mdoc issuer-initiated authorization code flows pass, including the batch credential issuance module in both formats.
+- VCI Final SD-JWT and mdoc pre-authorized code flows pass, including the notification endpoint and batch issuance.
+- VCI HAIP SD-JWT and mdoc pass for plain immediate issuance, deferred issuance, encrypted credential request variants, FAPI happy-path modules, and FAPI negative authorization-response modules, plus batch issuance in both formats.
 - Strict mode rejects issuer mismatch in authorization server metadata, invalid authorization-response `iss`, removed authorization-response `iss`, invalid `state`, and missing `state`.
 
 ## Debug Mode Reference Run
@@ -322,9 +322,9 @@ Suite exclusions:
 Current `no-claims-in-dcql-query` status:
 
 - VP Final SD-JWT `no-claims-in-dcql-query` passes for plans 1, 2, and 3.
-- VP Final mDoc `no-claims-in-dcql-query` passes for plan 4.
+- VP Final mdoc `no-claims-in-dcql-query` passes for plan 4.
 - VP HAIP SD-JWT `no-claims-in-dcql-query` passes for plans 9 and 11.
-- VP HAIP mDoc `no-claims-in-dcql-query` passes for plans 10 and 12.
+- VP HAIP mdoc `no-claims-in-dcql-query` passes for plans 10 and 12.
 
 ## Visual Evidence
 
@@ -352,9 +352,9 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 </details>
 
 <details>
-<summary>Plan 4: VP Final mDoc direct_post.jwt</summary>
+<summary>Plan 4: VP Final mdoc direct_post.jwt</summary>
 
-![Plan 4 VP Final mDoc direct_post.jwt](./conformance-results/2026-07-30/plan-04-vp-final-mdoc-direct-post-jwt.png)
+![Plan 4 VP Final mdoc direct_post.jwt](./conformance-results/2026-07-30/plan-04-vp-final-mdoc-direct-post-jwt.png)
 
 </details>
 
@@ -366,9 +366,9 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 </details>
 
 <details>
-<summary>Plan 6: VCI Final mDoc</summary>
+<summary>Plan 6: VCI Final mdoc</summary>
 
-![Plan 6 VCI Final mDoc](./conformance-results/2026-07-30/plan-06-vci-final-mdoc.png)
+![Plan 6 VCI Final mdoc](./conformance-results/2026-07-30/plan-06-vci-final-mdoc.png)
 
 </details>
 
@@ -380,9 +380,9 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 </details>
 
 <details>
-<summary>Plan 8: VP HAIP mDoc direct_post.jwt</summary>
+<summary>Plan 8: VP HAIP mdoc direct_post.jwt</summary>
 
-![Plan 8 VP HAIP mDoc direct_post.jwt](./conformance-results/2026-07-30/plan-08-vp-haip-mdoc-direct-post-jwt.png)
+![Plan 8 VP HAIP mdoc direct_post.jwt](./conformance-results/2026-07-30/plan-08-vp-haip-mdoc-direct-post-jwt.png)
 
 </details>
 
@@ -394,9 +394,9 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 </details>
 
 <details>
-<summary>Plan 10: VP HAIP mDoc dc_api.jwt</summary>
+<summary>Plan 10: VP HAIP mdoc dc_api.jwt</summary>
 
-![Plan 10 VP HAIP mDoc dc_api.jwt](./conformance-results/2026-07-30/plan-10-vp-haip-mdoc-dc-api-jwt.png)
+![Plan 10 VP HAIP mdoc dc_api.jwt](./conformance-results/2026-07-30/plan-10-vp-haip-mdoc-dc-api-jwt.png)
 
 </details>
 
@@ -408,9 +408,9 @@ Local OIDF `plan-detail.html` pages from the documented runs.
 </details>
 
 <details>
-<summary>Plan 12: VCI HAIP mDoc</summary>
+<summary>Plan 12: VCI HAIP mdoc</summary>
 
-![Plan 12 VCI HAIP mDoc](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png)
+![Plan 12 VCI HAIP mdoc](./conformance-results/2026-07-30/plan-12-vci-haip-mdoc.png)
 
 </details>
 

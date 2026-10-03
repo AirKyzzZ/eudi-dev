@@ -489,7 +489,7 @@
       formatBadge.textContent = format === "jwt_vc_json" ? "JWT VC" : "JWT";
       formatBadge.className = "badge jwt";
     } else if (format === "mso_mdoc") {
-      formatBadge.textContent = "mDOC";
+      formatBadge.textContent = "mdoc";
       formatBadge.className = "badge mdoc";
     } else {
       formatBadge.className = "badge hidden";
@@ -1234,7 +1234,7 @@
       return { format: "jwt", label: "JWT" };
     }
     if (looksLikeMDOC(text)) {
-      return { format: "mdoc", label: "mDOC" };
+      return { format: "mdoc", label: "mdoc" };
     }
 
     return null;

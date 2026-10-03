@@ -158,7 +158,7 @@ func PredefinedTemplates() []Template {
 		},
 		{
 			Name:        "pid-mdoc",
-			Description: "EUDI PID (mDoc, EU rulebook sample data)",
+			Description: "EUDI PID (mdoc, EU rulebook sample data)",
 			Format:      "mdoc",
 			DocType:     mock.PIDNamespace,
 			Namespace:   mock.PIDNamespace,
@@ -179,7 +179,7 @@ func PredefinedTemplates() []Template {
 		},
 		{
 			Name:        "german-pid-mdoc",
-			Description: "German PID (mDoc, EUDI PID doctype plus the German namespace)",
+			Description: "German PID (mdoc, EUDI PID doctype plus the German namespace)",
 			Format:      "mdoc",
 			DocType:     mock.PIDNamespace,
 			Namespace:   mock.PIDNamespace,

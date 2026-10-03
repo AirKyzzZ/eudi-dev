@@ -1,6 +1,6 @@
 # Issue
 
-Issue test SD-JWT, JWT, or mDOC credentials. The output is signed with an ephemeral P-256 key by default (the public JWK is printed to stderr).
+Issue test SD-JWT, JWT, or mdoc credentials. The output is signed with an ephemeral P-256 key by default (the public JWK is printed to stderr).
 
 ```bash
 eudi issue sdjwt
@@ -22,7 +22,7 @@ eudi issue jwt --claims '{"name":"Test","age":30}'
 eudi issue mdoc
 eudi issue mdoc --pid
 eudi issue mdoc --claims '{"name":"Test"}' --doc-type com.example.test
-eudi issue mdoc --pid --wallet           # Issue mDoc and import into wallet
+eudi issue mdoc --pid --wallet           # Issue mdoc and import into wallet
 ```
 
 Round-trip with decode:

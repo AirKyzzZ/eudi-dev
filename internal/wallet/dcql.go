@@ -745,7 +745,7 @@ func claimPathString(path []any) string {
 //	array wildcard: ["nationalities", null] → validates value is array, returns "nationalities"
 //	array index:    ["nationalities", 0] → validates array has enough elements, returns "nationalities"
 //
-// For mDoc: path is like ["eu.europa.ec.eudi.pid.1", "given_name"] → key "eu.europa.ec.eudi.pid.1:given_name"
+// For mdoc: path is like ["eu.europa.ec.eudi.pid.1", "given_name"] → key "eu.europa.ec.eudi.pid.1:given_name"
 func claimKeyFromPath(cred StoredCredential, path []any) string {
 	if len(path) == 0 {
 		return ""
@@ -1437,7 +1437,7 @@ func checkETSITrustList(cred StoredCredential, trustListURL string, clients ...*
 	case "mso_mdoc":
 		doc, err := mdoc.Parse(cred.Raw)
 		if err != nil {
-			log.Printf("[DCQL]   trusted_authorities: failed to parse mDoc: %v", err)
+			log.Printf("[DCQL]   trusted_authorities: failed to parse mdoc: %v", err)
 			return false
 		}
 		key, err := validate.ExtractAndValidateMDOCX5Chain(doc, tlCerts)

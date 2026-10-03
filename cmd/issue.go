@@ -76,7 +76,7 @@ var (
 
 var issueCmd = &cobra.Command{
 	Use:   "issue",
-	Short: "Generate test SD-JWT, JWT, or mDOC credentials",
+	Short: "Generate test SD-JWT, JWT, or mdoc credentials",
 	Long: "Generates a signed test credential in one of two modes.\n\n" +
 		"By default it prints a bare credential signed with an ephemeral key (or --key/--cert) to stdout and touches no wallet. " +
 		"With --wallet it issues with the managed wallet's issuer key instead and imports the credential there: into the local store, " +
@@ -101,8 +101,8 @@ var issueJWTCmd = &cobra.Command{
 
 var issueMDOCCmd = &cobra.Command{
 	Use:   "mdoc",
-	Short: "Generate a test mDOC credential",
-	Long: "Generate a signed mDOC (IssuerSigned) credential. " +
+	Short: "Generate a test mdoc credential",
+	Long: "Generate a signed mdoc (IssuerSigned) credential. " +
 		"By default it prints a bare credential signed with an ephemeral P-256 key. --wallet issues into the managed wallet instead.",
 	RunE: runIssueMDOC,
 }
@@ -359,7 +359,7 @@ func runIssueMDOC(cmd *cobra.Command, args []string) error {
 
 	result, err := mock.GenerateMDOC(cfg)
 	if err != nil {
-		return fmt.Errorf("generating mDOC: %w", err)
+		return fmt.Errorf("generating mdoc: %w", err)
 	}
 
 	fmt.Println(result)

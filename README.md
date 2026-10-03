@@ -130,7 +130,7 @@ eudi completion install
 | Command    | Purpose                                                    |
 |------------|------------------------------------------------------------|
 | `wallet`   | Stateful testing wallet with CLI-driven OID4VP/VCI flows   |
-| `issue`    | Generate test SD-JWT, JWT, or mDOC credentials for development |
+| `issue`    | Generate test SD-JWT, JWT, or mdoc credentials for development |
 | `proxy`    | Debugging reverse proxy for OID4VP/VCI wallet traffic      |
 | `serve`    | Web UI for decoding and validating credentials in the browser |
 | `decode`   | Detect and inspect credentials, OpenID4VCI/VP requests, and trust lists. Verifies issuer metadata when resolvable |
@@ -191,7 +191,7 @@ Use `/api/trustlists` to list trust list profiles. Each entry has a relative `pa
 
 ### Issue
 
-Generate test SD-JWT, JWT, or mDOC credentials for development and testing.
+Generate test SD-JWT, JWT, or mdoc credentials for development and testing.
 
 ```bash
 eudi issue sdjwt --pid
@@ -247,7 +247,7 @@ The UI opens at `http://localhost:8080` by default. Paste a credential to decode
 
 ### Decode
 
-Auto-detect and decode credentials (SD-JWT, JWT VC, mDOC), OpenID4VCI/VP requests, and ETSI trust lists.
+Auto-detect and decode credentials (SD-JWT, JWT VC, mdoc), OpenID4VCI/VP requests, and ETSI trust lists.
 
 ```bash
 eudi decode credential.txt
@@ -308,13 +308,13 @@ eudi dcql credential.txt
 |--------|-------------|
 | **SD-JWT** (`dc+sd-jwt`) | Header/payload, disclosures, `_sd` resolution, key binding JWT. Signature: ES256/384/512, RS256/384/512, PS256/384/512 |
 | **JWT VC** (`jwt_vc_json`) | Plain JWT Verifiable Credentials (W3C JWT VC format), presented without changes |
-| **mDOC** (`mso_mdoc`) | CBOR IssuerSigned & DeviceResponse (hex/base64url), COSE_Sign1 issuerAuth, MSO |
+| **mdoc** (`mso_mdoc`) | CBOR IssuerSigned & DeviceResponse (hex/base64url), COSE_Sign1 issuerAuth, MSO |
 | **OpenID4VCI / VP** | Credential offers, authorization requests, URI schemes (`openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`, `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`) |
 | **ETSI Trust Lists** | TS 119 602 trust list JWTs with entity names, identifiers, and service types |
 
 ## Spec Compliance
 
-See [docs/spec-compliance.md](docs/spec-compliance.md) for the compliance status against OID4VP 1.0, OID4VCI 1.0, HAIP 1.0, SD-JWT (RFC 9901) and SD-JWT VC, mDoc (ISO 18013-5), ETSI trust lists, and Token Status List.
+See [docs/spec-compliance.md](docs/spec-compliance.md) for the compliance status against OID4VP 1.0, OID4VCI 1.0, HAIP 1.0, SD-JWT (RFC 9901) and SD-JWT VC, mdoc (ISO 18013-5), ETSI trust lists, and Token Status List.
 For the issuer and verifier interactions as diagrams, see [docs/diagrams/README.md](docs/diagrams/README.md).
 
 ## OpenID certification

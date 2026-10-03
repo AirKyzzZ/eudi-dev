@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Content Security Policy.** `base-uri` is now `'self'` instead of `'none'`. Pages served under a path prefix need a `<base>` tag.
+- **mdoc spelling.** The UI, CLI output, help and documentation write `mdoc` as ISO 18013-5 does, instead of `mDoc` or `mDOC`. Format identifiers such as `mso_mdoc` and API fields are unchanged.
 
 ## [2.5.1] - 2026-10-02
 

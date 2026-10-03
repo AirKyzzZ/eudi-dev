@@ -344,7 +344,7 @@ func remoteGeneratePID(c *remote.Client, claims map[string]any, vct string) erro
 	if err := c.GeneratePID(claims, vct); err != nil {
 		return err
 	}
-	fmt.Println("Generated default EUDI PID credentials (SD-JWT + mDoc)")
+	fmt.Println("Generated default EUDI PID credentials (SD-JWT + mdoc)")
 	return nil
 }
 

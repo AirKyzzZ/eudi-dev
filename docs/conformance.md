@@ -40,7 +40,7 @@ Only the two HAIP plans are part of the OIDF certification program. The suite pu
 
 The default run covers every plan variant combination the wallet supports.
 
-VP Final generates the cross product of credential format (SD-JWT, mDoc), response mode, and the supported prefix and request pairs (36 plans):
+VP Final generates the cross product of credential format (SD-JWT, mdoc), response mode, and the supported prefix and request pairs (36 plans):
 
 - `direct_post` and `direct_post.jwt` with `redirect_uri` (`url_query` and unsigned `request_uri`), `x509_hash` (signed), and `x509_san_dns` (signed)
 - `dc_api` and `dc_api.jwt` with `web-origin` (unsigned), `x509_hash` and `x509_san_dns` (signed and multisigned)
@@ -49,8 +49,8 @@ VCI Final runs 32 plans covering both credential formats, both grants, both offe
 
 The HAIP plans expose fewer selectable variants (the module entries fix the rest):
 
-- VP HAIP: SD-JWT and mDoc with `direct_post.jwt` and `dc_api.jwt`, the latter covering unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules (4 plans)
-- VCI HAIP: SD-JWT and mDoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
+- VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt`, the latter covering unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules (4 plans)
+- VCI HAIP: SD-JWT and mdoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
 
 The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover issuance initiated by the wallet. The Final issuance matrix uses flows initiated by the issuer.
 

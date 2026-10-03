@@ -207,10 +207,10 @@ func TestEvaluateDCQL_NoClaims_DebugSelectsNoMDocElements(t *testing.T) {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
 	if len(matches[0].SelectedKeys) != 0 {
-		t.Fatalf("expected no selected mDoc elements in debug mode, got %v", matches[0].SelectedKeys)
+		t.Fatalf("expected no selected mdoc elements in debug mode, got %v", matches[0].SelectedKeys)
 	}
 	if len(matches[0].Claims) != 0 {
-		t.Fatalf("expected no disclosed mDoc elements in debug mode, got %v", matches[0].Claims)
+		t.Fatalf("expected no disclosed mdoc elements in debug mode, got %v", matches[0].Claims)
 	}
 }
 
@@ -263,10 +263,10 @@ func TestEvaluateDCQL_NoClaims_StrictSelectsNoMDocElements(t *testing.T) {
 		t.Fatalf("expected 1 match, got %d", len(matches))
 	}
 	if len(matches[0].SelectedKeys) != 0 {
-		t.Fatalf("expected no selected mDoc elements in strict mode, got %v", matches[0].SelectedKeys)
+		t.Fatalf("expected no selected mdoc elements in strict mode, got %v", matches[0].SelectedKeys)
 	}
 	if len(matches[0].Claims) != 0 {
-		t.Fatalf("expected no disclosed mDoc elements in strict mode, got %v", matches[0].Claims)
+		t.Fatalf("expected no disclosed mdoc elements in strict mode, got %v", matches[0].Claims)
 	}
 }
 
@@ -442,7 +442,7 @@ func TestEvaluateDCQL_DefaultPIDMatchesVerifierQueries(t *testing.T) {
 		switch match.QueryID {
 		case "cred1":
 			if _, ok := match.Claims["eu.europa.ec.eudi.pid.1:place_of_birth"]; !ok {
-				t.Error("expected mDoc match to include place_of_birth")
+				t.Error("expected mdoc match to include place_of_birth")
 			}
 		case "cred2":
 			if _, ok := match.Claims["place_of_birth.locality"]; !ok {

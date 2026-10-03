@@ -42,7 +42,7 @@ func TestDetect_MDOC(t *testing.T) {
 	hexMDOC := "a26a6e616d65537061636573a0"
 	got := Detect(hexMDOC)
 	if got != FormatMDOC {
-		t.Errorf("Detect(hex mDOC) = %q, want %q", got, FormatMDOC)
+		t.Errorf("Detect(hex mdoc) = %q, want %q", got, FormatMDOC)
 	}
 }
 

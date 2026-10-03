@@ -39,7 +39,7 @@ By default only OID4VP/VCI traffic is shown. Other requests (favicon, health che
 
 ## Features
 
-- **Decoding**: payloads are decoded inline (SD-JWT, JWT, mDOC, DCQL queries, JWE headers)
+- **Decoding**: payloads are decoded inline (SD-JWT, JWT, mdoc, DCQL queries, JWE headers)
 - **Credential decode hints**: detected credentials are printed as `eudi decode` commands
 - **JARM/JWE decryption**: a `direct_post.jwt` response from the built-in wallet is decrypted (see [JWE Decryption](#jwe-decryption))
 - **Flow correlation**: related protocol steps are grouped by shared `state`/`nonce` values

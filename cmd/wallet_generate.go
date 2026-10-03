@@ -36,7 +36,7 @@ func walletGeneratePIDCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "generate-pid",
-		Short: "Generate default EUDI PID credentials (SD-JWT + mDoc) (deprecated)",
+		Short: "Generate default EUDI PID credentials (SD-JWT + mdoc) (deprecated)",
 		Long: "Deprecated: generate-pid will be removed in a future release. Issue from the pre-defined PID credential templates instead. " +
 			"If PID credentials of the same type already exist, they are replaced. Use --claims to override specific claim values.\n\n" +
 			"--vct selects the PID type and with it the claim set: " + mock.DefaultPIDVCT + " is the country-independent EUDI PID, " +
@@ -129,7 +129,7 @@ func walletGeneratePIDCmd() *cobra.Command {
 				return fmt.Errorf("saving wallet: %w", err)
 			}
 
-			fmt.Println("Generated default EUDI PID credentials (SD-JWT + mDoc)")
+			fmt.Println("Generated default EUDI PID credentials (SD-JWT + mdoc)")
 			warnIssuedEndpointsOffline(store, w)
 			return nil
 		},

@@ -170,7 +170,7 @@ func TestResolveIssueClaims_PIDWhenFlagged_MDOC(t *testing.T) {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
 	if len(claims) != len(mock.MDOCPIDClaims) {
-		t.Errorf("expected %d mDoc PID claims, got %d", len(mock.MDOCPIDClaims), len(claims))
+		t.Errorf("expected %d mdoc PID claims, got %d", len(mock.MDOCPIDClaims), len(claims))
 	}
 	for name := range claims {
 		if strings.Contains(name, ":") {
@@ -193,7 +193,7 @@ func TestResolveIssueClaims_PIDWhenFlagged_GermanMDOC(t *testing.T) {
 		t.Fatalf("resolveIssueClaimsForFormat: %v", err)
 	}
 	if len(claims) != len(mock.MDOCGermanPIDClaims) {
-		t.Errorf("expected %d German mDoc PID claims, got %d", len(mock.MDOCGermanPIDClaims), len(claims))
+		t.Errorf("expected %d German mdoc PID claims, got %d", len(mock.MDOCGermanPIDClaims), len(claims))
 	}
 	if _, ok := claims[credtype.GermanPIDNamespace+":birth_name"]; !ok {
 		t.Errorf("the German mdoc PID claim set is missing %s:birth_name", credtype.GermanPIDNamespace)
@@ -980,7 +980,7 @@ func TestPIDClaims_TypesAreCorrect(t *testing.T) {
 	}
 	for _, p := range pairs {
 		if p.sdjwt[p.sdjwtKey] != p.mdoc[p.mdocKey] {
-			t.Errorf("%s differs between the SD-JWT and mDoc PID: %v vs %v", p.label, p.sdjwt[p.sdjwtKey], p.mdoc[p.mdocKey])
+			t.Errorf("%s differs between the SD-JWT and mdoc PID: %v vs %v", p.label, p.sdjwt[p.sdjwtKey], p.mdoc[p.mdocKey])
 		}
 	}
 

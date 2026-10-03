@@ -86,7 +86,7 @@ sequenceDiagram
 | `response_mode=fragment` | Wallet builds a redirect URL using `redirect_uri`. |
 | `--auto-accept` | Skips the consent UI and submits one credential per credential query (the most recently issued one that matches it). |
 | `--preferred-format ...` | `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Prefers that format when more than one stored credential satisfies the same query. |
-| `--session-transcript ...` | `oid4vp` or `iso`. Selects how the mDoc session transcript is built. |
+| `--session-transcript ...` | `oid4vp` or `iso`. Selects how the mdoc session transcript is built. |
 
 ## `request_uri_method=post` and Encrypted Request Objects
 

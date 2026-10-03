@@ -53,7 +53,7 @@ func (w *Wallet) createMDocPresentation(cred StoredCredential, selectedKeys []st
 
 	rawBytes, err := format.DecodeHexOrBase64URL(cred.Raw)
 	if err != nil {
-		return VPTokenResult{}, fmt.Errorf("decoding mDoc: %w", err)
+		return VPTokenResult{}, fmt.Errorf("decoding mdoc: %w", err)
 	}
 
 	var issuerSigned map[string]cbor.RawMessage

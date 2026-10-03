@@ -659,11 +659,11 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	if !keptMDoc {
 		mdocResult, err := mock.GenerateMDOC(mdocConfig)
 		if err != nil {
-			return fmt.Errorf("generating mDoc PID: %w", err)
+			return fmt.Errorf("generating mdoc PID: %w", err)
 		}
 		mdocCred, err := w.ImportCredential(mdocResult)
 		if err != nil {
-			return fmt.Errorf("importing mDoc PID: %w", err)
+			return fmt.Errorf("importing mdoc PID: %w", err)
 		}
 		w.rememberDisplay(mdocCred, w.templateDisplay(mdocTpl.Display))
 

@@ -37,7 +37,7 @@ type PresentationParams struct {
 	RedirectURI    string // used for fragment response mode
 	ResponseMode   string // e.g. "direct_post.jwt", "direct_post", "fragment"
 	ClientMetadata map[string]any
-	RequestObject  *oid4vc.RequestObjectJWT // optional, used to extract JWK thumbprint for mDoc
+	RequestObject  *oid4vc.RequestObjectJWT // optional, used to extract JWK thumbprint for mdoc
 	// InteractiveAuthorizationEndpoint is the Authorization Challenge Endpoint
 	// the presentation is bound to (OpenID4VCI 1.1 §6.2.1.1). Empty for every
 	// other flow, and always the endpoint the wallet called rather than a
@@ -54,7 +54,7 @@ func isInteractiveAuthorizationResponseMode(mode string) bool {
 
 type VPTokenResult struct {
 	Token     string
-	MDocNonce string // only set for ISO mode mDoc
+	MDocNonce string // only set for ISO mode mdoc
 }
 
 func (w *Wallet) CreateVPToken(match CredentialMatch, params PresentationParams) (VPTokenResult, error) {
@@ -126,7 +126,7 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 		if err != nil {
 			return VPTokenResult{}, err
 		}
-		log.Printf("[VP] mDoc presentation created: docType=%s transcript=%s", cred.DocType, w.SessionTranscript)
+		log.Printf("[VP] mdoc presentation created: docType=%s transcript=%s", cred.DocType, w.SessionTranscript)
 		return result, nil
 	default:
 		return VPTokenResult{}, fmt.Errorf("unsupported credential format: %s", cred.Format)
@@ -275,7 +275,7 @@ func signJWT(header, payload map[string]any, key *ecdsa.PrivateKey) (string, err
 
 type VPTokenMapResult struct {
 	TokenMap  map[string]string
-	MDocNonce string // set if any mDoc credential produced a nonce (ISO mode)
+	MDocNonce string // set if any mdoc credential produced a nonce (ISO mode)
 }
 
 func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params PresentationParams) (*VPTokenMapResult, error) {

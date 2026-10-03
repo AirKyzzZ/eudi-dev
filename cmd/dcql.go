@@ -29,7 +29,7 @@ import (
 var dcqlCmd = &cobra.Command{
 	Use:   "dcql [input]",
 	Short: "Generate a DCQL query from a credential's claims",
-	Long:  "Generates a DCQL (Digital Credentials Query Language) query based on the claims found in an SD-JWT or mDOC credential.",
+	Long:  "Generates a DCQL (Digital Credentials Query Language) query based on the claims found in an SD-JWT or mdoc credential.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runDCQL,
 }
@@ -71,7 +71,7 @@ func runDCQL(cmd *cobra.Command, args []string) error {
 	case format.FormatMDOC:
 		doc, err := mdoc.Parse(raw)
 		if err != nil {
-			return fmt.Errorf("parsing mDOC: %w", err)
+			return fmt.Errorf("parsing mdoc: %w", err)
 		}
 		query = dcql.FromMDOC(doc)
 

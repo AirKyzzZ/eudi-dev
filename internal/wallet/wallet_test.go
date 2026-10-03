@@ -97,14 +97,14 @@ func TestGenerateDefaultCredentials(t *testing.T) {
 		t.Errorf("expected DocType eu.europa.ec.eudi.pid.1, got %s", creds[1].DocType)
 	}
 	if len(creds[1].Claims) == 0 {
-		t.Error("expected mDoc to have claims")
+		t.Error("expected mdoc to have claims")
 	}
 	birthPlace, ok := creds[1].Claims["eu.europa.ec.eudi.pid.1:place_of_birth"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected mDoc place_of_birth map, got %T", creds[1].Claims["eu.europa.ec.eudi.pid.1:place_of_birth"])
+		t.Fatalf("expected mdoc place_of_birth map, got %T", creds[1].Claims["eu.europa.ec.eudi.pid.1:place_of_birth"])
 	}
 	if birthPlace["locality"] != "Amsterdam" {
-		t.Errorf("expected mDoc place_of_birth.locality Amsterdam, got %v", birthPlace["locality"])
+		t.Errorf("expected mdoc place_of_birth.locality Amsterdam, got %v", birthPlace["locality"])
 	}
 }
 
@@ -266,11 +266,11 @@ func TestImportMDoc(t *testing.T) {
 		Key:       key,
 	})
 	if err != nil {
-		t.Fatalf("generating mDoc: %v", err)
+		t.Fatalf("generating mdoc: %v", err)
 	}
 
 	if _, err := w.ImportCredential(mdocRaw); err != nil {
-		t.Fatalf("importing mDoc: %v", err)
+		t.Fatalf("importing mdoc: %v", err)
 	}
 
 	creds := w.GetCredentials()
@@ -567,7 +567,7 @@ func TestRehydrate_MDoc(t *testing.T) {
 		Key:       key,
 	})
 	if err != nil {
-		t.Fatalf("generating mDoc: %v", err)
+		t.Fatalf("generating mdoc: %v", err)
 	}
 
 	cred := StoredCredential{

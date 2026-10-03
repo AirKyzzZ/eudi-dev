@@ -186,7 +186,7 @@ func TestScanVPTokenJSON(t *testing.T) {
 		t.Fatalf("expected 1 credential, got %d", len(creds))
 	}
 	if creds[0].Raw != mdocData {
-		t.Errorf("expected mDoc data, got %q", creds[0].Raw)
+		t.Errorf("expected mdoc data, got %q", creds[0].Raw)
 	}
 	if creds[0].Label != "vp_token.cred2[0]" {
 		t.Errorf("expected label vp_token.cred2[0], got %q", creds[0].Label)

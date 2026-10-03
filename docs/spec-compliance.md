@@ -149,7 +149,7 @@ Selective disclosure is RFC 9901. The credential profile on top of it is `draft-
 | Type Metadata `extends` | Not implemented | The relationship is resolved from PID_14 for PID types and from `aka_vcts` for any type. EUDI PID `vct` values are URNs, which §4.4 does not cover, and the ARF only asks a Scheme Provider to "consider defining" a Type Metadata Document (Annex 2 v3.0.0, ARB_31) |
 | JWT VC Issuer Metadata key resolution | Implemented | `/.well-known/jwt-vc-issuer` is inserted between the host and the path of `iss` (SD-JWT VC §3), so a tenant-scoped issuer resolves. The document must contain `issuer` identical to `iss` and either `jwks` or `jwks_uri`, never both (§3.2 and §3.3) |
 
-## mDOC / ISO 18013-5
+## mdoc / ISO 18013-5
 
 | Feature | Status | Notes |
 |---------|--------|-------|

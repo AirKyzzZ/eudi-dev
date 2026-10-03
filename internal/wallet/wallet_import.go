@@ -125,7 +125,7 @@ func (w *Wallet) importDetectedFormat(raw, group, bindingKeyPEM string) (*Stored
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("[Wallet] Imported mDoc credential: docType=%s claims=%d", cred.DocType, len(cred.Claims))
+		log.Printf("[Wallet] Imported mdoc credential: docType=%s claims=%d", cred.DocType, len(cred.Claims))
 		return cred, nil
 	}
 
@@ -138,7 +138,7 @@ func (w *Wallet) importDetectedFormat(raw, group, bindingKeyPEM string) (*Stored
 		return cred, nil
 	}
 
-	return nil, fmt.Errorf("unable to detect credential format (expected SD-JWT or mDoc)")
+	return nil, fmt.Errorf("unable to detect credential format (expected SD-JWT or mdoc)")
 }
 
 // Adopt imported status entries that reference this wallet's own list. The demo issuer
@@ -291,7 +291,7 @@ func jwtVCType(payload map[string]any) string {
 func (w *Wallet) importMDoc(raw, group, bindingKeyPEM string) (*StoredCredential, error) {
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("parsing mDoc: %w", err)
+		return nil, fmt.Errorf("parsing mdoc: %w", err)
 	}
 	// Strict mode rejects credentials that required dropping invalid content. Debug
 	// mode keeps them.
@@ -366,7 +366,7 @@ func (c *StoredCredential) Rehydrate() error {
 	case "mso_mdoc":
 		doc, err := mdoc.Parse(c.Raw)
 		if err != nil {
-			return fmt.Errorf("parsing mDoc: %w", err)
+			return fmt.Errorf("parsing mdoc: %w", err)
 		}
 		c.NameSpaces = doc.NameSpaces
 		c.issuedAt = mdocSignedAt(doc)

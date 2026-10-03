@@ -34,6 +34,6 @@ func Decode(input string) (map[string]any, error) {
 		return Validate(input, ValidateOpts{})
 
 	default:
-		return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mDOC)")
+		return nil, fmt.Errorf("unable to auto-detect credential format (not JWT, SD-JWT, or mdoc)")
 	}
 }

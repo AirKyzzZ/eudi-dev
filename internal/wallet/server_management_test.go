@@ -301,7 +301,7 @@ func TestGeneratePIDAPI(t *testing.T) {
 		}
 	}
 	if !formats["dc+sd-jwt"] || !formats["mso_mdoc"] {
-		t.Errorf("expected SD-JWT and mDoc PID credentials, got %v", formats)
+		t.Errorf("expected SD-JWT and mdoc PID credentials, got %v", formats)
 	}
 }
 

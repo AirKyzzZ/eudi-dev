@@ -550,7 +550,7 @@ func TestCreateVPToken_MDoc(t *testing.T) {
 		}
 	}
 	if mdocCred.ID == "" {
-		t.Fatal("no mDoc credential found")
+		t.Fatal("no mdoc credential found")
 	}
 
 	var selectedKeys []string
@@ -593,7 +593,7 @@ func TestCreateVPToken_MDocUsesTaggedDeviceNamespaces(t *testing.T) {
 		}
 	}
 	if mdocCred.ID == "" {
-		t.Fatal("no mDoc credential found")
+		t.Fatal("no mdoc credential found")
 	}
 
 	match := CredentialMatch{

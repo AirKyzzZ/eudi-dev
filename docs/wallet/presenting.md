@@ -36,7 +36,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--tls-ca` | None | Add PEM CA certificates to the system TLS trust store |
 | `--http-proxy`, `--https-proxy`, `--no-proxy` | Environment | Forward proxy settings. See [outbound proxy](serve.md#outbound-proxy) |
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
-| `--session-transcript`  | `oid4vp` | mDoc session transcript mode: `oid4vp` or `iso`  |
+| `--session-transcript`  | `oid4vp` | mdoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
 | `--docker`              | `false`  | Serve the trust and status lists under `host.docker.internal` so a verifier in a container can reach them |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. A running wallet uses its own setting. See [key attestation claims](serve.md#key-attestation-claims) |
@@ -58,7 +58,7 @@ Scans a QR code from an image file or screen capture and detects the content:
 
 - `openid4vp://`, `haip-vp://`, `eudi-openid4vp://`: delegates to `accept` (OID4VP presentation)
 - `openid-credential-offer://`, `haip-vci://`, `eu-eaa-offer://`: delegates to `accept` (OID4VCI issuance)
-- SD-JWT / mDoc raw credential: delegates to `import`
+- SD-JWT / mdoc raw credential: delegates to `import`
 
 ```bash
 eudi wallet scan qr-image.png

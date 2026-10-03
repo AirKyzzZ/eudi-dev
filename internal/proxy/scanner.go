@@ -242,7 +242,7 @@ func (s *OutputScanner) scanVPTokenJSON(line string) {
 
 // extractNonJWTCredentials extracts long base64/base64url strings from a JSON
 // object that don't look like JWTs (don't start with "eyJ"). These are typically
-// mDoc CBOR credentials in DCQL VP token format.
+// mdoc CBOR credentials in DCQL VP token format.
 func (s *OutputScanner) extractNonJWTCredentials(obj map[string]any, prefix string) {
 	for key, val := range obj {
 		label := prefix + "." + key
