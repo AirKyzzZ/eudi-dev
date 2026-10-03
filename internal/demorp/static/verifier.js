@@ -233,7 +233,15 @@ function addCredential(seed) {
   removeCred.textContent = "×";
   removeCred.setAttribute("aria-label", "Remove credential");
   removeCred.addEventListener("click", () => cred.remove());
-  head.append(toggle, typeInput, removeCred);
+  // OpenID4VP 1.0 §6.1 multiple: the wallet may answer with several credentials.
+  const multipleLabel = document.createElement("label");
+  multipleLabel.className = "multiple-option";
+  const multiple = document.createElement("input");
+  multiple.type = "checkbox";
+  multiple.className = "multiple-input";
+  multiple.checked = !!seed?.multiple;
+  multipleLabel.append(multiple, " multiple");
+  head.append(toggle, typeInput, multipleLabel, removeCred);
 
   const claimsLabel = document.createElement("div");
   claimsLabel.className = "claims-label";
@@ -265,6 +273,7 @@ function customRequestBody() {
       if (path.length) claims.push(path);
     }
     const entry = { format, claims };
+    if (cred.querySelector(".multiple-input").checked) entry.multiple = true;
     if (format === "mso_mdoc") entry.doctype = type;
     else entry.vct = type;
     credentials.push(entry);

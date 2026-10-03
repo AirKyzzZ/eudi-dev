@@ -132,11 +132,11 @@ func TestISOResponseSignsEveryMDocOverTheReportedNonce(t *testing.T) {
 	}
 
 	for _, m := range matches {
-		token, ok := result.TokenMap[m.QueryID]
-		if !ok {
-			t.Fatalf("query %s has no presentation", m.QueryID)
+		tokens := result.TokenMap[m.QueryID]
+		if len(tokens) != 1 {
+			t.Fatalf("query %s has %d presentations, want 1", m.QueryID, len(tokens))
 		}
-		doc, err := mdoc.Parse(token)
+		doc, err := mdoc.Parse(tokens[0])
 		if err != nil {
 			t.Fatalf("query %s: parsing the DeviceResponse: %v", m.QueryID, err)
 		}

@@ -47,7 +47,7 @@ func TestApplyConsentSelection(t *testing.T) {
 	t.Run("a pick swaps the credential of its query", func(t *testing.T) {
 		got := ApplyConsentSelection(options, matches, ConsentResult{
 			Approved: true,
-			Picks:    map[string]string{"pid_sdjwt": alternate.CredentialID},
+			Picks:    map[string][]string{"pid_sdjwt": {alternate.CredentialID}},
 		})
 		if len(got) != 1 || got[0].CredentialID != alternate.CredentialID {
 			t.Fatalf("got %+v, want the picked credential", got)
@@ -67,7 +67,7 @@ func TestApplyConsentSelection(t *testing.T) {
 	t.Run("an unknown pick falls back to the wallet's choice", func(t *testing.T) {
 		got := ApplyConsentSelection(options, matches, ConsentResult{
 			Approved: true,
-			Picks:    map[string]string{"pid_sdjwt": "not-a-candidate"},
+			Picks:    map[string][]string{"pid_sdjwt": {"not-a-candidate"}},
 		})
 		if len(got) != 1 || got[0].CredentialID != matches[0].CredentialID {
 			t.Errorf("got %+v, want the auto selection", got)
@@ -93,19 +93,22 @@ func TestApplyConsentSelection(t *testing.T) {
 func TestValidateConsentSelection(t *testing.T) {
 	w := pidBaselineWallet(t)
 	_, options := w.EvaluateDCQLWithOptions(setsQuery())
+	first := options.Queries[0].Candidates[0].CredentialID
 	valid := options.Queries[0].Candidates[1].CredentialID
 
 	cases := []struct {
 		name       string
-		picks      map[string]string
+		picks      map[string][]string
 		setChoices []int
 		wantErr    string
 	}{
 		{name: "empty selection"},
-		{name: "valid pick", picks: map[string]string{"pid_sdjwt": valid}},
+		{name: "valid pick", picks: map[string][]string{"pid_sdjwt": {valid}}},
 		{name: "valid set choice", setChoices: []int{1}},
-		{name: "unknown query", picks: map[string]string{"nope": valid}, wantErr: "unknown credential query"},
-		{name: "foreign credential", picks: map[string]string{"pid_sdjwt": "someone-else"}, wantErr: "does not match query"},
+		{name: "unknown query", picks: map[string][]string{"nope": {valid}}, wantErr: "unknown credential query"},
+		{name: "foreign credential", picks: map[string][]string{"pid_sdjwt": {"someone-else"}}, wantErr: "does not match query"},
+		{name: "empty pick", picks: map[string][]string{"pid_sdjwt": {}}, wantErr: "needs at least one credential"},
+		{name: "two credentials without multiple", picks: map[string][]string{"pid_sdjwt": {first, valid}}, wantErr: "does not set multiple"},
 		{name: "option out of range", setChoices: []int{7}, wantErr: "has no option"},
 		{name: "skipping a required set", setChoices: []int{-1}, wantErr: "cannot be skipped"},
 		{name: "more choices than sets", setChoices: []int{0, 0}, wantErr: "set choices for"},
@@ -126,7 +129,7 @@ func TestValidateConsentSelection(t *testing.T) {
 	}
 
 	t.Run("overrides without options are refused", func(t *testing.T) {
-		if err := ValidateConsentSelection(nil, map[string]string{"pid": "x"}, nil); err == nil {
+		if err := ValidateConsentSelection(nil, map[string][]string{"pid": {"x"}}, nil); err == nil {
 			t.Fatal("expected an error")
 		}
 	})

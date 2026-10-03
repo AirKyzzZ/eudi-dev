@@ -1945,10 +1945,15 @@
       (req.credential_options.queries || []).length > 0 ? req.credential_options : null;
     const selection = { editing: false, setChoices: [], picks: {}, claims: {} };
     let submitting = false;
+    // A query that sets multiple presents every candidate unless the user withholds
+    // some. Any other query presents its first candidate.
+    function defaultPicks(q) {
+      return q.multiple ? q.candidates.map(c => c.credential_id) : [q.candidates[0].credential_id];
+    }
     if (options) {
       selection.setChoices = (options.sets || []).map(() => 0);
       options.queries.forEach(q => {
-        selection.picks[q.id] = q.candidates[0].credential_id;
+        selection.picks[q.id] = defaultPicks(q);
         q.candidates.forEach(c => {
           // A credential used for two queries shares one merged disclosure selection.
           const kept = selection.claims[c.credential_id] || [];
@@ -1971,9 +1976,11 @@
       });
       return ids;
     }
-    function activeCandidate(qid) {
+    // Picked candidates in candidate order.
+    function activeCandidates(qid) {
       const q = queryById(qid);
-      return q.candidates.find(c => c.credential_id === selection.picks[qid]) || q.candidates[0];
+      const picked = q.candidates.filter(c => selection.picks[qid].includes(c.credential_id));
+      return picked.length > 0 ? picked : [q.candidates[0]];
     }
     function hasAlternatives() {
       if (!options) return false;
@@ -1988,7 +1995,11 @@
     }
     function isAutoSelection() {
       return selection.setChoices.every(c => c === 0) &&
-        options.queries.every(q => selection.picks[q.id] === q.candidates[0].credential_id);
+        options.queries.every(q => {
+          const auto = defaultPicks(q);
+          const picks = selection.picks[q.id];
+          return picks.length === auto.length && auto.every(id => picks.includes(id));
+        });
     }
     // Load full credentials when Edit opens. Show the request summary while they load.
     let loadingCandidates = false;
@@ -2158,22 +2169,26 @@
 
       activeQueryIds().forEach(qid => {
         const q = queryById(qid);
-        html += '<div class="consent-credential" id="consent-query-' + escHtml(qid) + '" data-query-id="' + escHtml(qid) + '" role="radiogroup" aria-label="Credential answering ' + escHtml(qid) + '">' +
+        // A query that sets multiple accepts any number of its candidates, at least one.
+        const multi = !!q.multiple;
+        html += '<div class="consent-credential" id="consent-query-' + escHtml(qid) + '" data-query-id="' + escHtml(qid) + '"' +
+          (multi ? ' data-multiple="true" role="group" aria-label="Credentials answering ' : ' role="radiogroup" aria-label="Credential answering ') + escHtml(qid) + '">' +
           '<div class="consent-credential-header">' +
             '<span class="query-id-label">' + escHtml(qid) + '</span>' +
             '<span class="candidate-count">' + q.candidates.length +
-              (q.candidates.length === 1 ? ' credential matches' : ' of your credentials match') + '</span>' +
+              (q.candidates.length === 1 ? ' credential matches' : ' of your credentials match') +
+              (multi ? ' · send one or more' : '') + '</span>' +
           '</div>';
         q.candidates.forEach((c, i) => {
-          const picked = selection.picks[qid] === c.credential_id;
+          const picked = selection.picks[qid].includes(c.credential_id);
           // Full credential details are needed to show claims beyond those requested.
           const detail = candidateDetails.get(c.credential_id);
           const body = credentialCardBody(detail || {
             id: c.credential_id, format: c.format, vct: c.vct, doctype: c.doctype, claims: c.claims,
           }, 'candidate-');
-          html += '<div class="candidate' + (picked ? ' selected' : '') + '" id="consent-candidate-' + escHtml(qid) + '-' + c.credential_id + '" data-query="' + escHtml(qid) + '" data-cred="' + c.credential_id + '" tabindex="0" role="radio" aria-checked="' + picked + '" aria-label="' + escHtml(c.vct || c.doctype || c.format) + '">' +
+          html += '<div class="candidate' + (picked ? ' selected' : '') + '" id="consent-candidate-' + escHtml(qid) + '-' + c.credential_id + '" data-query="' + escHtml(qid) + '" data-cred="' + c.credential_id + '" tabindex="0" role="' + (multi ? 'checkbox' : 'radio') + '" aria-checked="' + picked + '" aria-label="' + escHtml(c.vct || c.doctype || c.format) + '">' +
             '<div class="candidate-row">' +
-              '<input type="radio" name="consent-pick-' + escHtml(qid) + '"' + (picked ? ' checked' : '') + ' tabindex="-1" aria-hidden="true">' +
+              '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="consent-pick-' + escHtml(qid) + '"' + (picked ? ' checked' : '') + ' tabindex="-1" aria-hidden="true">' +
               '<div class="credential-card' + (detail && detail.batch ? ' batch' : '') + '">' + body.html + '</div>' +
               '<div class="candidate-actions">' +
                 (i === 0 ? '<span class="auto-chip">auto</span>' : '') +
@@ -2211,7 +2226,7 @@
       const reset = document.getElementById('consent-selection-reset');
       if (reset) reset.addEventListener('click', () => {
         selection.setChoices = (options.sets || []).map(() => 0);
-        options.queries.forEach(q => { selection.picks[q.id] = q.candidates[0].credential_id; });
+        options.queries.forEach(q => { selection.picks[q.id] = defaultPicks(q); });
         renderDialog();
       });
       consentDialog.querySelectorAll('.consent-sets input[type="radio"]').forEach(radio => {
@@ -2223,8 +2238,16 @@
       });
       consentDialog.querySelectorAll('.candidate').forEach(el => {
         const choose = () => {
-          if (selection.picks[el.dataset.query] !== el.dataset.cred) {
-            selection.picks[el.dataset.query] = el.dataset.cred;
+          const qid = el.dataset.query;
+          const picks = selection.picks[qid];
+          if (queryById(qid).multiple) {
+            const idx = picks.indexOf(el.dataset.cred);
+            // A presentation answers the query with at least one credential.
+            if (idx >= 0 && picks.length === 1) return;
+            if (idx >= 0) picks.splice(idx, 1); else picks.push(el.dataset.cred);
+            renderDialog();
+          } else if (picks[0] !== el.dataset.cred) {
+            selection.picks[qid] = [el.dataset.cred];
             renderDialog();
           }
         };
@@ -2285,7 +2308,7 @@
             : 'Your selection (auto-choice changed)') +
           '<button class="btn" id="consent-edit-selection">Edit</button></div>';
       }
-      activeQueryIds().forEach(qid => { html += credentialCardHtml(activeCandidate(qid)); });
+      activeQueryIds().forEach(qid => { activeCandidates(qid).forEach(c => { html += credentialCardHtml(c); }); });
     } else if (!isIssuance && req.matched_credentials && req.matched_credentials.length > 0) {
       req.matched_credentials.forEach(mc => { html += credentialCardHtml(mc); });
     }
@@ -2318,8 +2341,9 @@
       const selected = {};
       if (options) {
         activeQueryIds().forEach(qid => {
-          const c = activeCandidate(qid);
-          selected[c.credential_id] = selection.claims[c.credential_id].slice();
+          activeCandidates(qid).forEach(c => {
+            selected[c.credential_id] = selection.claims[c.credential_id].slice();
+          });
         });
       } else {
         consentDialog.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -2348,7 +2372,10 @@
           : { selected_claims: selected };
         if (options) {
           approveBody.picks = {};
-          activeQueryIds().forEach(qid => { approveBody.picks[qid] = selection.picks[qid]; });
+          activeQueryIds().forEach(qid => {
+            const ids = activeCandidates(qid).map(c => c.credential_id);
+            approveBody.picks[qid] = queryById(qid).multiple ? ids : ids[0];
+          });
           approveBody.set_choices = selection.setChoices.slice();
         }
         const resp = await fetch(approveURL(req.id, '/approve'), {

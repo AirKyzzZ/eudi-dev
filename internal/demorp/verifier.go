@@ -181,14 +181,18 @@ type customCredentialTO struct {
 	VCT     string  `json:"vct"`     // the type for dc+sd-jwt
 	DocType string  `json:"doctype"` // the doctype for mso_mdoc
 	Claims  [][]any `json:"claims"`  // each a DCQL claims path (strings, null, integers)
+	// Multiple lets the wallet answer the query with several credentials
+	// (OpenID4VP 1.0 §6.1).
+	Multiple bool `json:"multiple"`
 }
 
 type customEntry struct {
-	queryID string
-	format  string
-	vct     string
-	docType string
-	want    []string
+	queryID  string
+	format   string
+	vct      string
+	docType  string
+	want     []string
+	multiple bool
 }
 
 func normalizePIDFormat(format string) (sdjwt, mdoc bool, err error) {
@@ -576,11 +580,14 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 
 		id := fmt.Sprintf("cred_%d", i)
 		q := map[string]any{"id": id, "format": format, "meta": meta}
+		if c.Multiple {
+			q["multiple"] = true
+		}
 		if len(dcqlClaims) > 0 {
 			q["claims"] = dcqlClaims
 		}
 		credentials = append(credentials, q)
-		req.custom = append(req.custom, customEntry{queryID: id, format: format, vct: c.VCT, docType: c.DocType, want: want})
+		req.custom = append(req.custom, customEntry{queryID: id, format: format, vct: c.VCT, docType: c.DocType, want: want, multiple: c.Multiple})
 	}
 
 	dcql := map[string]any{"credentials": credentials}
@@ -1080,25 +1087,42 @@ func (d *DemoRP) verifyCustomPresentation(req *requestState, tokenDoc map[string
 			d.recordPresentation(req, presentations[0])
 			recorded = true
 		}
-		if err := check(label+"vp_token holds exactly one presentation",
-			errIf(len(presentations) != 1, "expected 1 presentation, got %d", len(presentations))); err != nil {
-			d.recordPresentation(req, presentations[0])
-			return nil, log.entries, err
+		// OpenID4VP 1.0 §8.1: "When multiple is omitted, or set to false, the
+		// array MUST contain only one Presentation."
+		if !entry.multiple {
+			if err := check(label+"vp_token holds exactly one presentation",
+				errIf(len(presentations) != 1, "expected 1 presentation, got %d", len(presentations))); err != nil {
+				d.recordPresentation(req, presentations[0])
+				return nil, log.entries, err
+			}
 		}
-		var claims map[string]any
-		var err error
-		if entry.format == "mso_mdoc" {
-			req.docType, req.wantMDOC = entry.docType, entry.want
-			claims, _, err = d.verifyMDOCPresentation(req, presentations[0], log)
+		var answers []any
+		for i, presentation := range presentations {
+			itemLabel := label
+			if entry.multiple {
+				itemLabel = fmt.Sprintf("%s[%d]: ", entry.queryID, i)
+			}
+			var claims map[string]any
+			var err error
+			if entry.format == "mso_mdoc" {
+				req.docType, req.wantMDOC = entry.docType, entry.want
+				claims, _, err = d.verifyMDOCPresentation(req, presentation, log)
+			} else {
+				claims, err = d.verifySDJWTEntry(req, presentation, entry.vct, entry.want, itemLabel, log)
+			}
+			if err != nil {
+				// Keep failed presentations available for decoding.
+				d.recordPresentation(req, presentation)
+				return nil, log.entries, err
+			}
+			answers = append(answers, claims)
+		}
+		if entry.multiple {
+			_ = check(fmt.Sprintf("%s%d presentation(s) verified", label, len(answers)), nil)
+			result[entry.queryID] = answers
 		} else {
-			claims, err = d.verifySDJWTEntry(req, presentations[0], entry.vct, entry.want, label, log)
+			result[entry.queryID] = answers[0]
 		}
-		if err != nil {
-			// Keep failed presentations available for decoding.
-			d.recordPresentation(req, presentations[0])
-			return nil, log.entries, err
-		}
-		result[entry.queryID] = claims
 	}
 	if len(result) == 0 {
 		return nil, log.entries, check("vp_token answers a requested credential", fmt.Errorf("the response carried no presentation for any requested credential"))

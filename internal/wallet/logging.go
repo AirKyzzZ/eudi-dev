@@ -285,6 +285,8 @@ func presentedCredentialLogDetails(w *Wallet, matches []CredentialMatch, vpResul
 		return nil
 	}
 	out := make([]map[string]any, 0, len(matches))
+	// Matches of one query fill its vp_token array in order.
+	tokenIndex := map[string]int{}
 	for _, match := range matches {
 		item := map[string]any{
 			"id":        match.CredentialID,
@@ -304,7 +306,10 @@ func presentedCredentialLogDetails(w *Wallet, matches []CredentialMatch, vpResul
 			}
 		}
 		if vpResult != nil {
-			addStringDetail(item, "presentation", vpResult.TokenMap[match.QueryID])
+			if tokens, i := vpResult.TokenMap[match.QueryID], tokenIndex[match.QueryID]; i < len(tokens) {
+				addStringDetail(item, "presentation", tokens[i])
+			}
+			tokenIndex[match.QueryID]++
 		}
 		out = append(out, item)
 	}

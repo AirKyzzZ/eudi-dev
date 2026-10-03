@@ -84,7 +84,7 @@ sequenceDiagram
 | `response_mode=direct_post` | Wallet posts a form with plain `vp_token`, optional `id_token`, and `state`. |
 | `response_mode=direct_post.jwt` | Wallet requires a verifier encryption key in `client_metadata.jwks` and posts an encrypted response JWT. |
 | `response_mode=fragment` | Wallet builds a redirect URL using `redirect_uri`. |
-| `--auto-accept` | Skips the consent UI and submits one credential per credential query (the most recently issued one that matches it). |
+| `--auto-accept` | Skips the consent UI and submits one credential per credential query (the most recently issued one that matches it), or all matching ones when the query sets `multiple: true`. |
 | `--preferred-format ...` | `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json`. Prefers that format when more than one stored credential satisfies the same query. |
 | `--session-transcript ...` | `oid4vp` or `iso`. Selects how the mdoc session transcript is built. |
 

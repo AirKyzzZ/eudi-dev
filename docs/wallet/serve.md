@@ -30,7 +30,9 @@ The consent dialog for a presentation request also shows the purpose the verifie
 
 The presentation dialog starts with the wallet's automatic credential selection. If alternatives are available, **Edit** lets the user choose a credential-set option and a credential for each query. Changes apply immediately. **Done** returns to the summary, and **reset to auto** restores the automatic selection. Claim checkboxes apply to the selected credential. **Deny** and **Approve** apply to the whole presentation. Auto-accept submits the automatic selection without a dialog.
 
-API clients receive the alternatives in `credential_options`. Send `picks` (query ID to credential ID), `set_choices` (option index per set, or `-1` to skip an optional set) and `selected_claims` to `POST /api/requests/{id}/approve`. An invalid selection returns `400` and leaves the request pending.
+If the verifier sets `multiple: true` on a query, all matching credentials are selected. You can deselect them under **Edit**, but at least one stays selected.
+
+API clients receive the alternatives in `credential_options`. Send `picks` (query ID to credential ID, or to a list of credential IDs when the query has `"multiple": true`), `set_choices` (option index per set, or `-1` to skip an optional set) and `selected_claims` to `POST /api/requests/{id}/approve`. An invalid selection returns `400` and leaves the request pending.
 
 ![Consent dialog](../assets/wallet-consent-ui.png)
 

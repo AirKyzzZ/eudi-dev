@@ -583,7 +583,7 @@ func (s *Server) submitPresentation(w http.ResponseWriter, authReq *Authorizatio
 		return SubmissionResult{Error: err.Error()}
 	}
 	if prepared.VPResult != nil {
-		s.log("  VP tokens:     %d created", len(prepared.VPResult.TokenMap))
+		s.log("  VP tokens:     %d created", prepared.VPResult.PresentationCount())
 	}
 	if prepared.IDToken != "" {
 		s.log("  id_token:      created (SIOPv2)")

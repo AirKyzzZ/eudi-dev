@@ -391,15 +391,19 @@ type ConsentSetOptions struct {
 }
 
 type ConsentQueryOptions struct {
-	ID         string            `json:"id"`
+	ID string `json:"id"`
+	// With multiple, every candidate is sent by default. The user can deselect all
+	// but one.
+	Multiple   bool              `json:"multiple,omitempty"`
 	Candidates []CredentialMatch `json:"candidates"`
 }
 
 type ConsentResult struct {
 	Approved       bool
 	SelectedClaims map[string][]string
-	// A query omitted from Picks retains the wallet's default credential.
-	Picks map[string]string
+	// A query omitted from Picks retains the wallet's default credentials. Only a
+	// query that sets multiple can pick more than one.
+	Picks map[string][]string
 	// -1 skips an optional set. Missing entries retain the wallet's default option.
 	SetChoices []int
 	// Presentations requested during issuance go to the browser that approved the

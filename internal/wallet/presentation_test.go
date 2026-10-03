@@ -1154,7 +1154,7 @@ func TestSubmitPresentation_DirectPostJWT_NoEncryptionKey(t *testing.T) {
 	w := generateTestWallet(t)
 
 	vpResult := &VPTokenMapResult{
-		TokenMap: map[string]string{"q1": "dummy-token"},
+		TokenMap: map[string][]string{"q1": {"dummy-token"}},
 	}
 
 	params := PresentationParams{
@@ -1252,9 +1252,9 @@ func TestEncryptResponse_ErrorWhenJWKMissingAlg(t *testing.T) {
 
 func TestVPTokenMapResult_VPToken(t *testing.T) {
 	r := &VPTokenMapResult{
-		TokenMap: map[string]string{
-			"pid": "token1",
-			"mdl": "token2",
+		TokenMap: map[string][]string{
+			"pid": {"token1"},
+			"mdl": {"token2", "token3"},
 		},
 	}
 	vp := r.VPToken()
@@ -1264,14 +1264,17 @@ func TestVPTokenMapResult_VPToken(t *testing.T) {
 	if len(vp["pid"]) != 1 || vp["pid"][0] != "token1" {
 		t.Errorf("wrong pid token: %v", vp["pid"])
 	}
-	if len(vp["mdl"]) != 1 || vp["mdl"][0] != "token2" {
-		t.Errorf("wrong mdl token: %v", vp["mdl"])
+	if len(vp["mdl"]) != 2 || vp["mdl"][0] != "token2" || vp["mdl"][1] != "token3" {
+		t.Errorf("wrong mdl tokens: %v", vp["mdl"])
+	}
+	if n := r.PresentationCount(); n != 3 {
+		t.Errorf("PresentationCount = %d, want 3", n)
 	}
 }
 
 func TestVPTokenMapResult_VPToken_Empty(t *testing.T) {
 	r := &VPTokenMapResult{
-		TokenMap: map[string]string{},
+		TokenMap: map[string][]string{},
 	}
 	vp := r.VPToken()
 	if len(vp) != 0 {
@@ -1281,7 +1284,7 @@ func TestVPTokenMapResult_VPToken_Empty(t *testing.T) {
 
 func TestVPTokenMapResult_QueryIDs(t *testing.T) {
 	r := &VPTokenMapResult{
-		TokenMap: map[string]string{"pid": "t1", "mdl": "t2"},
+		TokenMap: map[string][]string{"pid": {"t1"}, "mdl": {"t2"}},
 	}
 	ids := r.QueryIDs()
 	if len(ids) != 2 {
@@ -1298,7 +1301,7 @@ func TestVPTokenMapResult_QueryIDs(t *testing.T) {
 
 func TestVPTokenMapResult_QueryIDs_Empty(t *testing.T) {
 	r := &VPTokenMapResult{
-		TokenMap: map[string]string{},
+		TokenMap: map[string][]string{},
 	}
 	ids := r.QueryIDs()
 	if len(ids) != 0 {

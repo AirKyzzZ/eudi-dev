@@ -110,7 +110,7 @@ func TestActivityRecordsExactEncryptedPresentation(t *testing.T) {
 	}))
 	defer verifier.Close()
 	var payload *LogPayload
-	_, err = w.SubmitPresentation(&VPTokenMapResult{TokenMap: map[string]string{"pid": "presentation"}}, "", "state", verifier.URL,
+	_, err = w.SubmitPresentation(&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presentation"}}}, "", "state", verifier.URL,
 		PresentationParams{ResponseMode: "direct_post.jwt", ClientMetadata: map[string]any{"jwks": map[string]any{"keys": []any{testEncJWK(t, &key.PublicKey)}}}},
 		func(response *AuthorizationResponseEnvelope) { payload = PresentationLogPayload(response) })
 	if err != nil {

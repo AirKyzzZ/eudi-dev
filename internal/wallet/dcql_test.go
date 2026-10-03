@@ -1216,8 +1216,7 @@ func TestEvaluateDCQL_PreferredFormatSortIsStable(t *testing.T) {
 	}
 }
 
-// Keep one credential per query because multiple is unsupported. Otherwise
-// presentations would overwrite the same vp_token map entry.
+// Without multiple, a query presents one credential (OpenID4VP 1.0 §8.1).
 func addSDJWTPID(t *testing.T, w *Wallet, id string, iat int64) {
 	t.Helper()
 	key, err := mock.GenerateKey()

@@ -157,7 +157,8 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 	// choice.
 	candidates := append([]CredentialMatch(nil), matches...)
 
-	matches = keepOnePresentationPerQuery(matches)
+	multiple := multipleQueries(credQueries)
+	matches = keepOnePresentationPerQuery(matches, multiple)
 
 	// OID4VP 1.0 §6.4.2: "If credential_sets is not provided, the Verifier
 	// requests presentations for all Credentials in credentials to be
@@ -184,12 +185,26 @@ func (w *Wallet) EvaluateDCQLWithOptions(query map[string]any) ([]CredentialMatc
 	if matches == nil {
 		return nil, nil
 	}
-	return matches, buildConsentCredentialOptions(candidates, credSets, w.PreferredFormat)
+	return matches, buildConsentCredentialOptions(candidates, credSets, multiple, w.PreferredFormat)
+}
+
+// multipleQueries returns the ids of the credential queries that set multiple
+// (OID4VP 1.0 §6.1: "A boolean which indicates whether multiple Credentials can be
+// returned for this Credential Query. If omitted, the default value is false").
+func multipleQueries(credQueries []any) map[string]bool {
+	multiple := map[string]bool{}
+	for _, cq := range credQueries {
+		cqMap, _ := cq.(map[string]any)
+		if id, _ := cqMap["id"].(string); id != "" && cqMap["multiple"] == true {
+			multiple[id] = true
+		}
+	}
+	return multiple
 }
 
 // Preserve candidate order so the first credential and option remain the automatic
 // selection.
-func buildConsentCredentialOptions(candidates []CredentialMatch, credSets []any, preferredFormat string) *ConsentCredentialOptions {
+func buildConsentCredentialOptions(candidates []CredentialMatch, credSets []any, multiple map[string]bool, preferredFormat string) *ConsentCredentialOptions {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -204,7 +219,7 @@ func buildConsentCredentialOptions(candidates []CredentialMatch, credSets []any,
 
 	options := &ConsentCredentialOptions{}
 	for _, id := range order {
-		options.Queries = append(options.Queries, ConsentQueryOptions{ID: id, Candidates: byQuery[id]})
+		options.Queries = append(options.Queries, ConsentQueryOptions{ID: id, Multiple: multiple[id], Candidates: byQuery[id]})
 	}
 
 	for _, cs := range credSets {
@@ -347,6 +362,13 @@ func DCQLQueryFindings(query map[string]any) []string {
 			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q is missing the required format", label))
 		}
 
+		// §6.1: "multiple: OPTIONAL. A boolean".
+		if m, present := cqMap["multiple"]; present {
+			if _, ok := m.(bool); !ok {
+				findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q has a multiple that is not a boolean", label))
+			}
+		}
+
 		// §6.1 makes meta REQUIRED, with an empty object as the way to place
 		// no constraints. Leaving the member out is not.
 		meta, present := cqMap["meta"]
@@ -424,10 +446,10 @@ func sortMatchesCompleteFirst(matches []CredentialMatch) {
 }
 
 // keepOnePresentationPerQuery reduces the candidates for each query id to the
-// one credential that will be presented. OID4VP 1.0 allows several only when
-// the query sets `multiple`, which this wallet does not implement. It happens
-// here so the consent dialog and the activity log report what is sent.
-func keepOnePresentationPerQuery(matches []CredentialMatch) []CredentialMatch {
+// one credential that will be presented. A query that sets multiple keeps every
+// candidate. OID4VP 1.0 §8.1: "When multiple is omitted, or set to false, the
+// array MUST contain only one Presentation."
+func keepOnePresentationPerQuery(matches []CredentialMatch, multiple map[string]bool) []CredentialMatch {
 	if len(matches) == 0 {
 		return matches
 	}
@@ -435,7 +457,7 @@ func keepOnePresentationPerQuery(matches []CredentialMatch) []CredentialMatch {
 	dropped := make(map[string]int)
 	kept := matches[:0]
 	for _, m := range matches {
-		if seen[m.QueryID] {
+		if seen[m.QueryID] && !multiple[m.QueryID] {
 			dropped[m.QueryID]++
 			continue
 		}
@@ -1208,11 +1230,9 @@ func applyCredentialSets(matches []CredentialMatch, credSets []any, preferredFor
 	}
 
 	var result []CredentialMatch
-	used := make(map[string]bool)
 	for _, m := range matches {
-		if needed[m.QueryID] && !used[m.QueryID] {
+		if needed[m.QueryID] {
 			result = append(result, m)
-			used[m.QueryID] = true
 		}
 	}
 	return result

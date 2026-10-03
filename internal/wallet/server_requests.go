@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -171,11 +172,25 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		SelectedClaims map[string][]string `json:"selected_claims"`
 		TxCode         string              `json:"tx_code"`
 		// References the credential options selected in the dialog.
-		Picks      map[string]string `json:"picks"`
-		SetChoices []int             `json:"set_choices"`
+		Picks      map[string]consentPick `json:"picks"`
+		SetChoices []int                  `json:"set_choices"`
 	}
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body: " + err.Error()})
+			return
+		}
+	}
+	var picks map[string][]string
+	for qid, pick := range body.Picks {
+		// null leaves the query to the wallet's default, like an omitted pick.
+		if pick == nil {
+			continue
+		}
+		if picks == nil {
+			picks = make(map[string][]string, len(body.Picks))
+		}
+		picks[qid] = pick
 	}
 
 	// Validate selection before resolving consent so an invalid choice leaves the
@@ -185,7 +200,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
 			return
 		}
-		if err := ValidateConsentSelection(pending.CredentialOptions, body.Picks, body.SetChoices); err != nil {
+		if err := ValidateConsentSelection(pending.CredentialOptions, picks, body.SetChoices); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -206,7 +221,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		Owner:          requestOwner(r),
 		SelectedClaims: body.SelectedClaims,
 		TxCode:         strings.TrimSpace(body.TxCode),
-		Picks:          body.Picks,
+		Picks:          picks,
 		SetChoices:     body.SetChoices,
 	}
 
@@ -255,4 +270,26 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	req.ResultCh <- ConsentResult{Approved: false}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "denied"})
+}
+
+// consentPick names the credentials picked for one query: a credential ID, or an
+// array of them for a query that sets multiple.
+type consentPick []string
+
+func (p *consentPick) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*p = nil
+		return nil
+	}
+	var one string
+	if err := json.Unmarshal(data, &one); err == nil {
+		*p = consentPick{one}
+		return nil
+	}
+	many := []string{}
+	if err := json.Unmarshal(data, &many); err != nil {
+		return fmt.Errorf("a pick is a credential ID or an array of them")
+	}
+	*p = many
+	return nil
 }

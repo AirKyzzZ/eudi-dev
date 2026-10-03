@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -274,14 +275,16 @@ func signJWT(header, payload map[string]any, key *ecdsa.PrivateKey) (string, err
 }
 
 type VPTokenMapResult struct {
-	TokenMap  map[string]string
+	// Presentations per query id, in match order. Only a query that sets multiple
+	// has more than one.
+	TokenMap  map[string][]string
 	MDocNonce string // set if any mdoc credential produced a nonce (ISO mode)
 }
 
 func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params PresentationParams) (*VPTokenMapResult, error) {
 	log.Printf("[VP] Creating VP token map: %d credentials, client=%s, response_mode=%s", len(matches), params.ClientID, params.ResponseMode)
 	result := &VPTokenMapResult{
-		TokenMap: make(map[string]string),
+		TokenMap: make(map[string][]string),
 	}
 
 	// ISO 18013-7 Annex B uses one mdoc nonce per response in apu. Share it across
@@ -299,7 +302,7 @@ func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params Presentation
 		if err != nil {
 			return nil, fmt.Errorf("creating VP token for %s: %w", match.QueryID, err)
 		}
-		result.TokenMap[match.QueryID] = tokenResult.Token
+		result.TokenMap[match.QueryID] = append(result.TokenMap[match.QueryID], tokenResult.Token)
 		if tokenResult.MDocNonce != "" {
 			result.MDocNonce = tokenResult.MDocNonce
 		}
@@ -310,14 +313,22 @@ func (w *Wallet) CreateVPTokenMap(matches []CredentialMatch, params Presentation
 	return result, nil
 }
 
-// VPToken builds the spec-compliant vp_token JSON object.
-// Per OID4VP 1.0: values are arrays of one or more presentations.
+// VPToken builds the vp_token JSON object. OpenID4VP 1.0 §8.1: "the value is an
+// array of one or more Presentations that match the respective Credential Query".
 func (r *VPTokenMapResult) VPToken() map[string][]string {
 	vpToken := make(map[string][]string, len(r.TokenMap))
 	for k, v := range r.TokenMap {
-		vpToken[k] = []string{v}
+		vpToken[k] = slices.Clone(v)
 	}
 	return vpToken
+}
+
+func (r *VPTokenMapResult) PresentationCount() int {
+	n := 0
+	for _, v := range r.TokenMap {
+		n += len(v)
+	}
+	return n
 }
 
 func (r *VPTokenMapResult) QueryIDs() []string {

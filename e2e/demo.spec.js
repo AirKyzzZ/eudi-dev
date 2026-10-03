@@ -1197,12 +1197,15 @@ test.describe("Custom verifier request builder", () => {
     return await res.json();
   }
 
-  async function buildCustom(page, nationalitiesPath) {
+  async function buildCustom(page, nationalitiesPath, { multiple = false } = {}) {
     await page.goto(`${BASE}/verifier/`);
     await page.locator('#credential-toggle [data-credential="custom"]').click();
     await expect(page.locator("#custom-panel")).toBeVisible();
     if (nationalitiesPath) {
       await page.locator(".claim-input").nth(1).fill(nationalitiesPath);
+    }
+    if (multiple) {
+      await page.locator("#credentials-list .multiple-input").first().check();
     }
     const [resp] = await Promise.all([
       page.waitForResponse(
@@ -1260,6 +1263,61 @@ test.describe("Custom verifier request builder", () => {
     const result = await verifierResult(id);
     expect(result.status).toBe("verified");
     expect(result.claims.cred_0.nationalities).toEqual(["NL"]);
+  });
+
+  // The demo holds at least two SD-JWT PIDs that answer urn:eudi:pid:1: the EUDI PID
+  // and the German PID that extends it. Earlier tests may add more.
+  test("a multiple query presents every matching credential by default", async ({ page }) => {
+    const { id, schemeURI } = await buildCustom(page, "nationalities[*]", { multiple: true });
+
+    await present(page, schemeURI);
+    const cards = page.locator("#consent-dialog .consent-credential[data-credential-id]");
+    await expect(cards.nth(1)).toBeVisible();
+    const shown = await cards.count();
+
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.cred_0).toHaveLength(shown);
+  });
+
+  test("a multiple query lets the user withhold all but one credential", async ({ page }) => {
+    const { id, schemeURI } = await buildCustom(page, "nationalities[*]", { multiple: true });
+
+    await present(page, schemeURI);
+    await page.locator("#consent-edit-selection").click();
+    const query = page.locator("#consent-query-cred_0");
+    await expect(query).toHaveAttribute("data-multiple", "true");
+    const candidates = query.locator('.candidate[role="checkbox"]');
+    await expect(candidates.nth(1)).toBeVisible();
+    const total = await candidates.count();
+    for (let i = 0; i < total; i++) {
+      await expect(candidates.nth(i)).toHaveAttribute("aria-checked", "true");
+    }
+
+    for (let i = 1; i < total; i++) {
+      await candidates.nth(i).click();
+      await expect(candidates.nth(i)).toHaveAttribute("aria-checked", "false");
+    }
+    // The last selected credential stays selected.
+    await candidates.nth(0).click();
+    await expect(candidates.nth(0)).toHaveAttribute("aria-checked", "true");
+    const kept = await candidates.nth(0).getAttribute("data-cred");
+
+    await page.locator("#consent-selection-done").click();
+    await expect(page.locator("#consent-dialog .consent-credential[data-credential-id]")).toHaveCount(1);
+    await expect(page.locator("#consent-selection-row")).toContainText("auto-choice changed");
+
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 45_000 });
+
+    const result = await verifierResult(id);
+    expect(result.status).toBe("verified");
+    expect(result.claims.cred_0).toHaveLength(1);
+    const keptCredential = await (await fetch(`${BASE}/api/credentials/${kept}`)).json();
+    expect(result.claims.cred_0[0].given_name).toBe(keptCredential.claims.given_name);
   });
 
   test("the client id scheme selection reaches the request", async ({ page }) => {

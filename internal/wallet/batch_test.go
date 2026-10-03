@@ -420,7 +420,7 @@ func TestBatchPresentsEachCopyOnceThenReuses(t *testing.T) {
 		if err != nil {
 			t.Fatalf("round %d: creating the presentation: %v", round, err)
 		}
-		token := result.TokenMap["pid"]
+		token := result.TokenMap["pid"][0]
 		kbJWT := token[strings.LastIndex(token, "~")+1:]
 		if _, err := jws.Verify(kbJWT, pubByID[id]); err != nil {
 			t.Fatalf("round %d: the KB-JWT is not signed by the presented copy's key: %v", round, err)

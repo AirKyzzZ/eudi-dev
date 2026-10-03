@@ -25,7 +25,7 @@ Two settings control validation:
 | Encrypted request objects (JWE) | Implemented | The wallet always sends an encryption key in `wallet_metadata` and decrypts an encrypted request object. `--require-encrypted-request` rejects an unencrypted one |
 | DCQL query evaluation | Implemented | Including `credential_sets` constraints. Debug mode warns and continues when some required claim paths are missing from an otherwise matching credential, while strict mode treats that credential as non-matching |
 | `vct_values` matching across extending types | Implemented | A credential matches a `vct_values` entry that names its own type, a type its `aka_vcts` claim lists, or a type it extends, so a request for `urn:eudi:pid:1` is matched by any domestic PID (`urn:eudi:pid:de:1`, `urn:eudi:pid:fr:1`, …) as ARF Annex 2 v3.0.0 PID_14 defines them. Matching works in that direction only and does not establish trust (see [credential type inheritance](wallet.md#credential-type-inheritance)) |
-| One credential per credential query | Implemented | The wallet presents the most recently issued credential that matches each query (`multiple` is not implemented). The consent dialog and the activity log show exactly what is sent |
+| `multiple` | Implemented | Without `multiple`, the wallet sends the newest matching credential. With `multiple: true` it sends all matching credentials, and you can deselect some in the consent dialog. A batch counts as one credential. A `multiple` that is not `true` or `false` gets a warning, and strict mode refuses the query (§6.1) |
 | `direct_post` response mode | Implemented | |
 | `direct_post.jwt` response mode | Implemented | JARM-encrypted responses |
 | `dc_api` response mode | Implemented | Browser API responses via `/api/dc-api` |

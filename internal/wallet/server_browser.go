@@ -252,7 +252,7 @@ func (s *Server) writeBrowserPresentationResult(w http.ResponseWriter, authReq *
 	}
 
 	if prepared.VPResult != nil {
-		s.log("  VP tokens:     %d created", len(prepared.VPResult.TokenMap))
+		s.log("  VP tokens:     %d created", prepared.VPResult.PresentationCount())
 	}
 	if prepared.IDToken != "" {
 		s.log("  id_token:      created (SIOPv2)")

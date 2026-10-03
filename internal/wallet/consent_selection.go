@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Consent overrides select an offered option per credential set and a credential per
-// query. Validate selections before approval, then rebuild presentation matches from
+// Consent overrides select an offered option per credential set and the credentials
+// per query (one, or several for a query that sets multiple). Validate selections before approval, then rebuild presentation matches from
 // the accepted choices.
 
 package wallet
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
-func ValidateConsentSelection(options *ConsentCredentialOptions, picks map[string]string, setChoices []int) error {
+func ValidateConsentSelection(options *ConsentCredentialOptions, picks map[string][]string, setChoices []int) error {
 	if len(picks) == 0 && len(setChoices) == 0 {
 		return nil
 	}
@@ -52,13 +55,28 @@ func ValidateConsentSelection(options *ConsentCredentialOptions, picks map[strin
 	if !answered {
 		return fmt.Errorf("the selection must answer at least one credential set")
 	}
-	for qid, credID := range picks {
+	for qid, credIDs := range picks {
 		query := findConsentQuery(options, qid)
 		if query == nil {
 			return fmt.Errorf("unknown credential query %q", qid)
 		}
-		if findConsentCandidate(query, credID) == nil {
-			return fmt.Errorf("credential %s does not match query %q", credID, qid)
+		if len(credIDs) == 0 {
+			return fmt.Errorf("query %q needs at least one credential", qid)
+		}
+		// OpenID4VP 1.0 §8.1: "When multiple is omitted, or set to false, the
+		// array MUST contain only one Presentation."
+		if len(credIDs) > 1 && !query.Multiple {
+			return fmt.Errorf("query %q does not set multiple, so it takes one credential, got %d", qid, len(credIDs))
+		}
+		seen := make(map[string]bool, len(credIDs))
+		for _, credID := range credIDs {
+			if seen[credID] {
+				return fmt.Errorf("credential %s is picked twice for query %q", credID, qid)
+			}
+			seen[credID] = true
+			if findConsentCandidate(query, credID) == nil {
+				return fmt.Errorf("credential %s does not match query %q", credID, qid)
+			}
 		}
 	}
 	return nil
@@ -106,13 +124,7 @@ func ApplyConsentSelection(options *ConsentCredentialOptions, matches []Credenti
 		if query == nil || len(query.Candidates) == 0 {
 			continue
 		}
-		pick := &query.Candidates[0]
-		if credID, ok := result.Picks[qid]; ok {
-			if chosen := findConsentCandidate(query, credID); chosen != nil {
-				pick = chosen
-			}
-		}
-		out = append(out, *pick)
+		out = append(out, pickedCandidates(query, result.Picks[qid])...)
 	}
 	// A presentation carries at least one credential (OpenID4VP 1.0 §8.1),
 	// so a selection that answers nothing keeps the wallet's choice.
@@ -120,6 +132,25 @@ func ApplyConsentSelection(options *ConsentCredentialOptions, matches []Credenti
 		return matches
 	}
 	return out
+}
+
+// pickedCandidates returns the picked candidates in candidate order, or the
+// default: every candidate of a query that sets multiple, the first of any other.
+func pickedCandidates(query *ConsentQueryOptions, credIDs []string) []CredentialMatch {
+	var picked []CredentialMatch
+	for _, c := range query.Candidates {
+		if slices.Contains(credIDs, c.CredentialID) {
+			picked = append(picked, c)
+		}
+	}
+	switch {
+	case len(picked) > 0:
+		return picked
+	case query.Multiple:
+		return query.Candidates
+	default:
+		return query.Candidates[:1]
+	}
 }
 
 func findConsentQuery(options *ConsentCredentialOptions, id string) *ConsentQueryOptions {

@@ -277,7 +277,7 @@ func cloneStatusEntries(src map[string]StatusEntry) map[string]StatusEntry {
 	return dst
 }
 
-func mapKeys(m map[string]string) []string {
+func mapKeys[V any](m map[string]V) []string {
 	ks := make([]string, 0, len(m))
 	for k := range m {
 		ks = append(ks, k)

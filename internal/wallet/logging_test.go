@@ -52,7 +52,7 @@ func TestPresentationSubmissionLogDetailsIncludePresentedCredentialMaterial(t *t
 				SelectedKeys: []string{"given_name"},
 			},
 		},
-		&VPTokenMapResult{TokenMap: map[string]string{"pid": "presented.sdjwt~kb.jwt"}},
+		&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presented.sdjwt~kb.jwt"}}},
 		"",
 		&DirectPostResult{StatusCode: 200, Body: "ok"},
 	)
@@ -111,7 +111,7 @@ func TestPresentationResponseLogDetailsExcludeRequestMaterial(t *testing.T) {
 				SelectedKeys: []string{"given_name"},
 			},
 		},
-		&VPTokenMapResult{TokenMap: map[string]string{"pid": "presented.sdjwt~kb.jwt"}},
+		&VPTokenMapResult{TokenMap: map[string][]string{"pid": {"presented.sdjwt~kb.jwt"}}},
 		"id.jwt",
 		"https://verifier.example/response",
 	)
