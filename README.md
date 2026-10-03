@@ -169,6 +169,7 @@ The main commands:
 - `wallet ca-cert` and `wallet tls-cert` to export certificate material
 - `wallet --mode debug|strict` and `--preferred-format ...` to control runtime behavior
 - `wallet --tls-verify=true|false` to set HTTPS certificate verification and `--tls-ca dev-ca.pem` to trust a development CA
+- `wallet --https-proxy http://proxy:3128` (or `HTTPS_PROXY`) to reach issuers and verifiers through a forward proxy
 - `wallet serve --haip` to check verifiers and issuers against HAIP 1.0
 
 `--haip` adds HAIP 1.0 checks. `--mode strict` stops on findings, while `--mode debug` reports them and continues. This applies to HAIP findings too. See [HAIP enforcement](docs/wallet/presenting.md#haip-10-enforcement).

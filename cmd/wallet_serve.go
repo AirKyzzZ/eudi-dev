@@ -381,7 +381,7 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if err := applyValidationMode(w, walletValidationMode); err != nil {
 		return err
 	}
-	if err := applyWalletTLS(w); err != nil {
+	if err := applyWalletOutbound(w); err != nil {
 		return err
 	}
 

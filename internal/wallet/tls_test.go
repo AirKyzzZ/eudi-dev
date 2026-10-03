@@ -89,7 +89,7 @@ func TestWalletTLSModeAndOverrides(t *testing.T) {
 			if tc.trust {
 				ca = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
 			}
-			if err := w.ConfigureTLS(tc.verify, ca); err != nil {
+			if err := w.ConfigureOutbound(OutboundConfig{TLSVerify: tc.verify, TLSCAPEM: ca}); err != nil {
 				t.Fatal(err)
 			}
 			defer w.HTTPClient().CloseIdleConnections()
@@ -210,7 +210,7 @@ func TestTLSConformanceSettingsApplyToExistingClientsAndClones(t *testing.T) {
 func TestTLSResetPreservesExplicitStartupOverride(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
-	if err := w.ConfigureTLS(tlsBool(false), nil); err != nil {
+	if err := w.ConfigureOutbound(OutboundConfig{TLSVerify: tlsBool(false)}); err != nil {
 		t.Fatal(err)
 	}
 	defer w.HTTPClient().CloseIdleConnections()
@@ -237,7 +237,7 @@ func TestTLSTrustSurvivesPresentationCloneAndStoreReload(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
 	ca := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: endpoint.Certificate().Raw})
-	if err := w.ConfigureTLS(nil, ca); err != nil {
+	if err := w.ConfigureOutbound(OutboundConfig{TLSCAPEM: ca}); err != nil {
 		t.Fatal(err)
 	}
 	defer w.HTTPClient().CloseIdleConnections()

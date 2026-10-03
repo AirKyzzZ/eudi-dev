@@ -48,6 +48,9 @@ var keySeed string
 var walletValidationMode string
 var walletTLSVerify bool
 var walletTLSCA string
+var walletHTTPProxy string
+var walletHTTPSProxy string
+var walletNoProxy string
 
 // noOpen suppresses the browser this CLI opens on the user's behalf. The URL
 // is printed instead.
@@ -70,6 +73,9 @@ func init() {
 	walletCmd.PersistentFlags().StringVar(&walletValidationMode, "mode", string(wallet.ValidationModeDebug), "Wallet validation mode: 'debug' (default) or 'strict'")
 	walletCmd.PersistentFlags().BoolVar(&walletTLSVerify, "tls-verify", false, "Verify certificates for every outbound HTTPS request (default: true in strict mode, false in debug mode)")
 	walletCmd.PersistentFlags().StringVar(&walletTLSCA, "tls-ca", "", "PEM CA bundle added to system trust for outbound HTTPS")
+	walletCmd.PersistentFlags().StringVar(&walletHTTPProxy, "http-proxy", "", "Forward proxy URL for outbound http:// requests (default $HTTP_PROXY)")
+	walletCmd.PersistentFlags().StringVar(&walletHTTPSProxy, "https-proxy", "", "Forward proxy URL for outbound https:// requests (default $HTTPS_PROXY)")
+	walletCmd.PersistentFlags().StringVar(&walletNoProxy, "no-proxy", "", "Comma-separated hosts, domains and CIDRs that bypass the proxy (default $NO_PROXY)")
 	walletCmd.PersistentFlags().BoolVar(&noOpen, "no-open", false, "Never open a browser, only print the URL")
 	walletCmd.AddCommand(walletServeCmd())
 	walletCmd.AddCommand(walletListCmd())
@@ -172,7 +178,7 @@ func loadWallet() (*wallet.Wallet, *wallet.WalletStore, error) {
 	if err := applyValidationMode(w, walletValidationMode); err != nil {
 		return nil, nil, err
 	}
-	if err := applyWalletTLS(w); err != nil {
+	if err := applyWalletOutbound(w); err != nil {
 		return nil, nil, err
 	}
 	return w, store, nil
@@ -396,7 +402,7 @@ func walletRegisterInheritedServeArgs(cmd *cobra.Command) []string {
 		switch flag.Name {
 		case "tls-verify":
 			args = append(args, "--tls-verify="+flag.Value.String())
-		case "wallet-dir", "mode", "storage", "tls-ca":
+		case "wallet-dir", "mode", "storage", "tls-ca", "http-proxy", "https-proxy", "no-proxy":
 			args = append(args, "--"+flag.Name, flag.Value.String())
 		}
 	})
@@ -835,7 +841,7 @@ server renews on its own shortly before expiry. This asks now.`,
 	}
 }
 
-func applyWalletTLS(w *wallet.Wallet) error {
+func applyWalletOutbound(w *wallet.Wallet) error {
 	var verify *bool
 	if walletCmd.PersistentFlags().Changed("tls-verify") {
 		verify = &walletTLSVerify
@@ -851,15 +857,23 @@ func applyWalletTLS(w *wallet.Wallet) error {
 			return fmt.Errorf("--tls-ca: CA bundle is empty")
 		}
 	}
-	if err := w.ConfigureTLS(verify, caPEM); err != nil {
-		return fmt.Errorf("configuring outbound TLS: %w", err)
+	proxy, err := format.NewProxyFunc(format.ProxySettings{HTTPProxy: walletHTTPProxy, HTTPSProxy: walletHTTPSProxy, NoProxy: walletNoProxy})
+	if err != nil {
+		return fmt.Errorf("proxy settings: %w", err)
+	}
+	if err := w.ConfigureOutbound(wallet.OutboundConfig{TLSVerify: verify, TLSCAPEM: caPEM, Proxy: proxy}); err != nil {
+		return fmt.Errorf("configuring outbound HTTP: %w", err)
 	}
 	return nil
 }
 
-func checkRemoteTLSFlags() error {
-	if walletCmd.PersistentFlags().Changed("tls-verify") || walletCmd.PersistentFlags().Changed("tls-ca") {
+func checkRemoteOutboundFlags() error {
+	flags := walletCmd.PersistentFlags()
+	if flags.Changed("tls-verify") || flags.Changed("tls-ca") {
 		return fmt.Errorf("a running wallet uses its own TLS settings; configure --tls-verify and --tls-ca on 'wallet serve', or set tls_verify through PUT /api/config/conformance")
+	}
+	if flags.Changed("http-proxy") || flags.Changed("https-proxy") || flags.Changed("no-proxy") {
+		return fmt.Errorf("a running wallet uses its own proxy settings; configure --http-proxy, --https-proxy and --no-proxy on 'wallet serve'")
 	}
 	return nil
 }

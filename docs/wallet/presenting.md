@@ -34,6 +34,7 @@ eudi wallet accept 'openid-credential-offer://...' --tx-code 123456
 | `--auto-accept`         | `false`  | Auto-approve OID4VP presentations                |
 | `--tls-verify` | mode default | Verify all outbound HTTPS certificates (`true` in strict mode, `false` in debug mode) |
 | `--tls-ca` | None | Add PEM CA certificates to the system TLS trust store |
+| `--http-proxy`, `--https-proxy`, `--no-proxy` | Environment | Forward proxy settings. See [outbound proxy](serve.md#outbound-proxy) |
 | `--mode`                | `debug`  | Validation mode: `debug` or `strict`             |
 | `--session-transcript`  | `oid4vp` | mDoc session transcript mode: `oid4vp` or `iso`  |
 | `--tx-code`             | None     | Transaction code for OID4VCI pre-authorized code flow |
@@ -49,7 +50,7 @@ For pre-authorized code offers, HAIP validation checks HTTPS transport. PAR, PKC
 
 Strict mode verifies HTTPS certificates. Debug mode skips verification by default. For local flows, `--tls-verify=true|false` overrides either default and `--tls-ca dev-ca.pem` adds trusted CA certificates. See [HTTPS certificate verification](serve.md#https-certificate-verification).
 
-When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own TLS settings. Set the flags on `wallet serve` or change verification in its Conformance panel. Passing TLS flags to `accept` or `scan` in this case returns an error.
+When `accept` or `scan` forwards a flow to a running wallet, that wallet uses its own TLS and proxy settings. Set the flags on `wallet serve` or change verification in its Conformance panel. Passing TLS or proxy flags to `accept` or `scan` in this case returns an error.
 
 ## `wallet scan`
 

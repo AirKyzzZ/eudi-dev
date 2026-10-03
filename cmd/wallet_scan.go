@@ -103,7 +103,7 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 		return err
 	}
 	if c != nil {
-		if err := checkRemoteTLSFlags(); err != nil {
+		if err := checkRemoteOutboundFlags(); err != nil {
 			return err
 		}
 		// The selected wallet fetches the offer and collects the transaction code.
@@ -114,7 +114,7 @@ func acceptOID4URI(uri string, opts dispatchOID4Opts) error {
 	if err := applyValidationMode(w, opts.mode); err != nil {
 		return err
 	}
-	if err := applyWalletTLS(w); err != nil {
+	if err := applyWalletOutbound(w); err != nil {
 		return err
 	}
 	defer w.HTTPClient().CloseIdleConnections()

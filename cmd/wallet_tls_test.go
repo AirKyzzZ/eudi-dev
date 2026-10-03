@@ -63,7 +63,7 @@ func TestWalletTLSFlags(t *testing.T) {
 				}
 			}
 			w := &wallet.Wallet{ValidationMode: tc.mode}
-			if err := applyWalletTLS(w); err != nil {
+			if err := applyWalletOutbound(w); err != nil {
 				t.Fatal(err)
 			}
 			defer w.HTTPClient().CloseIdleConnections()
@@ -89,7 +89,7 @@ func TestWalletTLSFlags(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := applyWalletTLS(&wallet.Wallet{}); err == nil {
+			if err := applyWalletOutbound(&wallet.Wallet{}); err == nil {
 				t.Fatal("invalid CA bundle accepted")
 			}
 		})

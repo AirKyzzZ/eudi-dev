@@ -64,7 +64,7 @@ func TestTLSVerificationEveryDestinationAndRedirect(t *testing.T) {
 			if tc.verify != nil {
 				verify = func() bool { return *tc.verify }
 			}
-			client := NewHTTPClient(verify, nil)
+			client := NewHTTPClient(verify, nil, nil)
 			defer client.CloseIdleConnections()
 			transport := client.Transport.(*policyTransport)
 			if tc.trusted {
@@ -150,7 +150,7 @@ func TestTLSVerificationRejectsExpiredTrustedCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := NewHTTPClient(func() bool { return true }, roots)
+	client := NewHTTPClient(func() bool { return true }, roots, nil)
 	defer client.CloseIdleConnections()
 	response, err := client.Get(server.URL)
 	if response != nil {

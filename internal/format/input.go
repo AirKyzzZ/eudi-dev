@@ -50,7 +50,7 @@ func resolveRemoteTimeout(raw string) time.Duration {
 	return value
 }
 
-var httpClient = NewHTTPClient(nil, nil)
+var httpClient = NewHTTPClient(nil, nil, nil)
 
 func newPolicyTransport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()

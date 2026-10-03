@@ -210,6 +210,9 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 | `--no-register`         | `false`  | Skip URL scheme registration (overrides --register) |
 | `--tls-verify` | mode default | Verify HTTPS certificates (`true` in strict mode, `false` in debug mode) |
 | `--tls-ca` | None | PEM CA bundle added to system trust for outbound HTTPS |
+| `--http-proxy` | `$HTTP_PROXY` | Forward proxy for outbound `http://` requests |
+| `--https-proxy` | `$HTTPS_PROXY` | Forward proxy for outbound `https://` requests |
+| `--no-proxy` | `$NO_PROXY` | Hosts, domains and CIDRs that skip the proxy |
 | `--key-attestation-level` | Issuer requirements | Test claims for key storage and user authentication: issuer requirements (default), `none`, or a level such as `iso_18045_high`. Change it in the Conformance panel. See [key attestation claims](#key-attestation-claims) |
 | `--preferred-format`    | None     | Preferred credential format when multiple match: `dc+sd-jwt`, `mso_mdoc`, or `jwt_vc_json` |
 | `--status-list`         | `false`  | Embed status list references in generated credentials |
@@ -354,6 +357,21 @@ eudi wallet serve --mode debug --tls-verify=true
 ```
 
 A running wallet uses its own TLS settings. Set its startup flags or change verification in the Conformance panel or through `PUT /api/config/conformance`.
+
+## Outbound proxy
+
+The wallet sends requests to issuers and verifiers through a forward proxy when one is configured. It reads the standard `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` variables (lowercase names work too). `--http-proxy`, `--https-proxy` and `--no-proxy` replace the matching variable. Each flag only replaces its own variable.
+
+```bash
+HTTPS_PROXY=http://proxy.corp:3128 NO_PROXY=.corp.example eudi wallet serve
+eudi wallet serve --https-proxy http://proxy.corp:3128 --no-proxy .corp.example
+```
+
+`HTTPS_PROXY` and `--https-proxy` apply to `https://` destinations, so set them for typical issuers and verifiers. `HTTP_PROXY` and `--http-proxy` only cover plain `http://` destinations. Proxy URLs can use `http`, `https`, `socks5` or `socks5h`. A bare `host:port` means `http`. `NO_PROXY` takes a comma separated list of hosts, domain suffixes such as `.corp.example`, IP addresses and CIDR ranges. `*` turns the proxy off.
+
+`localhost`, `127.0.0.1`, `::1` and `host.docker.internal` never use the proxy. TLS verification (see above) still checks the certificate of the issuer or verifier, not the proxy's. A proxy that intercepts TLS needs its CA in `--tls-ca` or `--tls-verify=false`.
+
+A running wallet uses its own proxy settings. Passing proxy flags to `accept` or `scan` while they forward to a running wallet returns an error.
 
 ## Changing the conformance settings
 

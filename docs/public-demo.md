@@ -279,7 +279,7 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 - Terminate TLS in a reverse proxy (the example uses Caddy with automatic Let's Encrypt) and forward to the wallet's HTTP port. The wallet derives all advertised URLs from `--base-url`.
 - Mount a volume at `/home/app/.eudi-dev` and set `EUDI_DEV_STORAGE=file` and `EUDI_DEV_SEED=`. This persists credentials, keys and the shared CA. Mount the parent of `wallet/` so the CA survives restarts and verifiers can reuse their trust lists.
 - Run one replica when using file storage.
-- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container. A proxy would bypass the dial time network checks.
+- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With a proxy the dial time network checks only see the proxy address, not the destination.
 - Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. On typical cloud hosts hairpin NAT makes this work. A compose network alias for the public hostname would resolve to a private address and be blocked.
 - Keep the rate limiting in the proxy. The compose example's Caddyfile ships active `rate_limit` zones (described above).
 

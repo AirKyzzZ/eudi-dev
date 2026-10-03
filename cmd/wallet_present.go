@@ -253,7 +253,7 @@ func tryPresentViaRunningServer(uri string, opts dispatchOID4Opts) (bool, error)
 		return false, nil
 	}
 
-	if err := checkRemoteTLSFlags(); err != nil {
+	if err := checkRemoteOutboundFlags(); err != nil {
 		return true, err
 	}
 	payload := runningWalletPresentationPayload(uri, opts)

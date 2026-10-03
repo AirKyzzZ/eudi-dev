@@ -5,6 +5,12 @@ Notable changes by release.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - Unreleased
+
+### Added
+
+- **Wallet outbound proxy.** The wallet reaches issuers and verifiers through the proxy set in `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`. `--http-proxy`, `--https-proxy` and `--no-proxy` replace the matching variable. Requests to `localhost`, `127.0.0.1`, `::1` and `host.docker.internal` never use the proxy.
+
 ## [2.5.1] - 2026-10-02
 
 ### Fixed

@@ -33,17 +33,25 @@ func (w *Wallet) tlsVerificationLocked() bool {
 	return w.ValidationMode == ValidationModeStrict
 }
 
-func (w *Wallet) ConfigureTLS(verify *bool, caPEM []byte) error {
-	roots, err := format.TLSRoots(caPEM)
+// OutboundConfig sets how the wallet reaches issuers and verifiers. A nil TLSVerify
+// follows the validation mode and a nil Proxy follows the proxy environment variables.
+type OutboundConfig struct {
+	TLSVerify *bool
+	TLSCAPEM  []byte
+	Proxy     format.ProxyFunc
+}
+
+func (w *Wallet) ConfigureOutbound(cfg OutboundConfig) error {
+	roots, err := format.TLSRoots(cfg.TLSCAPEM)
 	if err != nil {
 		return err
 	}
 	var override *bool
-	if verify != nil {
-		value := *verify
+	if cfg.TLSVerify != nil {
+		value := *cfg.TLSVerify
 		override = &value
 	}
-	client := format.NewHTTPClient(w.TLSVerification, roots)
+	client := format.NewHTTPClient(w.TLSVerification, roots, cfg.Proxy)
 	w.mu.Lock()
 	previous := w.outboundHTTP
 	w.tlsVerify, w.outboundHTTP = override, client
@@ -61,7 +69,7 @@ func (w *Wallet) HTTPClient() *http.Client {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.outboundHTTP == nil {
-		w.outboundHTTP = format.NewHTTPClient(w.TLSVerification, nil)
+		w.outboundHTTP = format.NewHTTPClient(w.TLSVerification, nil, nil)
 	}
 	return w.outboundHTTP
 }

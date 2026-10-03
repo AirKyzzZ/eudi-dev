@@ -29,10 +29,15 @@ type policyTransport struct {
 	verify    func() bool
 }
 
-func NewHTTPClient(verify func() bool, roots *x509.CertPool) *http.Client {
+// NewHTTPClient sends remote requests through proxy, or through the proxy
+// environment variables when proxy is nil. Local requests never use a proxy.
+func NewHTTPClient(verify func() bool, roots *x509.CertPool, proxy ProxyFunc) *http.Client {
 	remote := newPolicyTransport()
 	remote.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
 	remoteDev := newPolicyTransport()
+	if proxy != nil {
+		remote.Proxy, remoteDev.Proxy = proxy, proxy
+	}
 	//nolint:gosec // The caller can explicitly disable TLS verification for development.
 	remoteDev.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
 	local := newLocalPolicyTransport()
