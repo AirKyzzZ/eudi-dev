@@ -34,7 +34,7 @@ sequenceDiagram
 
 - `start.sh`: starts Keycloak, bootstraps the issuer, and by default redeems a credential into `eudi-dev`
 - `docker-compose.yml`: starts Keycloak with OID4VCI enabled and imports the realm from `realm/`
-- `realm/oid4vc-demo-realm.json`: source-of-truth Keycloak realm config for the example
+- `realm/oid4vc-demo-realm.json`: the Keycloak realm config for the example
 - `scripts/bootstrap.sh`: waits for the imported realm, assigns the credential to `alice`, and prints the issuer endpoints
 - `scripts/create-offer.sh`: creates a fresh pre-authorized offer URI
 - `scripts/redeem-offer.sh`: creates an offer and passes it into `eudi-dev`
@@ -101,7 +101,7 @@ This example uses the OpenID4VCI by-value `credential_offer` form.
 
 - Some wallets dereference `credential_offer_uri` more than once across preview and issuance steps.
 - Keycloak serves an offer URI once for this flow, so the second fetch fails.
-- Resolving the offer once in the example and handing the wallet the inline JSON avoids that.
+- The example resolves the offer once and passes the inline JSON to the wallet.
 - The demo realm also omits `vc.credential_identifier`, so wallets that request credentials by `credential_configuration_id` work. With that attribute set, Keycloak 26.7.2 requires a `credential_identifier` field on the credential request.
 
 ## Useful Overrides

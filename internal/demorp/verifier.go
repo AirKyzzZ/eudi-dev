@@ -40,8 +40,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
 )
 
-// The German PID extends the base SD-JWT PID type. It can satisfy a request for the
-// base type, but a base PID cannot satisfy a request for German attributes.
+// The German PID extends the base SD-JWT PID type. It answers a request for
+// the base type. A base PID does not answer a request for the German type.
 const (
 	PIDVCT       = credtype.PIDVCT
 	GermanPIDVCT = credtype.GermanPIDVCT
@@ -52,51 +52,47 @@ type requestState struct {
 	id      string
 	queryID string
 	vct     string
-	// docType is set for a request that also accepts the mdoc PID, and want
-	// then holds the mdoc element names alongside the SD-JWT claim names.
+	// docType is set if the request also accepts the mdoc PID. wantMDOC then
+	// holds the mdoc element names.
 	docType     string
 	mdocQueryID string
 	wantMDOC    []string
 	want        []string
-	// ticketQueryID is set when a PID request also asks for the demo ticket
-	// (in one option next to the PID, or as an optional set of its own), and
-	// ticketWant holds the ticket claim names it asks for.
+	// ticketQueryID is set if a PID request also asks for the demo ticket.
+	// ticketWant holds the requested ticket claims.
 	ticketQueryID string
 	ticketWant    []string
 	// multiple is set when every credential query carries multiple.
 	multiple bool
 	nonce    string
 	clientID string
-	// interactiveEndpoint is set when this request was sent inside an
-	// OpenID4VCI 1.1 §6 exchange. The presentation is then bound to that
-	// Authorization Challenge Endpoint rather than to a client_id and a
-	// response_uri (Appendix A.2.5, Appendix A.3.5).
+	// interactiveEndpoint is set for a request inside an OpenID4VCI 1.1 §6
+	// exchange. The presentation is then bound to that Authorization Challenge
+	// Endpoint (Appendix A.2.5, Appendix A.3.5).
 	interactiveEndpoint string
 	expires             time.Time
-	answered            bool // a response was accepted, further ones are replays
+	answered            bool // any later response is a replay
 
-	// requestObject is the signed JAR served from /verifier/request/{id}, and
-	// encKey decrypts the direct_post.jwt response. Both are per request and
-	// expire with it. HAIP requires the request to be signed and the response
-	// encrypted.
+	// requestObject is the signed JAR served from /verifier/request/{id}.
+	// encKey decrypts the direct_post.jwt response. HAIP requires a signed
+	// request and an encrypted response.
 	requestObject string
 	encKey        *ecdsa.PrivateKey
 
-	// custom drives verification of a request built by hand (the UI-guided
-	// custom request), one entry per DCQL credential query. When it is set the
-	// preset query ids above are not used.
+	// custom has one entry per DCQL credential query of a custom request. If
+	// it is set, the preset query ids above are unused.
 	custom []customEntry
 
 	status string // pending | verified | failed
 	err    string
 	claims map[string]any
 	checks []map[string]any
-	// Keep the full presentation for inspection even when verification fails.
+	// presentation is kept for the decoder even if verification fails.
 	presentation string
 }
 
-// List only the query IDs accepted for the PID entry. A requested ticket uses a
-// separate entry.
+// queryIDs lists the query ids of the PID entry. The ticket has its own
+// entry.
 func (r *requestState) queryIDs() []string {
 	var ids []string
 	for _, id := range []string{r.queryID, r.mdocQueryID} {
@@ -107,8 +103,8 @@ func (r *requestState) queryIDs() []string {
 	return ids
 }
 
-// VerifierHandler returns the demo verifier, meant to be mounted with the
-// /verifier prefix stripped.
+// VerifierHandler returns the demo verifier. Mount it with the /verifier
+// prefix stripped.
 func (d *DemoRP) VerifierHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", d.serveStatic("static/verifier.html"))
@@ -117,8 +113,8 @@ func (d *DemoRP) VerifierHandler() http.Handler {
 	mux.HandleFunc("GET /api/requests/{id}", d.handleRequestStatus)
 	mux.HandleFunc("GET /request/{id}", d.handleRequestObject)
 	mux.HandleFunc("POST /response/{id}", d.handlePresentationResponse)
-	// Only /api/ is guarded, which is what the page itself calls. The
-	// protocol endpoints below it are for wallets on other origins.
+	// GuardAPI covers only /api/, which the page calls. Wallets on other
+	// origins call the protocol endpoints.
 	return httpsec.GuardAPI(mux, d.baseURL())
 }
 
@@ -143,41 +139,33 @@ func (d *DemoRP) handleRequestObject(w http.ResponseWriter, r *http.Request) {
 
 type createRequestBody struct {
 	Type string `json:"type"` // "ticket" (default), "pid", or "custom"
-	// Format narrows a PID request to one credential format: "sd-jwt",
-	// "mdoc", or "both" (the default). It does not apply to the ticket,
-	// which the demo issuer only ever issues as an SD-JWT VC.
+	// Format is "sd-jwt", "mdoc" or "both" (the default) for a PID request.
+	// The ticket exists only as an SD-JWT VC.
 	Format string `json:"format"`
-	// VCT names the PID type to ask for. Empty means the country-independent
-	// urn:eudi:pid:1, which every PID answers. A domestic type such as
-	// urn:eudi:pid:de:1 is answered only by a credential of that type, since
-	// inheritance runs the other way.
+	// VCT is the requested PID type. Empty means urn:eudi:pid:1, which every
+	// PID answers. A national type such as urn:eudi:pid:de:1 is answered only
+	// by a credential of that type.
 	VCT string `json:"vct"`
-	// Ticket asks a PID request to also ask for the demo ticket, in one of
-	// two DCQL credential_sets shapes: "combined" puts PID and ticket into
-	// one option next to a PID-only option, "optional" adds a second set the
-	// wallet may skip (required: false).
+	// Ticket adds the demo ticket to a PID request. "combined" puts PID and
+	// ticket in one option next to a PID-only option. "optional" adds a
+	// second credential set with required: false.
 	Ticket string `json:"ticket"`
-	// Multiple sets multiple on every credential query of the request, so the
-	// wallet can answer each with several credentials (OpenID4VP 1.0 §6.1).
+	// Multiple sets multiple on every credential query (OpenID4VP 1.0 §6.1).
 	Multiple bool `json:"multiple"`
-	// Credentials builds a request by hand, one DCQL credential query each,
-	// used with type "custom".
+	// Credentials are the DCQL credential queries of a "custom" request.
 	Credentials []customCredentialTO `json:"credentials"`
-	// ClientIDScheme selects the client identifier prefix a custom request
-	// runs under: "x509_hash" (the default), "x509_san_dns", "redirect_uri"
-	// or "pre-registered". The x509 schemes deliver a signed request object,
-	// the others an unsigned request.
+	// ClientIDScheme is the client identifier prefix of a custom request:
+	// "x509_hash" (the default), "x509_san_dns", "redirect_uri" or
+	// "pre-registered". Only the x509 prefixes sign the request object.
 	ClientIDScheme string `json:"client_id_scheme"`
-	// ClientID sets the bare identifier for the pre-registered scheme, which the
-	// other schemes derive from the certificate or the response endpoint. Empty
-	// uses a default.
+	// ClientID is the identifier for the pre-registered prefix. The other
+	// prefixes derive it from the certificate or the response endpoint.
 	ClientID string `json:"client_id"`
-	// SigningKey optionally supplies the request object signing material as a
-	// PEM bundle (an EC private key and its certificate chain). Empty uses the
-	// demo verifier's own certificate.
+	// SigningKey is an optional PEM bundle with an EC private key and its
+	// certificate chain. Empty uses the demo verifier certificate.
 	SigningKey string `json:"signing_key"`
-	// VerifierInfo optionally replaces the verifier_info array (OpenID4VP 1.0
-	// §5.1) the request carries. Empty uses the demo's registration certificate.
+	// VerifierInfo replaces the verifier_info array (OpenID4VP 1.0 §5.1). Empty
+	// uses the demo registration certificate.
 	VerifierInfo []any `json:"verifier_info"`
 }
 
@@ -186,8 +174,8 @@ type customCredentialTO struct {
 	VCT     string  `json:"vct"`     // the type for dc+sd-jwt
 	DocType string  `json:"doctype"` // the doctype for mso_mdoc
 	Claims  [][]any `json:"claims"`  // each a DCQL claims path (strings, null, integers)
-	// Multiple lets the wallet answer the query with several credentials
-	// (OpenID4VP 1.0 §6.1).
+	// Multiple lets the wallet answer with several credentials (OpenID4VP 1.0
+	// §6.1).
 	Multiple bool `json:"multiple"`
 }
 
@@ -213,8 +201,8 @@ func normalizePIDFormat(format string) (sdjwt, mdoc bool, err error) {
 	}
 }
 
-// ARF Annex 2 PID_14 defines PID types under urn:eudi:pid:. Reject other namespaces.
-// An empty value selects the base PID.
+// ARF Annex 2 PID_14 defines PID types under urn:eudi:pid:. An empty value
+// selects the base PID.
 func normalizePIDVCT(vct string) (string, error) {
 	vct = strings.TrimSpace(vct)
 	if vct == "" {
@@ -259,8 +247,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-		// There is no mdoc ticket, so asking for one would promise something
-		// no wallet can answer.
+		// The ticket exists only as an SD-JWT VC.
 		if !wantSDJWT {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the demo ticket only exists as an SD-JWT VC"})
 			return
@@ -268,8 +255,8 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		vct = TicketVCT
 		claims = []string{"event", "tier", "seat", "given_name", "family_name"}
 	case "pid":
-		// Accept either PID format by default. An explicit format tests how a wallet
-		// handles a request for a format it does not hold.
+		// An explicit format tests how a wallet handles a request for a format
+		// it does not hold.
 		wantSDJWT, wantMDOC, err := normalizePIDFormat(body.Format)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -280,11 +267,9 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-		// A domestic PID type exists only in SD-JWT VC. ISO/IEC 18013-5 has no
-		// inheritance between document types, so every PID carries the same
-		// doctype and the national elements sit in a second namespace: a
-		// doctype request for a national PID would be answered by any PID at
-		// all.
+		// ISO/IEC 18013-5 has no inheritance between document types. Every mdoc
+		// PID has the same doctype and keeps national elements in a second
+		// namespace. Any PID would answer a doctype request for a national PID.
 		domestic := requested != PIDVCT
 		if domestic && wantMDOC && !wantSDJWT {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
@@ -300,8 +285,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 			docType = PIDDocType
 			mdocClaims = []string{"given_name", "family_name"}
 		}
-		// The combined shape puts the ticket into one option next to the
-		// SD-JWT PID, so it needs that PID in the request.
+		// The combined shape puts the ticket in the SD-JWT PID option.
 		if ticketMode == "combined" && !wantSDJWT {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ticket: combined needs the SD-JWT PID in the request, so use format sd-jwt or both"})
 			return
@@ -323,8 +307,8 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		status:   "pending",
 		expires:  time.Now().Add(entryTTL),
 	}
-	// Include only the requested format IDs so the response cannot supply another
-	// format.
+	// Only the requested formats get a query id, so a response in another
+	// format is not accepted.
 	if vct != "" {
 		req.queryID = body.Type
 	}
@@ -337,8 +321,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	responseURI := base + "/verifier/response/" + req.id
 
-	// HAIP requires x509_hash for signed requests. The certificate hash binds the
-	// client ID to the signing certificate.
+	// HAIP requires x509_hash for signed requests.
 	signingKey, chain, err := d.wallet.AccessSigningMaterial()
 	if err != nil || signingKey == nil || len(chain) == 0 {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no signing certificate available"})
@@ -397,9 +380,7 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	dcql := map[string]any{"credentials": credentials}
 
-	// Use credential set alternatives so one PID format is enough. Combined mode adds
-	// the ticket to the SD-JWT option. Optional mode adds a separate set that can be
-	// skipped.
+	// The credential set options make one PID format enough.
 	var sets []map[string]any
 	switch ticketMode {
 	case "combined":
@@ -435,11 +416,10 @@ func (d *DemoRP) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	d.finalizeRequest(w, req, dcql, credentials, responseURI, base, purpose, signingKey, chain, nil)
 }
 
-// finalizeRequest signs the registration certificate and the request object for
-// a built request, stores it, and returns the wallet URL. The purpose is
-// carried in a wallet-relying-party registration certificate (rc-wrp+jwt, ETSI
-// TS 119 475) in verifier_info (OpenID4VP 1.0 §5.1), which is where the wallet's
-// consent dialog reads it from.
+// finalizeRequest signs the registration certificate and the request object,
+// stores the request and returns the wallet URL. The wallet consent dialog
+// reads the purpose from the registration certificate (rc-wrp+jwt, ETSI TS
+// 119 475) in verifier_info (OpenID4VP 1.0 §5.1).
 func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, dcql map[string]any, credentials []map[string]any, responseURI, base, purpose string, signingKey *ecdsa.PrivateKey, chain []*x509.Certificate, verifierInfo []any) {
 	now := time.Now()
 	if len(verifierInfo) == 0 {
@@ -489,8 +469,8 @@ func (d *DemoRP) finalizeRequest(w http.ResponseWriter, req *requestState, dcql 
 	d.requests[req.id] = req
 	d.mu.Unlock()
 
-	// By reference rather than inline: the signed object is far too long for
-	// a scheme URI or a QR code.
+	// The signed object is too long for a scheme URI or a QR code, so it is
+	// passed by reference.
 	params := url.Values{
 		"client_id":   {req.clientID},
 		"request_uri": {base + "/verifier/request/" + req.id},
@@ -610,10 +590,10 @@ func (d *DemoRP) createCustomRequest(w http.ResponseWriter, body createRequestBo
 	d.deliverUnsignedRequest(w, req, dcql, responseURI, base)
 }
 
-// customClientID forms the client identifier for a request built by hand under
-// the selected prefix (OpenID4VP 1.0 §5.9). The x509 prefixes take the request
-// object signing certificate, redirect_uri binds to the response endpoint, and
-// pre-registered is a bare identifier the wallet has no key for.
+// customClientID builds the client identifier for the selected prefix
+// (OpenID4VP 1.0 §5.9). The x509 prefixes use the signing certificate.
+// redirect_uri uses the response endpoint. pre-registered is a plain
+// identifier.
 func customClientID(scheme string, chain []*x509.Certificate, responseURI, preRegistered string) (string, error) {
 	switch scheme {
 	case "x509_hash":
@@ -641,10 +621,9 @@ func customClientID(scheme string, chain []*x509.Certificate, responseURI, preRe
 	}
 }
 
-// deliverUnsignedRequest stores a request whose prefix (redirect_uri or
-// pre-registered) carries no signed request object and hands it to the wallet
-// as plain query parameters (OpenID4VP 1.0 §5.10). The response is still
-// encrypted to the per-request key the client_metadata publishes.
+// deliverUnsignedRequest sends a redirect_uri or pre-registered request as
+// plain query parameters (OpenID4VP 1.0 §5.10). The response is encrypted to
+// the key in client_metadata.
 func (d *DemoRP) deliverUnsignedRequest(w http.ResponseWriter, req *requestState, dcql map[string]any, responseURI, base string) {
 	dcqlJSON, err := json.Marshal(dcql)
 	if err != nil {
@@ -742,8 +721,9 @@ func lastStringComponent(path []any) string {
 	return name
 }
 
-// Register the same DCQL claims the request asks for so ARF RPRC_21 over-asking checks
-// pass. The payload follows ETSI TS 119 475 §5.2.4.
+// The registration certificate lists the same DCQL claims as the request, so
+// the ARF RPRC_21 over-asking check passes. The payload follows ETSI TS 119
+// 475 §5.2.4.
 func (d *DemoRP) registrationCertificateClaims(accessCertificate *x509.Certificate, name, purpose string, dcqlCredentials []map[string]any) map[string]any {
 	registered := make([]map[string]any, 0, len(dcqlCredentials))
 	for _, c := range dcqlCredentials {
@@ -753,7 +733,8 @@ func (d *DemoRP) registrationCertificateClaims(accessCertificate *x509.Certifica
 			"claim":  c["claims"],
 		})
 	}
-	// TS 119 475 V1.2.1 §5.1.1 links registration and access certificates by their identifier.
+	// TS 119 475 V1.2.1 §5.1.1 links registration and access certificates by
+	// their identifier.
 	identifier := accessCertificate.Subject.CommonName
 	for _, attribute := range accessCertificate.Subject.Names {
 		if attribute.Type.String() == "2.5.4.97" {
@@ -789,10 +770,10 @@ func (d *DemoRP) registrationCertificateClaims(accessCertificate *x509.Certifica
 	}
 }
 
-// Bind key proofs to the OpenID4VP client ID or the interactive Authorization
-// Challenge Endpoint. OpenID4VCI 1.1 Appendix A.3.5 names the endpoint origin, while
-// its example, sibling appendices and §6.2.1.5 use the full endpoint. Accept both ia:
-// forms for interoperability.
+// checkPresentationAudience expects the OpenID4VP client ID or the
+// Authorization Challenge Endpoint. OpenID4VCI 1.1 Appendix A.3.5 uses the
+// endpoint origin. Its example, the other appendices and §6.2.1.5 use the
+// full endpoint. Both ia: forms are accepted.
 func checkPresentationAudience(req *requestState, aud string) error {
 	if req.interactiveEndpoint == "" {
 		return errIf(aud != req.clientID, "aud is %q, want %q", aud, req.clientID)
@@ -802,9 +783,9 @@ func checkPresentationAudience(req *requestState, aud string) error {
 	return errIf(aud != endpoint && aud != origin, "aud is %q, want %q", aud, endpoint)
 }
 
-// rebuildSessionTranscript recomputes what the holder signed over, which for an
-// Interactive Authorization presentation is the handover of OpenID4VCI 1.1
-// Appendix A.2.5 rather than the OpenID4VP one.
+// rebuildSessionTranscript recomputes the session transcript the holder
+// signed. Interactive Authorization uses the handover of OpenID4VCI 1.1
+// Appendix A.2.5.
 func (d *DemoRP) rebuildSessionTranscript(req *requestState) ([]byte, error) {
 	if req.interactiveEndpoint != "" {
 		// ia_post: the response is unencrypted, so the third element is null.
@@ -823,9 +804,8 @@ func originOf(raw string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
-// responseEncryptionMetadata publishes the public half of the per-request
-// encryption key. The wallet refuses direct_post.jwt without a usable JWK,
-// and requires an explicit alg on it.
+// responseEncryptionMetadata publishes the public per-request encryption key.
+// The wallet needs a usable JWK with an explicit alg for direct_post.jwt.
 func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
 	x, y, _ := format.ECPublicCoords(&key.PublicKey)
 	return map[string]any{
@@ -848,9 +828,8 @@ func responseEncryptionMetadata(key *ecdsa.PrivateKey) map[string]any {
 				"sd-jwt_alg_values": []string{"ES256"},
 				"kb-jwt_alg_values": []string{"ES256"},
 			},
-			// OID4VP 1.0 Appendix B.2.2 names these two members for mso_mdoc,
-			// and their values are COSE algorithm identifiers rather than the
-			// JOSE names used for JWTs (-7 is ES256).
+			// OpenID4VP 1.0 Appendix B.2.2 defines these two members for
+			// mso_mdoc. Their values are COSE algorithm identifiers (-7 is ES256).
 			"mso_mdoc": map[string]any{
 				"issuerauth_alg_values": []int{-7},
 				"deviceauth_alg_values": []int{-7},
@@ -875,7 +854,7 @@ func (d *DemoRP) handleRequestStatus(w http.ResponseWriter, r *http.Request) {
 			"claims": req.claims,
 			"checks": req.checks,
 		}
-		// Keep key binding and device authentication in the decoder input.
+		// The decoder input keeps key binding and device authentication.
 		if req.presentation != "" {
 			doc["presentation"] = req.presentation
 		}
@@ -911,8 +890,8 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if replay {
-		// The nonce is fixed per request, so a captured response would
-		// otherwise verify again. One request, one answer.
+		// The nonce is fixed per request, so a captured response would verify
+		// again. Each request accepts one response.
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "this request was already answered"})
 		return
 	}
@@ -938,9 +917,9 @@ func (d *DemoRP) handlePresentationResponse(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// decryptResponse unwraps a direct_post.jwt response and returns the
-// vp_token. The state inside the JWE is checked against the request, so a
-// response encrypted for one request cannot be posted to another.
+// decryptResponse decrypts a direct_post.jwt response and returns the
+// vp_token. It checks the state inside the JWE, so a response for one request
+// cannot be posted to another.
 func decryptResponse(req *requestState, form url.Values) (string, error) {
 	encrypted := strings.TrimSpace(form.Get("response"))
 	if encrypted == "" {
@@ -969,8 +948,8 @@ func decryptResponse(req *requestState, form url.Values) (string, error) {
 		return "", fmt.Errorf("the decrypted response carried no vp_token")
 	}
 
-	// vp_token is a JSON object keyed by query id, which verifyPresentation
-	// already parses. Re-encode whatever shape arrived.
+	// verifyPresentation parses vp_token itself, so it is encoded again as
+	// received.
 	raw, err := json.Marshal(payload.VPToken)
 	if err != nil {
 		return "", fmt.Errorf("re-encoding the vp_token: %w", err)
@@ -998,11 +977,9 @@ func (d *DemoRP) finishRequest(req *requestState, claims map[string]any, checks 
 	req.err = ""
 }
 
-// verifyPresentation validates the vp_token: the PID entry (an SD-JWT with
-// its key binding JWT, or an mdoc DeviceResponse), and the ticket entry when
-// the request asked for one. Every credential's issuer signature anchors in
-// the wallet CA, and every key binding covers this request's nonce and
-// audience.
+// verifyPresentation validates the PID entry of the vp_token and the ticket
+// entry if requested. Each issuer signature must chain to a trusted CA. Each
+// key binding must cover the nonce and audience of this request.
 func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[string]any, []map[string]any, error) {
 	log := &checklist{}
 	check := log.record
@@ -1019,8 +996,8 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		return d.verifyCustomPresentation(req, tokenDoc, log)
 	}
 
-	// A PID request can offer both formats, so the wallet answers under
-	// whichever query id it could satisfy.
+	// A PID request can offer both formats. The wallet answers under the query
+	// id it can satisfy.
 	var presentations []string
 	if req.queryID != "" {
 		presentations = tokenDoc[req.queryID]
@@ -1031,7 +1008,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		answeredMDOC = len(presentations) > 0
 	}
 	if len(presentations) > 0 {
-		// Keep failed presentations available for decoding.
+		// Failed presentations stay available in the decoder.
 		d.recordPresentation(req, presentations[0])
 	}
 	if err := check("vp_token holds one of the requested query ids",
@@ -1071,16 +1048,16 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 		}
 		verified = append(verified, claims)
 	}
-	// A multiple request lists the claims of every presentation under its query id.
+	// A multiple request lists the claims of each presentation under its
+	// query id.
 	resultClaims := verified[0].(map[string]any)
 	if req.multiple {
 		_ = check(fmt.Sprintf("%s: %d presentation(s) verified", answered, len(verified)), nil)
 		resultClaims = map[string]any{answered: verified}
 	}
 
-	// The ticket entry, when the request asked for one. Its absence is an
-	// answer too: the wallet chose a PID-only option or skipped the
-	// optional set.
+	// A missing ticket entry is valid. The wallet chose a PID-only option or
+	// skipped the optional set.
 	if req.ticketQueryID != "" {
 		ticketPresentations := tokenDoc[req.ticketQueryID]
 		if len(ticketPresentations) == 0 {
@@ -1100,7 +1077,7 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 				}
 				ticketClaims, err := d.verifySDJWTEntry(req, presentation, TicketVCT, req.ticketWant, label, log)
 				if err != nil {
-					// Show the failed ticket in the decoder instead of the successful PID.
+					// The decoder shows the failed ticket.
 					d.recordPresentation(req, presentation)
 					return nil, log.entries, err
 				}
@@ -1117,10 +1094,9 @@ func (d *DemoRP) verifyPresentation(req *requestState, vpToken string) (map[stri
 	return resultClaims, log.entries, nil
 }
 
-// verifyCustomPresentation verifies a request built by hand: each credential
-// query is verified on its own, dispatched by format. A query the wallet did
-// not answer is noted rather than failed, since a custom request may ask for
-// more than one credential.
+// verifyCustomPresentation verifies each credential query of a custom request
+// by its format. An unanswered query is recorded and does not fail the
+// request, because a custom request may ask for several credentials.
 func (d *DemoRP) verifyCustomPresentation(req *requestState, tokenDoc map[string][]string, log *checklist) (map[string]any, []map[string]any, error) {
 	check := log.record
 	result := map[string]any{}
@@ -1160,7 +1136,7 @@ func (d *DemoRP) verifyCustomPresentation(req *requestState, tokenDoc map[string
 				claims, err = d.verifySDJWTEntry(req, presentation, entry.vct, entry.want, itemLabel, log)
 			}
 			if err != nil {
-				// Keep failed presentations available for decoding.
+				// Failed presentations stay available in the decoder.
 				d.recordPresentation(req, presentation)
 				return nil, log.entries, err
 			}
@@ -1179,8 +1155,8 @@ func (d *DemoRP) verifyCustomPresentation(req *requestState, tokenDoc map[string
 	return result, log.entries, nil
 }
 
-// Verify type, issuer trust, revocation and key binding for this query. Prefix checks
-// with label to distinguish ticket results from PID results.
+// verifySDJWTEntry checks type, issuer trust, revocation and key binding. The
+// label prefix tells ticket checks apart from PID checks.
 func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT string, want []string, label string, log *checklist) (map[string]any, error) {
 	check := func(name string, err error) error {
 		return log.record(label+name, err)
@@ -1194,16 +1170,16 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 		log.warn(label+"credential is well-formed (RFC 9901)", fmt.Errorf("%s", warning))
 	}
 
-	// SD-JWT VC requires the issuer-signed JWT to carry typ dc+sd-jwt (vc+sd-jwt
-	// during the transition). The demo warns rather than rejects it.
+	// SD-JWT VC requires typ dc+sd-jwt on the issuer-signed JWT (vc+sd-jwt
+	// during the transition). A wrong typ is a warning.
 	log.warn(label+"issuer-signed JWT declares an SD-JWT VC typ", sdjwt.ValidateVCType(token.Header))
 
 	if err = check("every disclosure is referenced by the credential", checkDisclosuresReferenced(token)); err != nil {
 		return nil, err
 	}
 
-	// Check the requested type even when the wallet selected the credential. Accept
-	// derived types, such as a German PID for a base PID query.
+	// The wallet chose the credential, so check the type. A derived type
+	// answers its base type, such as a German PID for a base PID query.
 	gotVCT, _ := token.ResolvedClaims["vct"].(string)
 	gotAka := credtype.AkaVCTs(token.ResolvedClaims)
 	if err = check("credential type matches the request",
@@ -1211,10 +1187,9 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 		return nil, err
 	}
 
-	// HAIP 1.0 section 6.1.1 asks a credential to carry its issuer's signing
-	// certificate and trust chain in x5c, with the trust anchor left out and
-	// the leaf not self-signed. The demo says so and carries on, since the
-	// rule comes from the profile.
+	// HAIP 1.0 section 6.1.1 asks for the issuer signing certificate and trust
+	// chain in x5c, without the trust anchor and with a leaf that is not
+	// self-signed. This is a profile rule, so a violation is a warning.
 	certs, _ := validate.X5CCertificates(token.Header)
 	if violations := validate.HAIPCredentialChain(certs); len(violations) > 0 {
 		log.warn(label+"issuer certificate chain follows HAIP", fmt.Errorf("%s", strings.Join(violations, ". ")))
@@ -1272,8 +1247,7 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 
 	// RFC 9901 §7.3: "check that the creation time of the Key Binding JWT, as
 	// determined by the iat claim, is within an acceptable window". The claim
-	// is REQUIRED (§4.3), and the window is the one this demo applies to every
-	// per-request proof.
+	// is REQUIRED (§4.3). The window is the same as for every per-request proof.
 	kbIat, hasIat := kbJWT.payload["iat"].(float64)
 	iatErr := errIf(!hasIat, "the key binding JWT has no numeric iat")
 	if iatErr == nil {
@@ -1285,8 +1259,8 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 		return nil, err
 	}
 
-	// RFC 9901 §4.3 hashes through the final ~ using the credential's _sd_alg. Parse
-	// has already rejected unsupported algorithms.
+	// RFC 9901 §4.3 hashes up to the final ~ with the _sd_alg of the
+	// credential. Parse rejects unsupported algorithms.
 	prefix := presentation[:strings.LastIndex(presentation, "~")+1]
 	wantHash, hErr := sdjwt.SDHash(prefix, token.SDAlg())
 	if hErr != nil {
@@ -1321,10 +1295,9 @@ func (d *DemoRP) verifySDJWTEntry(req *requestState, presentation, expectedVCT s
 	return disclosed, nil
 }
 
-// checkDisclosuresReferenced enforces the SD-JWT rule that every disclosure be
-// referenced by a digest in the issuer-signed payload, directly or from inside
-// another disclosure. An unreferenced or duplicated one means the presentation
-// was altered after issuance and must be rejected.
+// checkDisclosuresReferenced requires a digest for every disclosure in the
+// issuer-signed payload or in another disclosure. An unreferenced or
+// duplicate disclosure means the presentation was altered.
 func checkDisclosuresReferenced(token *sdjwt.Token) error {
 	referenced := sdjwt.ReferencedDigests(token)
 
@@ -1351,8 +1324,8 @@ func (d *DemoRP) checkRevocation(token *sdjwt.Token, check func(string, error) e
 		return check("revocation status (credential references no status list)", nil)
 	}
 
-	// Anchor the status list JWT in the same CAs as the credential, so a
-	// forged list cannot un-revoke a credential.
+	// The status list JWT must chain to the same CAs as the credential. A
+	// forged list could otherwise un-revoke a credential.
 	anchors := d.trustedIssuerCerts()
 	if len(anchors) == 0 {
 		return check("credential is not revoked", fmt.Errorf("this verifier has no CA certificate"))
@@ -1373,9 +1346,8 @@ func (d *DemoRP) checkRevocation(token *sdjwt.Token, check func(string, error) e
 	return check("credential is not revoked", errIf(result.Status != 0, "the issuer's status list marks this credential as revoked"))
 }
 
-// trustedIssuerCerts is the anchor set every presented credential's issuer
-// chain is validated against: the wallet CA the built-in issuer signs under,
-// plus the anchors SetVerifierTrustAnchors added.
+// trustedIssuerCerts returns the trust anchors for issuer chains. They are the
+// wallet CA and the anchors from SetVerifierTrustAnchors.
 func (d *DemoRP) trustedIssuerCerts() []trustlist.CertInfo {
 	var anchors []*x509.Certificate
 	if caCert := d.wallet.TrustAnchorCertificate(); caCert != nil {
@@ -1400,7 +1372,7 @@ func errIf(cond bool, format string, args ...any) error {
 	return nil
 }
 
-// Omit JWT protocol fields from the displayed claims.
+// disclosedClaims leaves JWT protocol fields out of the displayed claims.
 func disclosedClaims(token *sdjwt.Token) map[string]any {
 	internal := map[string]bool{
 		"iss": true, "iat": true, "exp": true, "nbf": true, "cnf": true,
@@ -1416,10 +1388,9 @@ func disclosedClaims(token *sdjwt.Token) map[string]any {
 	return claims
 }
 
-// verifyMDOCPresentation validates an mdoc DeviceResponse: the doctype the
-// request asked for, the issuer signature anchored in the wallet CA, the
-// element digests the issuer signed, the holder signature over this request's
-// session transcript, and the validity period.
+// verifyMDOCPresentation validates an mdoc DeviceResponse. It checks the
+// doctype, the issuer signature and element digests, the holder signature
+// over the session transcript and the validity period.
 func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, log *checklist) (map[string]any, []map[string]any, error) {
 	check := log.record
 	doc, err := mdoc.Parse(presentation)
@@ -1427,7 +1398,7 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, 
 		return nil, log.entries, err
 	}
 
-	// Check the requested doctype even when the wallet selected the credential.
+	// The wallet chose the credential, so check the doctype.
 	if err = check("credential type matches the request",
 		errIf(doc.DocType != req.docType, "doctype is %q, requested %q", doc.DocType, req.docType)); err != nil {
 		return nil, log.entries, err
@@ -1452,8 +1423,8 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, 
 	for _, warning := range result.Warnings {
 		log.warn("mdoc MSO declares its required members", fmt.Errorf("%s", warning))
 	}
-	// ISO 18013-5 requires validityInfo and validUntil in the MSO. Report missing
-	// values instead of claiming a validity check passed.
+	// ISO 18013-5 requires validityInfo and validUntil in the MSO. Without
+	// validUntil the validity check is reported as unchecked.
 	if result.ValidUntil == nil {
 		log.warn("credential is within its validity period",
 			fmt.Errorf("the mdoc MSO carries no validUntil, so its validity cannot be checked (ISO 18013-5 requires validityInfo)"))
@@ -1462,15 +1433,14 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, 
 		return nil, log.entries, err
 	}
 
-	// The issuer signature only covers the MSO, so without this a holder could
-	// hand back any element value it liked.
+	// The issuer signature covers only the MSO. The digest check binds the
+	// element values to it.
 	if err = check("disclosed elements match the digests the issuer signed", mdoc.VerifyValueDigests(doc)); err != nil {
 		return nil, log.entries, err
 	}
 
-	// The holder signs the session transcript, which binds the response to
-	// this request. Rebuilding it here is what makes a captured response
-	// useless anywhere else.
+	// The holder signs the session transcript. Rebuilding it here binds the
+	// response to this request.
 	transcript, err := d.rebuildSessionTranscript(req)
 	if err = check("session transcript rebuilds", err); err != nil {
 		return nil, log.entries, err
@@ -1499,9 +1469,8 @@ func (d *DemoRP) verifyMDOCPresentation(req *requestState, presentation string, 
 }
 
 // encryptionJWKThumbprint is the RFC 7638 thumbprint of the response
-// encryption key, which the OID4VP session transcript binds to. It has to
-// match what the wallet computed from the JWK in client_metadata, so it is
-// built from the same members.
+// encryption key in the OpenID4VP session transcript. It must match the
+// wallet's thumbprint of the client_metadata JWK, so it uses the same members.
 func encryptionJWKThumbprint(key *ecdsa.PrivateKey) []byte {
 	if key == nil {
 		return nil
@@ -1517,7 +1486,7 @@ func encryptionJWKThumbprint(key *ecdsa.PrivateKey) []byte {
 	return sum[:]
 }
 
-// Keep each verification result so the UI can show which checks passed or failed.
+// checklist keeps each check result for the UI.
 type checklist struct {
 	entries []map[string]any
 }
@@ -1531,8 +1500,7 @@ func (c *checklist) record(name string, err error) error {
 	return err
 }
 
-// Profile findings are warnings in the demo verifier. They do not reject the
-// presentation.
+// warn records a profile finding. It never rejects the presentation.
 func (c *checklist) warn(name string, err error) {
 	entry := map[string]any{"name": name, "ok": true}
 	if err != nil {

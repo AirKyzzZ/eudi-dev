@@ -275,6 +275,19 @@ VCI_SLUG_TOKENS = {
 }
 
 
+def vci_authorization_request_type(kind: str, grant: str) -> str:
+    """Pick the suite's authorization_request_type variant for a Final VCI plan.
+
+    A pre-authorized flow has no authorization request, so the suite fills in the
+    requested credential itself. Under "simple" it injects the scope eudi.pid.1
+    (VCIInjectRequestScopePreAuthorizedCodeFlow in release-v5.2.4), which maps to
+    the SD-JWT PID, so an mdoc offer gets an SD-JWT token response. Under "rar" it
+    injects the offered credential_configuration_id."""
+    if kind == "mdoc" and grant == "pre_authorization_code":
+        return "rar"
+    return "simple"
+
+
 def vci_final_scenarios() -> list[PlanScenario]:
     """Build supported OID4VCI Final variants.
 
@@ -299,7 +312,7 @@ def vci_final_scenarios() -> list[PlanScenario]:
                                     "client_auth_type": "client_attestation",
                                     "fapi_request_method": "unsigned",
                                     "sender_constrain": "dpop",
-                                    "authorization_request_type": "simple",
+                                    "authorization_request_type": vci_authorization_request_type(kind, grant),
                                     "fapi_profile": "vci",
                                     "vci_grant_type": grant,
                                                                         # Pre-authorized offers are issuer initiated because

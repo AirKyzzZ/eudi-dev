@@ -25,15 +25,15 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 )
 
-// DemoOptions configures the demo profile: a shared, anonymous environment
-// exposed on the internet. Visitors keep the full credential flows (issue,
+// DemoOptions configures the demo profile for a shared, anonymous environment
+// on the internet. Visitors keep the full credential flows (issue,
 // present, decode, delete). Endpoints that control the process or write to
 // the host are disabled.
 type DemoOptions struct {
 	// ResetInterval restores the wallet to a clean baseline (default PID
 	// credentials, empty log) on this interval. 0 disables periodic resets.
 	ResetInterval time.Duration
-	// ResetDaily restores the baseline at a fixed wall-clock time. Takes
+	// ResetDaily restores the baseline at a fixed wall-clock time. It takes
 	// precedence over ResetInterval.
 	ResetDaily *DailySchedule
 }
@@ -44,8 +44,8 @@ type DailySchedule struct {
 	Location *time.Location
 }
 
-// Next returns the next occurrence strictly after now, in the location's own
-// calendar so a DST change keeps the configured local time.
+// Next returns the next occurrence strictly after now. It uses the calendar of
+// the location, so a DST change keeps the configured local time.
 func (d DailySchedule) Next(now time.Time) time.Time {
 	local := now.In(d.Location)
 	next := time.Date(local.Year(), local.Month(), local.Day(), d.Hour, d.Minute, 0, 0, d.Location)
@@ -102,7 +102,7 @@ func (s *Server) DemoEnabled() bool {
 	return s.demo != nil
 }
 
-// Limit request bodies on every server to bound memory use.
+// maxRequestBodyBytes limits request bodies on every server to bound memory use.
 const maxRequestBodyBytes = 1 << 20
 
 func (s *Server) Handler() http.Handler {
@@ -116,8 +116,8 @@ func (s *Server) Handler() http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		s.mux.ServeHTTP(w, r)
 	})))
-	// Wrap outside the API guard and the demo checks. They compare paths such as
-	// /api/shutdown, so the prefix must be gone by then.
+	// This wrapper sits outside the API guard and the demo checks. They compare
+	// paths such as /api/shutdown, so the prefix has to be stripped first.
 	return publicpath.Wrap(publicpath.Options{
 		BaseURL: s.wallet.BaseURL,
 		OnMismatch: func(observed string) {
@@ -126,19 +126,19 @@ func (s *Server) Handler() http.Handler {
 	}, inner)
 }
 
-// guardAPI wraps a handler with the cross-origin guard, naming the URLs this
-// wallet is served under so a deployment behind a reverse proxy keeps
-// working when the proxy does not pass the public Host through.
+// guardAPI wraps a handler with the cross-origin guard. It passes the URLs this
+// wallet is served under, so a deployment behind a reverse proxy works when the
+// proxy does not pass the public Host through.
 func (s *Server) guardAPI(next http.Handler) http.Handler {
 	// /api/dc-api is the Digital Credentials API endpoint. A verifier's page
-	// invokes it from its own origin, so it is exempt and relies on the
-	// platform-reported origin and the consent dialog.
+	// invokes it from its own origin, so it is exempt. It relies on the origin
+	// the platform reports and on the consent dialog.
 	return httpsec.GuardAPIExcept(next, []string{"/api/dc-api"}, s.wallet.BaseURL, s.wallet.IssuerURL)
 }
 
-// demoBlockedRoute reports whether the request targets an endpoint that must
-// not be reachable by anonymous demo visitors: process control, writes to
-// the server's filesystem, and behavior changes affecting all visitors.
+// demoBlockedRoute reports whether the endpoint is closed to anonymous demo
+// visitors. That covers process control, writes to the server's filesystem and
+// changes that affect all visitors.
 func demoBlockedRoute(r *http.Request) bool {
 	p := r.URL.Path
 	switch {
@@ -164,8 +164,8 @@ func demoBlockedRoute(r *http.Request) bool {
 
 // ResetToBaseline drops all visitor-created state: credentials, activity
 // log, status entries and the attestation registry. Keys, certificates and
-// serving URLs are untouched, so trust list and status list URLs stay
-// stable across resets.
+// serving URLs stay, so trust list and status list URLs are stable across
+// resets.
 func (w *Wallet) ResetToBaseline() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -174,8 +174,8 @@ func (w *Wallet) ResetToBaseline() {
 	w.StatusEntries = nil
 	w.StatusListCounter = 0
 	w.IssuedAttestations = nil
-	// A pending deferral belongs to the session being wiped, so the poller must
-	// not carry it (or its keys) into the fresh baseline.
+	// A pending deferral belongs to the wiped session. The poller must not
+	// carry it or its keys into the fresh baseline.
 	w.DeferredIssuances = nil
 }
 
@@ -188,8 +188,8 @@ func (s *Server) startDemoReset() {
 		return
 	}
 
-	// nextResetAfter is evaluated per cycle so a daily schedule stays pinned
-	// to the wall clock.
+	// nextResetAfter runs every cycle so a daily schedule stays pinned to the
+	// wall clock.
 	nextResetAfter := func(now time.Time) time.Time {
 		if daily != nil {
 			return daily.Next(now)
@@ -235,8 +235,8 @@ func (s *Server) stopDemoReset() {
 	s.demo.stopOnce.Do(func() { close(s.demo.stop) })
 }
 
-// Hold storeSyncMu through the reset so requests on this server see the complete old
-// or new baseline.
+// demoReset holds storeSyncMu through the reset, so requests on this server see
+// either the complete old baseline or the new one.
 func (s *Server) demoReset() error {
 	s.storeSyncMu.Lock()
 	defer s.storeSyncMu.Unlock()
@@ -246,7 +246,7 @@ func (s *Server) demoReset() error {
 		return err
 	}
 	s.wallet.ResetToBaseline()
-	// Re-issue the signing leaf from the same CA: leaves are valid for a year,
+	// Re-issue the signing leaf from the same CA. Leaves are valid for a year
 	// and the CA stays pinnable.
 	if err := s.wallet.RefreshSigningCertificate(); err != nil {
 		return err
@@ -258,12 +258,12 @@ func (s *Server) demoReset() error {
 		if err := store.Save(s.wallet); err != nil {
 			return err
 		}
-		// Clearing the baseline orphaned the assets issued since the last reset.
-		// They are swept once the fresh baseline is on disk.
+		// The reset leaves the assets issued since the last reset unreferenced.
+		// They are pruned once the fresh baseline is saved.
 		store.PruneUnreferencedAssets()
 	}
-	// Scheduling belongs to startDemoReset: computing it here would break a
-	// daily schedule, whose ResetInterval is zero.
+	// startDemoReset schedules the next reset. A daily schedule has a zero
+	// ResetInterval, so only the scheduler knows the next time.
 	s.log("  Demo reset: baseline restored")
 	return nil
 }

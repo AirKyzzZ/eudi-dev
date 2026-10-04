@@ -98,10 +98,9 @@ func TestInteractiveAuthorizationEndToEnd(t *testing.T) {
 	t.Errorf("no log entry recorded the presentation, log: %v", w.GetLog())
 }
 
-// The issuer decides per offer. An offer that wants the browser sign-in asks
-// a wallet that advertises it for the auth_via_web interaction (OpenID4VCI
-// 1.1 §6.2.1.2), and the wallet publishes the sign-in URL rather than
-// finishing on its own.
+// The issuer picks the interaction per offer. For an offer that wants browser
+// sign-in it asks a wallet that advertises auth_via_web for that interaction
+// (OpenID4VCI 1.1 §6.2.1.2). The wallet then publishes the sign-in URL.
 func TestOfferCanAskForTheBrowserSignInInstead(t *testing.T) {
 	w := interactiveTestWallet(t)
 	_, ts := serveDemoStack(t, w)
@@ -143,9 +142,9 @@ func TestOfferCanAskForTheBrowserSignInInstead(t *testing.T) {
 }
 
 // A wallet that offers only the presentation interaction still reaches the
-// browser sign-in: the issuer falls back to redirect_to_web (Section
-// 5.2.2.1.1 of the first-party-apps specification), which needs no
-// interaction support from the wallet.
+// browser sign-in. The issuer falls back to redirect_to_web (Section
+// 5.2.2.1.1 of the first-party-apps specification). That needs no interaction
+// support from the wallet.
 func TestBrowserOfferFallsBackToRedirectToWeb(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	issuerState := createOfferState(t, d, authorizationBrowser)
@@ -171,8 +170,8 @@ func TestBrowserOfferFallsBackToRedirectToWeb(t *testing.T) {
 }
 
 // A browser offer redeemed by a wallet that advertises auth_via_web gets the
-// Interaction Required Response of §6.2.1.2: insufficient_authorization
-// naming the interaction, an auth_session, and the request_uri the wallet
+// Interaction Required Response of §6.2.1.2. It holds insufficient_authorization
+// with the interaction type, an auth_session, and the request_uri the wallet
 // takes to the authorization endpoint.
 func TestBrowserOfferAsksForTheAuthViaWebInteraction(t *testing.T) {
 	d, _, _ := newDemoRP(t)
@@ -225,16 +224,15 @@ func TestInteractiveAuthorizationIsNotOfferedAtFeatureLevel10(t *testing.T) {
 	if _, published := metadata["authorization_challenge_endpoint"]; published {
 		t.Error("the demo issuer published a challenge endpoint to a 1.0 wallet")
 	}
-	// require_interactive_authorization is never published: the redirect flow
-	// works here too, so this server does not only accept the interactive one.
+	// require_interactive_authorization is never published because this server
+	// also accepts the redirect flow.
 	if _, published := metadata["require_interactive_authorization"]; published {
 		t.Error("the demo issuer claims to require interactive authorization")
 	}
 }
 
-// §6.2.2: a wallet redeeming a presentation offer without offering the
-// presentation interaction is told which type is missing, rather than being
-// asked for one it cannot do.
+// §6.2.2: a wallet that redeems a presentation offer without offering the
+// presentation interaction is told which interaction type is missing.
 func TestAuthorizationChallengeReportsAMissingInteractionType(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	issuerState := createOfferState(t, d, authorizationPresentation)
@@ -316,11 +314,11 @@ func postAuthorizationChallenge(t *testing.T, d *DemoRP, headers map[string]stri
 	return rec
 }
 
-// The Authorization Challenge Endpoint is client-authenticated exactly like
-// the PAR and token endpoints (§6.1 notes the Wallet Attestation "has to be
-// included in this request" where the server requires one), so a wallet that
-// sends no OAuth-Client-Attestation headers is refused in the default
-// required mode and served in optional mode.
+// The Authorization Challenge Endpoint authenticates clients like the PAR and
+// token endpoints. §6.1 says the Wallet Attestation "has to be included in
+// this request" where the server requires one. A wallet without
+// OAuth-Client-Attestation headers is refused in required mode and served in
+// optional mode.
 func TestAuthorizationChallengeRequiresClientAttestation(t *testing.T) {
 	t.Run("required by default", func(t *testing.T) {
 		d, _, _ := newDemoRP(t)
@@ -661,9 +659,8 @@ func TestInteractiveAuthorizationVerifiesThePresentation(t *testing.T) {
 	})
 }
 
-// The pushed requests a browser sign-in continues with live in the same
-// state map the PAR endpoint fills and get the same cap: a full map answers
-// 429.
+// Browser sign-in stores its pushed requests in the state map the PAR
+// endpoint fills. The map has one cap, and a full map answers 429.
 func TestBrowserOfferChallengeIsCappedLikePAR(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	provider := foreignWalletProvider(t)
@@ -689,9 +686,8 @@ func TestBrowserOfferChallengeIsCappedLikePAR(t *testing.T) {
 }
 
 // §6.2.1 has the wallet send its auth_session on every further challenge
-// request. A wallet coming back with the one the auth_via_web answer handed
-// out gets the interaction again with a fresh request_uri, not
-// invalid_grant.
+// request. A wallet that returns with the auth_session from the auth_via_web
+// answer gets the interaction again with a fresh request_uri.
 func TestAuthViaWebSessionIsReOffered(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	provider := foreignWalletProvider(t)

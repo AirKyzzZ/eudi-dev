@@ -96,8 +96,8 @@ func TestCreateSelfIssuedIDToken(t *testing.T) {
 }
 
 func TestJWKThumbprint(t *testing.T) {
-	// The RFC 7638 §3.1 example uses RSA, so the P-256 thumbprint is held to
-	// being stable and deterministic here and to a known vector below.
+	// The RFC 7638 §3.1 example uses an RSA key. For P-256 this test checks
+	// determinism and TestJWKThumbprint_KnownVector checks a fixed vector.
 	key, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
@@ -126,8 +126,8 @@ func TestJWKThumbprint(t *testing.T) {
 }
 
 func TestJWKThumbprint_KnownVector(t *testing.T) {
-	// RFC 7638 §3: the thumbprint is the SHA-256 of the required members in
-	// lexicographic order with no whitespace.
+	// RFC 7638 §3 hashes the required members in lexicographic order with no
+	// whitespace.
 	x, _ := hex.DecodeString("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6")
 	y, _ := hex.DecodeString("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299")
 

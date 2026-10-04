@@ -58,11 +58,10 @@ func isJWT(s string) bool {
 	return len(parts) == 3 && len(parts[0]) > 0 && len(parts[1]) > 0
 }
 
-// URIQueryValues parses a request URI's query with RFC 3986 semantics:
-// percent escapes are decoded and "+" stays a literal plus. Authorization
-// requests and credential offers travel as links and QR codes, not as
-// submitted forms, and their values carry literal plus signs ("dc+sd-jwt"
-// in a dcql_query, vct URNs).
+// URIQueryValues parses a request URI's query with RFC 3986 semantics.
+// Percent escapes are decoded and "+" stays a literal plus. Authorization
+// requests and credential offers travel as links and QR codes. Their values
+// carry literal plus signs, such as "dc+sd-jwt" in a dcql_query.
 func URIQueryValues(u *url.URL) url.Values {
 	values := url.Values{}
 	for _, part := range strings.Split(u.RawQuery, "&") {
@@ -82,9 +81,8 @@ func URIQueryValues(u *url.URL) url.Values {
 }
 
 // DeriveResponseURI fills an absent response_uri for the redirect_uri client
-// id prefix: OID4VP 1.0 §5.9.3 makes the prefix value the response endpoint,
-// so a verifier may omit the parameter for the direct_post response modes and
-// the wallet derives it from the client_id.
+// id prefix. OID4VP 1.0 §5.9.3 makes the prefix value the response endpoint.
+// A verifier may omit the parameter for the direct_post response modes.
 func DeriveResponseURI(clientID, responseMode, responseURI string) string {
 	if responseURI != "" {
 		return responseURI
@@ -98,9 +96,8 @@ func DeriveResponseURI(clientID, responseMode, responseURI string) string {
 	return ""
 }
 
-// EncodeURIQuery encodes values for a request URI's query component with RFC
-// 3986 semantics, the counterpart of URIQueryValues: a space becomes %20, so
-// a receiver reading "+" as a literal plus sees the original text.
+// EncodeURIQuery is the counterpart of URIQueryValues. A space becomes %20, so
+// a receiver that reads "+" as a literal plus sees the original text.
 func EncodeURIQuery(values url.Values) string {
 	return strings.ReplaceAll(values.Encode(), "+", "%20")
 }
@@ -210,9 +207,8 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 		}
 	}
 
-	// Read before any Request Object is resolved. A signed object replaces the
-	// whole parameter set, so anything taken from the query string afterwards
-	// would outrank what the Verifier signed.
+	// This runs before any Request Object is resolved. A signed object then
+	// replaces the whole parameter set.
 	if dq := q.Get("dcql_query"); dq != "" {
 		var m map[string]any
 		if err := json.Unmarshal([]byte(dq), &m); err == nil {
@@ -266,12 +262,10 @@ func parseVPParams(q url.Values, opts ParseOptions) (RequestType, any, error) {
 // applyRequestObjectPayload replaces the request parameters with the claims of
 // the Request Object. OID4VP 1.0 §5.10.1: "The Wallet MUST only use the
 // parameters in this Request Object, even if the same parameter was provided
-// in an Authorization Request query parameter", so a parameter the signed
-// object omits is absent rather than inherited. Merging would let anyone who
-// can append to the invocation URL decide what the wallet discloses.
+// in an Authorization Request query parameter". A parameter the signed object
+// omits stays absent.
 //
-// request_uri and request_uri_method stay outside: they describe the
-// transport, not the request.
+// request_uri and request_uri_method describe the transport and are kept.
 func applyRequestObjectPayload(req *AuthorizationRequest, payload map[string]any) error {
 	innerClientID, _ := payload["client_id"].(string)
 	// "The Client Identifier value in the client_id Authorization Request
@@ -347,7 +341,7 @@ func parseJSONInput(raw string) (RequestType, any, error) {
 	}
 
 	// Unsigned Digital Credentials API requests have no client_id (OID4VP 1.0 Appendix
-	// A.2). Detect them from their request fields.
+	// A.2). Their request fields identify them.
 	for _, marker := range []string{"client_id", "dcql_query", "response_type"} {
 		if _, ok := m[marker]; ok {
 			rt, req := buildVPFromJSON(m)

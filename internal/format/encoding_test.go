@@ -70,7 +70,6 @@ func TestDecodeHexOrBase64URL(t *testing.T) {
 		t.Errorf("hex decode got %q, want %q", string(got), "hello")
 	}
 
-	// Base64url input (not valid hex due to length/chars)
 	got, err = DecodeHexOrBase64URL("aGVsbG8")
 	if err != nil {
 		t.Fatal(err)

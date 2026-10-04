@@ -87,8 +87,8 @@ func keysOf(doc map[string]any) []string {
 	return out
 }
 
-// The table compares document shapes. This pins one value: a deferred
-// credential names the credential type being issued, on both backends.
+// The table compares document shapes. This test checks one value. On both
+// backends a deferred credential identifies the credential type being issued.
 func TestDeferredDocumentsCarryTheCredentialType(t *testing.T) {
 	resetRemoteTestState(t)
 	localSvc, remoteSvc := parityWallets(t, func(w *wallet.Wallet) {
@@ -275,8 +275,8 @@ func parityCases() []parityCase {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Typed on both sides, so the compiler fixes the shape. What can
-			// differ is whether a backend reports anything at all.
+			// The compiler checks the entry type on both sides. Only the presence of
+			// entries can differ.
 			return len(entries) > 0
 		}},
 		{method: "ClearLogs", observe: func(t *testing.T, s walletService) any {

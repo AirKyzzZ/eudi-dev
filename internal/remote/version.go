@@ -20,18 +20,17 @@ import (
 )
 
 // Version is a release version reduced to what a compatibility check needs.
-// Pre-release and build metadata are parsed away: a 1.19.0-rc.1 instance
-// speaks the API of 1.19.0 as far as the CLI is concerned.
+// Pre-release and build metadata are dropped, so the CLI treats 1.19.0-rc.1
+// like 1.19.0.
 type Version struct {
 	Major int
 	Minor int
 	Patch int
 }
 
-// ParseVersion reads a semantic version as reported by /api/version or built
-// into the CLI. It reports false for anything without a numeric major and
-// minor, which covers the development build ("dev") and an instance too old
-// to report a version at all.
+// ParseVersion reads a semantic version from /api/version or the CLI build. It
+// reports false without a numeric major and minor, such as for the "dev" build
+// or an empty version.
 func ParseVersion(raw string) (Version, bool) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "v")
@@ -63,17 +62,15 @@ func (v Version) String() string {
 type Compatibility int
 
 const (
-	// CompatibilityUnknown means one of the two sides does not report a
-	// comparable version (a development build, or an instance predating
-	// version reporting).
+	// CompatibilityUnknown means one side reports no comparable version, such as
+	// a development build or an instance that reports no version.
 	CompatibilityUnknown Compatibility = iota
 	Compatible
 	Incompatible
 )
 
-// CheckCompatibility compares the CLI's release with an instance's the way
-// semantic versioning defines it: the same major release is compatible,
-// whatever the minor and patch numbers.
+// CheckCompatibility compares the CLI's release with an instance's release.
+// Under semantic versioning the same major release is compatible.
 func CheckCompatibility(cli, instance string) Compatibility {
 	cliVersion, cliOK := ParseVersion(cli)
 	instanceVersion, instanceOK := ParseVersion(instance)

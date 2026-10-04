@@ -23,10 +23,9 @@ import (
 )
 
 // The signing, JWK and thumbprint code reads EC key coordinates through these
-// helpers. These tests pin that the helper output is byte-for-byte the SEC1
-// point and the fixed-width JWK coordinates, across P-256, P-384 and P-521.
-// The big.Int coordinate fields are read here only as the independent
-// reference.
+// helpers. Their output must equal the SEC1 point and the fixed-width JWK
+// coordinates on P-256, P-384 and P-521. The big.Int fields serve as an
+// independent reference.
 
 func referenceCoords(pub *ecdsa.PublicKey) (x, y []byte) {
 	size := (pub.Curve.Params().BitSize + 7) / 8
@@ -46,8 +45,7 @@ func TestECPublicCoords_MatchesFieldAccess(t *testing.T) {
 	for _, c := range curves {
 		t.Run(c.name, func(t *testing.T) {
 			size := (c.curve.Params().BitSize + 7) / 8
-			// Generate enough keys to exercise coordinates with a leading zero byte,
-			// which big.Int.Bytes() omits.
+			// 500 keys include coordinates with a leading zero byte, which big.Int.Bytes() omits.
 			for i := 0; i < 500; i++ {
 				key, err := ecdsa.GenerateKey(c.curve, rand.Reader)
 				if err != nil {
@@ -64,7 +62,7 @@ func TestECPublicCoords_MatchesFieldAccess(t *testing.T) {
 				if !bytes.Equal(gotX, wantX) || !bytes.Equal(gotY, wantY) {
 					t.Fatalf("coordinates differ from field access:\n got x=%x y=%x\nwant x=%x y=%x", gotX, gotY, wantX, wantY)
 				}
-				// A second, independent reference: the SEC1 uncompressed point.
+				// The SEC1 uncompressed point is a second independent reference.
 				marshaled := elliptic.Marshal(c.curve, key.X, key.Y) //nolint:staticcheck // the independent reference for the helper
 				if !bytes.Equal(append([]byte{4}, append(gotX, gotY...)...), marshaled) {
 					t.Fatalf("coordinates do not reassemble into the SEC1 point")
@@ -95,8 +93,7 @@ func TestECPublicKeyFromCoords_RoundTrip(t *testing.T) {
 }
 
 func TestECPublicKeyFromCoords_AcceptsShortCoordinates(t *testing.T) {
-	// A JWK may drop a leading zero byte, so a coordinate can arrive shorter
-	// than the curve width. Trimming the padding must still rebuild the key.
+	// A JWK may drop a leading zero byte. The short coordinate must still rebuild the key.
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +112,7 @@ func TestECPublicKeyFromCoords_AcceptsShortCoordinates(t *testing.T) {
 }
 
 func TestECPublicKeyFromCoords_RejectsOffCurve(t *testing.T) {
-	// Reject points outside the curve before constructing an unusable key.
+	// A point outside the curve must be refused.
 	x := make([]byte, 32)
 	y := make([]byte, 32)
 	x[31] = 1

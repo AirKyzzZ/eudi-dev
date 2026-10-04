@@ -21,7 +21,8 @@ import (
 	"time"
 )
 
-// RefreshCredential preserves the ID used by queries, UI selections and logs.
+// RefreshCredential renews a credential with its refresh token. The renewed
+// credential keeps the ID, so queries, UI selections and logs still match.
 func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	cred, ok := w.GetCredential(id)
 	if !ok {
@@ -43,8 +44,8 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	if renewal.ClientID != "" {
 		form.Set("client_id", renewal.ClientID)
 	}
-	// A refresh is a token request like the one that obtained the credential,
-	// so an issuer that required client authentication then requires it now.
+	// An issuer that required client authentication for the first token
+	// request requires it for the refresh too.
 	if err := applyClientAuthentication(form, renewal.ClientAuth, w.HolderKey); err != nil {
 		return nil, err
 	}
@@ -59,10 +60,9 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 	}
 	authScheme := accessTokenScheme(tokenResp, renewal.UseDPoP)
 
-	// A renewal is an ordinary credential request, so it needs the Nonce
-	// Endpoint the challenge comes from (§8.2) and the encryption the issuer
-	// requires. Both live in the Credential Issuer Metadata, read again from
-	// the identifier the credential was stored with (§12.2.2).
+	// The credential request needs the Nonce Endpoint (§8.2) and the
+	// issuer's encryption requirements. Both come from the Credential Issuer
+	// Metadata (§12.2.2).
 	metadata, metadataErr := fetchIssuerMetadata(w.HTTPClient(), renewal.Issuer)
 	if metadataErr != nil {
 		return nil, fmt.Errorf("fetching the issuer metadata of %s: %w", renewal.Issuer, metadataErr)
@@ -77,15 +77,14 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 		return nil, err
 	}
 
-	// The holder key alone: a renewal replaces one credential, so there is no
-	// batch to match back to several ephemeral keys.
+	// A renewal replaces one credential, so it needs one proof key.
 	proofKeys := []*ecdsa.PrivateKey{w.HolderKey}
 
-	// §8.2 gives two ways to name what is requested and lets neither stand in
-	// for the other: credential_identifier "when an Authorization Details of
-	// type openid_credential was returned from the Token Response",
-	// credential_configuration_id otherwise. The refresh response decides.
-	credentialIdentifier := resolveCredentialIdentifier(tokenResp)
+	// OpenID4VCI §8.2 requires credential_identifier "when an Authorization
+	// Details of type openid_credential was returned from the Token Response",
+	// and credential_configuration_id otherwise.
+	credentialIdentifier, authorizedOther := resolveCredentialIdentifier(tokenResp, renewal.ConfigurationID)
+	w.reportAuthorizedConfiguration(renewal.Issuer, renewal.ConfigurationID, authorizedOther)
 	credentialConfigurationID := ""
 	if credentialIdentifier == "" {
 		credentialConfigurationID = renewal.ConfigurationID
@@ -103,8 +102,8 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 		responseEncryption:        responseEncryption,
 		dpopKey:                   dpopKey,
 		proofKeys:                 proofKeys,
-		// A refresh replays the original client identity, so the key proof names
-		// it as iss just as the first request did (empty for an anonymous flow).
+		// The key proof carries the original client ID as iss. It is empty for
+		// an anonymous flow.
 		clientID: renewal.ClientID,
 		nonce:    &nonce,
 	}
@@ -122,8 +121,7 @@ func (w *Wallet) RefreshCredential(id string) (*StoredCredential, error) {
 		return nil, fmt.Errorf("reading the renewed credential: %w", err)
 	}
 
-	// A rotated refresh token replaces the stored one, or the next renewal
-	// would present one the issuer has already retired.
+	// The issuer may rotate the refresh token and retire the old one.
 	if rotated, _ := tokenResp["refresh_token"].(string); rotated != "" {
 		renewal.RefreshToken = rotated
 	}
@@ -151,8 +149,8 @@ func (s *Server) RefreshCredential(id string) (*StoredCredential, error) {
 }
 
 func (w *Wallet) ReplaceCredential(id, raw string, renewal *CredentialRenewal) (*StoredCredential, error) {
-	// Import first to reuse credential parsing, then replace the existing entry while
-	// keeping its ID.
+	// Importing parses the credential. The new entry then replaces the old one
+	// under the old ID.
 	imported, err := w.ImportCredential(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parsing the renewed credential: %w", err)
@@ -173,9 +171,8 @@ func (w *Wallet) ReplaceCredential(id, raw string, renewal *CredentialRenewal) (
 	}
 	w.Credentials = kept
 
-	// The renewed copy was imported under a throwaway id, so a status entry
-	// adopted during that import has to follow it onto the entry that keeps
-	// the original id.
+	// A status entry from the import is keyed by the temporary ID, so it
+	// moves to the kept ID.
 	if entry, ok := w.StatusEntries[appendedID]; ok {
 		delete(w.StatusEntries, appendedID)
 		w.StatusEntries[id] = entry
@@ -189,9 +186,9 @@ func (w *Wallet) ReplaceCredential(id, raw string, renewal *CredentialRenewal) (
 		fresh.Protected = w.Credentials[i].Protected
 		fresh.Renewal = renewal
 		fresh.Display = w.Credentials[i].Display
-		// Preserve batch membership so listing, presentation, deletion and revocation
-		// still treat it as one credential. Renewal uses the wallet holder key, so
-		// clear any old per-copy key.
+		// Batch membership stays, so listing, presentation, deletion and
+		// revocation still see one credential. The renewal is bound to the
+		// wallet holder key, so no per-copy key carries over.
 		fresh.BatchGroup = w.Credentials[i].BatchGroup
 		fresh.Uses = w.Credentials[i].Uses
 		fresh.LastPresentedAt = w.Credentials[i].LastPresentedAt
@@ -201,17 +198,15 @@ func (w *Wallet) ReplaceCredential(id, raw string, renewal *CredentialRenewal) (
 	return nil, fmt.Errorf("credential %s not found", id)
 }
 
-// renewalCheckInterval is how often credentials are checked against their
-// expiry. It only has to be shorter than the margin, so a credential is
-// noticed while there is still time to renew it.
+// renewalCheckInterval has to be shorter than renewalMargin, so a credential
+// is noticed while there is still time to renew it.
 const renewalCheckInterval = 30 * time.Second
 
-// renewalRetryAfter keeps a credential whose renewal failed from being retried
-// on every sweep.
+// renewalRetryAfter keeps a failed renewal from being retried on every sweep.
 const renewalRetryAfter = 10 * time.Minute
 
-// renewExpiringCredentials renews what is close enough to expiry to be worth
-// renewing. One credential failing does not stop the sweep.
+// renewExpiringCredentials renews credentials inside renewalMargin. One
+// failure does not stop the sweep.
 func (s *Server) renewExpiringCredentials(now time.Time) error {
 	for _, cred := range s.wallet.GetCredentials() {
 		if !cred.CanRenew() || !CredentialNeedsRenewal(cred, now) {

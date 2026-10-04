@@ -114,7 +114,7 @@ func TestBuildStatusList_MinimumSize(t *testing.T) {
 	}
 
 	_, bs := w.BuildStatusList()
-	// The 16-byte floor is this wallet's choice, not a spec requirement.
+	// The spec sets no minimum size. This wallet uses at least 16 bytes.
 	if len(bs) < 16 {
 		t.Errorf("expected minimum 16 bytes, got %d", len(bs))
 	}
@@ -406,7 +406,7 @@ func TestGenerateSDJWT_WithStatusList(t *testing.T) {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 
-	// status must be available without selective disclosure.
+	// The status claim must be readable without any disclosure.
 	status, ok := token.Payload["status"].(map[string]any)
 	if !ok {
 		t.Fatal("expected status in payload")
@@ -449,9 +449,8 @@ func TestGenerateSDJWT_WithoutStatusList(t *testing.T) {
 	}
 }
 
-// Import adopts status entries that reference this wallet's own list, including
-// credentials received from the demo issuer. Without a local entry, the wallet cannot
-// revoke them.
+// Import adopts status entries that reference this wallet's own list. Without a
+// local entry the wallet cannot revoke those credentials.
 func TestImportAdoptsOwnStatusListEntry(t *testing.T) {
 	w := generateTestWallet(t)
 	w.BaseURL = "http://localhost:8085"

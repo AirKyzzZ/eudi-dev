@@ -25,11 +25,11 @@ import (
 
 type backgroundTask struct {
 	name string
-	// The interval controls when a task is considered. The task decides whether work
-	// is due.
+	// every sets how often the loop considers the task. The task decides
+	// whether work is due.
 	every time.Duration
-	// run reports whether the task got its work done. A task that fails is
-	// tried again on the next tick rather than after its interval.
+	// run reports whether the task got its work done. A failed task runs
+	// again on the next tick.
 	run func(now time.Time) error
 }
 
@@ -60,8 +60,8 @@ func (s *Server) StartBackgroundTasks() func() {
 					if state[i].abandoned {
 						continue
 					}
-					// A failed task is due again immediately: the interval
-					// paces successful work, not recovery.
+					// A failed task is due again at once. The interval paces
+					// only successful runs.
 					if state[i].failures == 0 && !state[i].lastRun.IsZero() &&
 						now.Sub(state[i].lastRun) < tasks[i].every {
 						continue
@@ -134,8 +134,8 @@ func (s *Server) collectDueDeferredCredentials(now time.Time) error {
 		}
 		s.attemptDeferredCollection(pending)
 	}
-	// Handle each issuer's retry schedule separately so one refusal does not fail the
-	// sweep.
+	// Each record keeps its own retry schedule, so one refusal does not fail
+	// the sweep.
 	return nil
 }
 
@@ -149,8 +149,8 @@ type DeferredAttempt struct {
 	Reason        string            `json:"reason,omitempty"`
 }
 
-// Import completed credentials, reschedule pending ones and remove records after final
-// errors.
+// attemptDeferredCollection imports a completed credential, reschedules a
+// pending one and removes the record after a final error.
 func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAttempt {
 	if !s.beginDeferredCollection(pending.ID) {
 		// Another collection for this record is already running. A second one
@@ -168,8 +168,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		dpopKey = s.wallet.HolderKeyPair()
 	}
 
-	// Deferred collection can outlast the original access token, so refresh it when
-	// needed.
+	// Collection can outlast the original access token.
 	if pending.AccessTokenExpired(time.Now()) && pending.CanRefresh() {
 		refreshed, err := s.refreshDeferredAccessToken(pending, dpopKey)
 		if err != nil {
@@ -179,11 +178,11 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	}
 
 	// §9.1 holds a Deferred Credential Request to the same encryption as the
-	// request that started the issuance, so the metadata is read again here
-	// (the flow that knew it is gone by the time the poller runs). Metadata
-	// that cannot be reached leaves the request unencrypted.
-	// The validation mode is read once: this runs on the poller goroutine,
-	// which can race a PUT /api/config/conformance.
+	// request that started the issuance. The original flow is gone by now, so
+	// the metadata is fetched again. Unreachable metadata leaves the request
+	// unencrypted.
+	// The validation mode is read once. This runs on the poller goroutine and
+	// can race a PUT /api/config/conformance.
 	mode := s.wallet.Mode()
 	metadata, metadataErr := fetchIssuerMetadata(s.wallet.HTTPClient(), pending.Issuer)
 	if metadataErr != nil {
@@ -194,7 +193,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		return s.rescheduleDeferred(pending, pending.Interval(), err.Error())
 	}
 
-	// Let the poller schedule retries. Each call performs one request without waiting.
+	// Each call sends one request without waiting. The poller schedules retries.
 	nonce := ""
 	credResp, err := s.wallet.deferredCredentialAttempt(
 		mode, metadata,
@@ -202,7 +201,7 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 		pending.TransactionID, responseEncryption, dpopKey, s.wallet.HolderKeyPair(), &nonce)
 
 	// An issuer that refuses the authorization may have expired the token
-	// earlier than it said, so one renewal and one retry precede giving up.
+	// earlier than it said. The wallet renews the token and retries once.
 	if err != nil && isAuthorizationRejected(err) && pending.CanRefresh() {
 		refreshed, refreshErr := s.refreshDeferredAccessToken(pending, dpopKey)
 		if refreshErr == nil {
@@ -227,9 +226,8 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	if err != nil {
 		return s.abandonDeferred(pending, fmt.Sprintf("the credential could not be imported: %v", err))
 	}
-	// The display was resolved at offer time and carried on the record. When
-	// it came back empty then, it is resolved again from the metadata fetched
-	// for this collection.
+	// The record carries the display resolved at offer time. When that was
+	// empty, the display comes from the metadata fetched for this collection.
 	display := pending.Display
 	if display == nil && metadata != nil {
 		display = s.wallet.resolveCredentialDisplay(metadata, pending.ConfigurationID)
@@ -255,7 +253,8 @@ func (s *Server) attemptDeferredCollection(pending DeferredIssuance) DeferredAtt
 	return DeferredAttempt{Collected: true, Credential: imported}
 }
 
-// Reschedule pending or transient errors. Other errors end collection.
+// handleDeferredAttemptError reschedules a pending record or a transient
+// error. Other errors end collection.
 func (s *Server) handleDeferredAttemptError(pending DeferredIssuance, err error) DeferredAttempt {
 	var stillPending stillPendingError
 	if errors.As(err, &stillPending) {
@@ -274,8 +273,8 @@ func isAuthorizationRejected(err error) bool {
 		strings.Contains(message, "invalid_token")
 }
 
-// Retry network and server errors. Rejected authorization and unknown transactions
-// need different handling.
+// isRetryableDeferredError reports whether collection retries after err.
+// Rejected authorization, unknown transactions and expiry are final.
 func isRetryableDeferredError(err error) bool {
 	message := err.Error()
 	for _, fatal := range []string{
@@ -328,7 +327,8 @@ func (s *Server) abandonDeferred(pending DeferredIssuance, reason string) Deferr
 	return DeferredAttempt{Abandoned: true, Reason: reason}
 }
 
-// Claim the record before collecting so concurrent polls cannot import it twice.
+// beginDeferredCollection claims the record before collecting, so concurrent
+// polls cannot import it twice.
 func (s *Server) beginDeferredCollection(id string) bool {
 	s.deferredMu.Lock()
 	defer s.deferredMu.Unlock()
@@ -357,7 +357,7 @@ func (s *Server) CollectDeferredNow(id string) (DeferredAttempt, bool) {
 	return DeferredAttempt{}, false
 }
 
-// AbandonDeferredNow stops polling. The transaction remains valid at the issuer.
+// AbandonDeferredNow stops polling. The transaction stays valid at the issuer.
 func (s *Server) AbandonDeferredNow(id string) (DeferredIssuance, bool) {
 	for _, pending := range s.wallet.DeferredIssuanceList() {
 		if pending.ID != id {

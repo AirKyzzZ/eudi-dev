@@ -209,9 +209,7 @@ func TestGenerateStatusListJWT_WithCertChain(t *testing.T) {
 	if !ok {
 		t.Fatal("expected x5c array in header")
 	}
-	// The self-signed trust anchor is dropped: a relying party has it out of
-	// band, and HAIP 6.1 rejects a chain that carries it. See
-	// TestGenerateStatusListJWTExcludesTrustAnchorFromX5C.
+	// HAIP 6.1 excludes the self-signed trust anchor from x5c.
 	if len(x5c) != 1 {
 		t.Fatalf("expected only the leaf certificate in x5c, got %d", len(x5c))
 	}
@@ -239,7 +237,7 @@ func TestGenerateStatusListJWT_WithoutCertChain(t *testing.T) {
 	}
 }
 
-// HAIP 6.1 excludes the trust anchor from x5c. Relying parties obtain it separately.
+// HAIP 6.1 excludes the trust anchor from x5c.
 func TestGenerateStatusListJWTExcludesTrustAnchorFromX5C(t *testing.T) {
 	caKey, err := mock.GenerateKey()
 	if err != nil {

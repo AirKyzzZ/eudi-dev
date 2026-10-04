@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  // Resolve API paths relative to the mounted decoder, which may live below /decoder/.
+  // The decoder may be mounted below /decoder/, so API paths are relative.
   const basePath = (() => {
     const path = window.location.pathname;
     return path.endsWith("/") ? path : path.substring(0, path.lastIndexOf("/") + 1);
@@ -24,7 +24,7 @@
   let lastData = null;
   let lastValidation = null;
   let colorized = false;
-  // Keep the wallet credential ID while its content is unchanged so shared links can use
+  // The wallet credential ID stays while the content is unchanged, so shared links can use
   // the short form.
   let walletCredential = null;
 
@@ -122,7 +122,6 @@
     }
   });
 
-  // Map input character ranges to section IDs for highlighting.
   let sectionRanges = [];
 
   function updateRawView() {
@@ -251,7 +250,7 @@
     }
   }
 
-  // Temporarily change pointer-events so elementFromPoint can reach the highlighted layer.
+  // elementFromPoint reaches the highlighted layer only while pointer-events allow it.
   function sectionFromPoint(e) {
     input.style.pointerEvents = "none";
     rawView.style.pointerEvents = "auto";
@@ -263,7 +262,7 @@
   }
 
   input.addEventListener("mousemove", (e) => {
-    // Do not change highlighting while the user selects text.
+    // Highlighting stays fixed while the user selects text.
     if (e.buttons !== 0) return;
     if (!colorized) return;
     const sec = sectionFromPoint(e);
@@ -296,7 +295,7 @@
     }).then((res) => res.json());
   }
 
-  // Display offline checks first so network requests do not delay decoding.
+  // Offline checks show first, so network requests do not delay decoding.
   function decode() {
     const text = input.value.trim();
     if (!text) {
@@ -357,7 +356,7 @@
     renderedSeq = -1;
   }
 
-  // Replace only the banner to preserve the reader's expanded and collapsed sections.
+  // Only the banner is replaced, so the reader's expanded and collapsed sections stay.
   function replaceValidationBanner(checks, deviations, opts) {
     if (!checks) return;
     const existing = outputEl.querySelector(".validity-banner");
@@ -392,7 +391,7 @@
   const TYPING_DECODE_DELAY = 300;
   const PASTE_DECODE_DELAY = 10;
 
-  // Paste emits two events. Keep the earlier scheduled decode to process it once.
+  // Paste emits two events. The earlier scheduled decode processes it once.
   function scheduleDecode(delay) {
     const dueAt = Date.now() + delay;
     if (decodeTimer !== null && decodeDueAt <= dueAt) return;
@@ -644,7 +643,7 @@
         digest.title = d.digest;
         digest.textContent = truncatedDigest;
         meta.appendChild(digest);
-        // A disclosure reveals a claim only if the signed credential references its
+        // A disclosure reveals a claim only when the signed credential references its
         // digest.
         if (d.referenced === true) {
           meta.appendChild(document.createTextNode(" \u00b7 matches _sd"));
@@ -1139,8 +1138,8 @@
     return wrap;
   }
 
-  // Truncate long values such as portraits until expanded so they do not hide the rest of
-  // the output.
+  // Long values such as portraits are truncated until expanded, so the rest of the
+  // output stays visible.
   const MAX_INLINE_VALUE_CHARS = 300;
 
   function createEmbeddedValueElement(value, opts) {
@@ -1264,8 +1263,7 @@
     }
   }
 
-  // Require enough bytes to distinguish embedded mdocs from short digests with a similar
-  // CBOR marker.
+  // Short digests can carry a similar CBOR marker, so an embedded mdoc needs a minimum length.
   const MDOC_MIN_BYTES = 64;
 
   function looksLikeMDOC(text) {

@@ -65,8 +65,7 @@ func TestEvaluateDCQL_PartialFulfilmentReturnsNoCredential(t *testing.T) {
 	}
 }
 
-// The satisfiable part must succeed when requested alone, proving validation does not
-// reject every query.
+// The satisfiable part of the query succeeds when requested alone.
 func TestEvaluateDCQL_FullFulfilmentStillReturnsCredentials(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 
@@ -83,8 +82,8 @@ func TestEvaluateDCQL_FullFulfilmentStillReturnsCredentials(t *testing.T) {
 	}
 }
 
-// A credential query the wallet can answer must not be returned on the back of
-// a credential_sets option that no set can satisfy. §6.4.2: "To satisfy a
+// The wallet returns nothing when no credential_sets option can be satisfied,
+// even for a credential query it can answer. §6.4.2: "To satisfy a
 // Credential Set Query, the Wallet MUST return presentations of a set of
 // Credentials that match to one of the options inside the Credential Set
 // Query."
@@ -134,8 +133,8 @@ func TestEvaluateDCQL_OptionalCredentialSetSelectsSatisfiableOption(t *testing.T
 
 // §6.3: "If the values property is present, the Wallet SHOULD return the claim
 // only if the type and value of the claim both match exactly for at least one
-// of the elements in the array." §6.4.1 adds that a claim whose value does not
-// match "should be treated the same as if it did not exist in the Credential".
+// of the elements in the array." By §6.4.1 a claim whose value does not match
+// "should be treated the same as if it did not exist in the Credential".
 func TestEvaluateDCQL_ValuesFilterClaims(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -195,8 +194,8 @@ func TestEvaluateDCQL_ValuesFilterClaims(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// The nested booleans are the age thresholds, which only the
-			// German PID carries: its rulebook defines them.
+			// The nested booleans are the age thresholds of the German PID
+			// Rulebook.
 			vct := mock.DefaultPIDVCT
 			if tt.german {
 				vct = mock.GermanPIDVCT
@@ -220,8 +219,8 @@ func TestEvaluateDCQL_ValuesFilterClaims(t *testing.T) {
 	}
 }
 
-// The same restriction applies to mdoc data elements. The age thresholds live
-// in the German PID, whose rulebook defines them.
+// The same restriction applies to mdoc data elements. The German PID Rulebook
+// defines the age thresholds.
 func TestEvaluateDCQL_ValuesFilterMDocElements(t *testing.T) {
 	w := generateTestWallet(t)
 	if err := w.GenerateDefaultCredentials(nil, mock.GermanPIDVCT); err != nil {
@@ -247,7 +246,7 @@ func TestEvaluateDCQL_ValuesFilterMDocElements(t *testing.T) {
 }
 
 // §6.3: "the CBOR value used for matching MUST first be converted to JSON,
-// following the advice given in Section 6.1 of [RFC8949]", which turns a CBOR
+// following the advice given in Section 6.1 of [RFC8949]". That turns a CBOR
 // integer into a JSON number and a byte string into base64url text.
 func TestClaimSelectorFor_MDocValueMatchingUsesJSONConversion(t *testing.T) {
 	cred := StoredCredential{
@@ -269,8 +268,8 @@ func TestClaimSelectorFor_MDocValueMatchingUsesJSONConversion(t *testing.T) {
 		{"unsigned integer differs", map[string]any{"path": []any{"ns", "issue_count"}, "values": []any{float64(4)}}, ""},
 		{"negative integer", map[string]any{"path": []any{"ns", "balance"}, "values": []any{float64(-7)}}, "ns:balance"},
 		{"integer is not its decimal string", map[string]any{"path": []any{"ns", "issue_count"}, "values": []any{"3"}}, ""},
-		// 0xfbfbfb encodes as "+/v7" in standard base64 and "-_v7" in
-		// base64url, which is the encoding RFC 8949 Section 6.1 asks for.
+		// 0xfbfbfb is "+/v7" in standard base64 and "-_v7" in base64url.
+		// RFC 8949 Section 6.1 asks for base64url.
 		{"byte string as base64url", map[string]any{"path": []any{"ns", "portrait"}, "values": []any{"-_v7"}}, "ns:portrait"},
 		{"byte string not as standard base64", map[string]any{"path": []any{"ns", "portrait"}, "values": []any{"+/v7"}}, ""},
 		{"text string", map[string]any{"path": []any{"ns", "document_code"}, "values": []any{"D"}}, "ns:document_code"},
@@ -285,8 +284,8 @@ func TestClaimSelectorFor_MDocValueMatchingUsesJSONConversion(t *testing.T) {
 	}
 }
 
-// §6.3 defines id, path and values for a Claims Query, so nothing a Verifier
-// writes there marks a claim optional. §6.4.1: "If the Wallet cannot deliver
+// §6.3 defines id, path and values for a Claims Query. None of them makes a
+// claim optional. §6.4.1: "If the Wallet cannot deliver
 // all claims requested by the Verifier according to these rules, it MUST NOT
 // return the respective Credential."
 func TestEvaluateDCQL_ClaimsQueryHasNoRequiredMember(t *testing.T) {
@@ -312,10 +311,9 @@ func TestEvaluateDCQL_ClaimsQueryHasNoRequiredMember(t *testing.T) {
 // data element does not exist in the Credential then abort processing and
 // return an error."
 //
-// birth_place is the data identifier the PID Rulebook lists in its
-// encoding-independent attribute table, never an mdoc element: the attribute
-// identifier on the wire is place_of_birth. A wallet that treated the two as
-// interchangeable would disclose an element the request did not cover.
+// birth_place is the encoding-independent identifier in the PID Rulebook. The
+// mdoc element is place_of_birth. Treating the two as equal would disclose an
+// element the request did not cover.
 func TestEvaluateDCQL_MDocDataElementIsNotAliased(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 
@@ -424,8 +422,8 @@ func TestDCQLQueryFindings_WellFormedQueryHasNone(t *testing.T) {
 	}
 }
 
-// Strict mode makes the findings errors, so a query missing a member §6.1
-// marks REQUIRED is answered with nothing.
+// In strict mode the findings are errors. A query that lacks a member §6.1
+// marks REQUIRED gets no credentials.
 func TestEvaluateDCQL_StrictRejectsQueryWithoutMeta(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	w.ValidationMode = ValidationModeStrict
@@ -445,7 +443,7 @@ func TestEvaluateDCQL_StrictRejectsQueryWithoutMeta(t *testing.T) {
 	}
 }
 
-// Debug mode reports the same findings as warnings and carries on, so a
+// Debug mode reports the same findings as warnings and continues, so a
 // developer can watch the rest of the exchange.
 func TestEvaluateDCQL_DebugWarnsAboutQueryWithoutMeta(t *testing.T) {
 	logs := captureTestLogs(t)

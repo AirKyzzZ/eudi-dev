@@ -22,7 +22,7 @@ import (
 // NegotiateMediaType picks the Status List Token representation for an HTTP
 // Accept header. Section 8.1 uses "Content negotiation as defined in
 // [RFC9110]" over application/statuslist+jwt and application/statuslist+cwt. A
-// client asking for neither, or for both equally, gets the JWT form.
+// client that asks for neither, or for both equally, gets the JWT form.
 func NegotiateMediaType(accept string) string {
 	jwtQ := acceptQuality(accept, MediaTypeJWT)
 	cwtQ := acceptQuality(accept, MediaTypeCWT)

@@ -23,9 +23,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/keys"
 )
 
-// DecryptJWEWithCEK decrypts a compact JWE whose content encryption key is
-// already known: the wallet sends the CEK in a debug header so the proxy can
-// decrypt JARM responses.
+// DecryptJWEWithCEK decrypts a compact JWE with a known content encryption key.
+// The wallet sends the CEK in a debug header so the proxy can decrypt JARM
+// responses.
 func DecryptJWEWithCEK(compact string, cek []byte) ([]byte, error) {
 	return jwe.DecryptWithCEK(compact, cek)
 }

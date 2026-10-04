@@ -33,7 +33,7 @@ func disclosureOf(t *testing.T, elements ...any) (raw string, digest string) {
 	return raw, base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// Build the serialized credential directly so tests can supply malformed payloads.
+// assembleSDJWT serializes the credential by hand, so tests can supply malformed payloads.
 func assembleSDJWT(t *testing.T, payload map[string]any, disclosures ...string) string {
 	t.Helper()
 	header, err := json.Marshal(map[string]any{"alg": "ES256", "typ": TypeSDJWTVC})
@@ -95,8 +95,8 @@ func TestParse_RejectsDisclosureNamedEllipsis(t *testing.T) {
 }
 
 // RFC 9901 §7.1 step 3.c.ii.3: "If the claim name already exists at the level
-// of the _sd key, the SD-JWT MUST be rejected." A Disclosure named vct would
-// otherwise shadow the signed vct in the resolved claims.
+// of the _sd key, the SD-JWT MUST be rejected." A Disclosure named vct must
+// not shadow the signed vct.
 func TestParse_RejectsDisclosureShadowingSignedVCT(t *testing.T) {
 	disc, digest := disclosureOf(t, "salt", "vct", "urn:attacker:admin")
 	raw := assembleSDJWT(t, map[string]any{
@@ -195,8 +195,8 @@ func TestParse_RejectsArrayPlaceholderWithNonStringDigest(t *testing.T) {
 	parseError(t, raw, `"..."`)
 }
 
-// RFC 9901 §7.1 step 3.c.ii.1: a Disclosure referenced from an _sd array that
-// is not a three-element array means the SD-JWT MUST be rejected.
+// RFC 9901 §7.1 step 3.c.ii.1: a Disclosure referenced from an _sd array must
+// have three elements.
 func TestParse_RejectsArrayElementDisclosureReferencedFromSD(t *testing.T) {
 	disc, digest := disclosureOf(t, "salt", "orphan-value")
 	raw := assembleSDJWT(t, map[string]any{
@@ -208,7 +208,7 @@ func TestParse_RejectsArrayElementDisclosureReferencedFromSD(t *testing.T) {
 }
 
 // RFC 9901 §7.1 step 3.c.iii.1: a Disclosure referenced from an array element
-// that is not a two-element array means the SD-JWT MUST be rejected.
+// must have two elements.
 func TestParse_RejectsObjectDisclosureReferencedFromArray(t *testing.T) {
 	disc, digest := disclosureOf(t, "salt", "given_name", "Erika")
 	raw := assembleSDJWT(t, map[string]any{
@@ -233,8 +233,8 @@ func TestParse_RejectsUnreferencedDisclosure(t *testing.T) {
 }
 
 func TestParse_RejectsUnreferencedNestedDisclosure(t *testing.T) {
-	// The child is referenced only from the parent's value, and the parent is
-	// not part of this presentation, so nothing reaches the child.
+	// Only the parent's value references the child, and the presentation omits
+	// the parent.
 	child, childDigest := disclosureOf(t, "salt1", "locality", "Berlin")
 	_, parentDigest := disclosureOf(t, "salt2", "address", map[string]any{"_sd": []any{childDigest}})
 	raw := assembleSDJWT(t, map[string]any{
@@ -363,7 +363,7 @@ func TestParse_AcceptsCredentialWithoutDisclosures(t *testing.T) {
 }
 
 // RFC 9901 §7.1 step 3.c.i: "If no such Disclosure can be found, the digest
-// MUST be ignored". That rule is what lets decoy digests (§4.2.5) work.
+// MUST be ignored". Decoy digests (§4.2.5) rely on this rule.
 func TestParse_IgnoresUnmatchedDigest(t *testing.T) {
 	_, decoy := disclosureOf(t, "salt", "role", "admin")
 	disc, digest := disclosureOf(t, "salt2", "given_name", "Erika")

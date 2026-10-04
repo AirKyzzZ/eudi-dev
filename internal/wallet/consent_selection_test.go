@@ -134,9 +134,9 @@ func TestValidateConsentSelection(t *testing.T) {
 		}
 	})
 
-	// A presentation carries at least one credential, so a selection that
-	// skips every set is refused, and an unvalidated one keeps the wallet's
-	// choice instead of presenting nothing.
+	// A presentation carries at least one credential (OpenID4VP 1.0 §8.1).
+	// Validation refuses a selection that skips every set. Applying such a
+	// selection keeps the wallet's choice.
 	t.Run("skipping every set", func(t *testing.T) {
 		w := pidBaselineWallet(t)
 		query := map[string]any{
@@ -157,7 +157,7 @@ func TestValidateConsentSelection(t *testing.T) {
 	})
 }
 
-// A bad selection is rejected before the consent resolves, so the dialog can
+// A bad selection is rejected before the consent resolves. The dialog can then
 // correct it and approve again.
 func TestApproveRejectsAnInvalidSelectionAndKeepsTheRequestPending(t *testing.T) {
 	w := pidBaselineWallet(t)

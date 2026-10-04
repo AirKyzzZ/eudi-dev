@@ -40,15 +40,14 @@ type PresentationParams struct {
 	ClientMetadata map[string]any
 	RequestObject  *oid4vc.RequestObjectJWT // optional, used to extract JWK thumbprint for mdoc
 	// InteractiveAuthorizationEndpoint is the Authorization Challenge Endpoint
-	// the presentation is bound to (OpenID4VCI 1.1 §6.2.1.1). Empty for every
-	// other flow, and always the endpoint the wallet called rather than a
-	// value read out of the request.
+	// that the presentation is bound to (OpenID4VCI 1.1 §6.2.1.1). It is the
+	// endpoint the wallet called. Other flows leave it empty.
 	InteractiveAuthorizationEndpoint string
 }
 
 // isInteractiveAuthorizationResponseMode reports whether a response mode is
-// one of the two of OpenID4VCI 1.1 §6.2.1.1, which go back to the
-// Authorization Challenge Endpoint rather than to a response_uri.
+// one of the two defined in OpenID4VCI 1.1 §6.2.1.1. Both send the response to
+// the Authorization Challenge Endpoint.
 func isInteractiveAuthorizationResponseMode(mode string) bool {
 	return mode == "ia_post" || mode == "ia_post.jwt"
 }
@@ -62,10 +61,9 @@ func (w *Wallet) CreateVPToken(match CredentialMatch, params PresentationParams)
 	return w.createVPToken(match, params, "")
 }
 
-// createVPToken builds one presentation. mdocNonce is the mdoc generated
-// nonce the whole response shares (ISO 18013-7). An empty one lets an mdoc
-// presentation generate its own, as a response holding a single presentation
-// needs.
+// createVPToken builds one presentation. mdocNonce is the mdoc generated nonce
+// shared by the whole response (ISO 18013-7). When it is empty, an mdoc
+// presentation generates its own nonce.
 func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams, mdocNonce string) (VPTokenResult, error) {
 	cred, ok := w.GetCredential(match.CredentialID)
 	if !ok {
@@ -134,13 +132,12 @@ func (w *Wallet) createVPToken(match CredentialMatch, params PresentationParams,
 	}
 }
 
-// checkPresentableKeyBinding reports a credential whose key binding this
-// wallet cannot sign. RFC 9901 §4.3 has the KB-JWT signed by the key the
-// credential's cnf names and ISO 18013-5 §9.1.3 the DeviceSigned by the MSO's
-// deviceKey, so a credential bound to a key the wallet does not hold produces
-// a signature every verifier refuses. Strict mode stops before the nonce is
-// spent, debug mode sends it and lets the refusal be the finding ([ADR-0001]).
-// A plain JWT VC signs no key binding.
+// checkPresentableKeyBinding reports a credential whose key binding the wallet
+// cannot sign. RFC 9901 §4.3 requires the KB-JWT to be signed by the key in the
+// credential's cnf. ISO 18013-5 §9.1.3 requires DeviceSigned to use the MSO's
+// deviceKey. Strict mode stops before the nonce is used. Debug mode sends the
+// presentation and the verifier's refusal is the finding ([ADR-0001]). A plain
+// JWT VC has no key binding.
 //
 // [ADR-0001]: docs/adr/0001-debug-by-default-validation-with-opt-in-strict-mode.md
 func (w *Wallet) checkPresentableKeyBinding(cred StoredCredential) error {
@@ -181,12 +178,11 @@ func sdJWTAudience(params PresentationParams) string {
 // interactiveAuthorizationAudience binds a Key Binding JWT to the
 // Authorization Challenge Endpoint (Appendix A.3.5).
 //
-// A.3.5 is the one binding section that says "the derived Origin ... of the
-// Authorization Challenge Endpoint". A.1.1.5, A.1.2.5 and A.2.5 all bind the
-// endpoint itself, and §6.2.1.5 names the mechanism as "binding the
-// Authorization Challenge Endpoint to the Verifiable Presentation", which an
-// origin cannot do between two endpoints sharing a host. So the endpoint is
-// sent. A.3.5's own example agrees.
+// A.3.5 says "the derived Origin ... of the Authorization Challenge Endpoint".
+// The wallet sends the endpoint itself. A.1.1.5, A.1.2.5 and A.2.5 bind the
+// endpoint, and §6.2.1.5 describes "binding the Authorization Challenge Endpoint
+// to the Verifiable Presentation". An origin cannot tell apart two endpoints on
+// the same host. The example in A.3.5 also uses the endpoint.
 func interactiveAuthorizationAudience(endpoint string) string {
 	return "ia:" + endpoint
 }
@@ -232,15 +228,14 @@ func (w *Wallet) createSDJWTPresentation(cred StoredCredential, selectedKeys []s
 		withoutKB += strings.Join(selectedDisclosures, "~") + "~"
 	}
 
-	// A credential with no cnf names no holder key, so RFC 9901 §3.3 (key
-	// binding is optional) has it presented without a KB-JWT: issuer_jwt~disc~.
+	// A credential without cnf has no holder key. RFC 9901 §3.3 makes key binding
+	// optional, so it is presented without a KB-JWT as issuer_jwt~disc~.
 	if !credentialHolderBinding(cred.Raw).Bound {
 		return withoutKB, nil
 	}
 
-	// sd_hash covers the SD-JWT without the KB-JWT, hashed with the credential's
-	// own _sd_alg (RFC 9901 §4.3), so an issuer that chose SHA-384 or SHA-512
-	// still gets a matching hash.
+	// sd_hash covers the SD-JWT without the KB-JWT. RFC 9901 §4.3 hashes it with
+	// the credential's own _sd_alg, which may be SHA-384 or SHA-512.
 	sdHashB64, err := sdjwt.SDHash(withoutKB, sdjwt.SDAlgFromPayload(payload))
 	if err != nil {
 		return "", fmt.Errorf("computing sd_hash: %w", err)
@@ -425,9 +420,9 @@ func (w *Wallet) BuildAuthorizationErrorResponse(errorCode, errorDescription, st
 		responseMode = "direct_post"
 	}
 
-	// A Digital Credentials API error is never encrypted, whichever response
-	// mode was asked for: Appendix A.4 has it returned "as an object within
-	// the data property". A JWE there reads as a response, not a refusal.
+	// A Digital Credentials API error is never encrypted, whatever the response
+	// mode. Appendix A.4 returns it "as an object within the data property". The
+	// caller would read a JWE there as a response.
 	if isDCAPIResponseMode(responseMode) {
 		return &AuthorizationResponseEnvelope{
 			ResponseMode: responseMode,
@@ -572,9 +567,9 @@ func disclosesEmptyArray(cred StoredCredential, path []any) bool {
 }
 
 // placeholderValueAtPath walks a claims path (string components only) to its
-// terminal value in the credential's placeholder form: a selectively
-// disclosable member resolves to its disclosure value, which for an array of
-// disclosable elements is a list of {"...": digest} references.
+// value in the credential's placeholder form. A selectively disclosable member
+// resolves to its disclosure value. For an array of disclosable elements that
+// value is a list of {"...": digest} references.
 func placeholderValueAtPath(value any, path []any, digestMap map[string]*sdjwt.Disclosure) any {
 	if len(path) == 0 {
 		return value
@@ -649,12 +644,10 @@ func collectAllNestedDisclosureDigests(value any, digestMap map[string]*sdjwt.Di
 		for _, item := range v {
 			if obj, ok := item.(map[string]any); ok {
 				if _, ok := obj["..."].(string); ok {
-					// A selectively disclosable array element the request did not
-					// select stays undisclosed, so the verifier receives an array
-					// without it. OID4VP 1.0 §7.1 selects array elements with a
-					// null or an index, and §6.4 forbids sending a claim the path
-					// did not select. A whole path onto the array (no null or
-					// index) discloses the array but none of its elements.
+					// OID4VP 1.0 §7.1 selects array elements with a null or an
+					// index. §6.4 forbids sending a claim the path did not select.
+					// An unselected disclosable element stays undisclosed. A path
+					// that ends at the array discloses none of its elements.
 					continue
 				}
 			}

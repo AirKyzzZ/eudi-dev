@@ -411,9 +411,9 @@ func readSigningOverrideFiles() (keyData, certData string, err error) {
 	return string(key), string(cert), nil
 }
 
-// loadIssueCertChain loads and validates the --cert chain. format decides
-// whether a chain carrying its self-signed root gets a note (HAIP 1.0 §6.1.1
-// excludes the anchor for SD-JWT, RFC 7515 allows it for a plain JWT VC).
+// loadIssueCertChain loads and validates the --cert chain. For SD-JWT, a
+// chain that includes its self-signed root gets a note because HAIP 1.0
+// §6.1.1 excludes the trust anchor. RFC 7515 allows it for a plain JWT VC.
 func loadIssueCertChain(format string) ([]*x509.Certificate, error) {
 	keyData, certData, err := readSigningOverrideFiles()
 	if err != nil || certData == "" {
@@ -569,8 +569,9 @@ func resolveIssueTemplate(cmd *cobra.Command, format string) (*credtemplate.Temp
 }
 
 // resolveIssueAlwaysDisclosed combines the template's always-disclosed list
-// with --always-disclosed. Ignored for jwt (all claims are plain there) and
-// rejected for mdoc (every element is selectively disclosable).
+// with --always-disclosed. A jwt credential ignores it because all its
+// claims are plain. An mdoc rejects it because every element is selectively
+// disclosable.
 func resolveIssueAlwaysDisclosed(format string, tpl *credtemplate.Template) ([]string, error) {
 	var merged []string
 	seen := make(map[string]bool)

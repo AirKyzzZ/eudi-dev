@@ -32,8 +32,8 @@ func TestHeaders(t *testing.T) {
 	if csp == "" {
 		t.Fatal("no Content-Security-Policy")
 	}
-	// An injected handler or script tag must not run, and an injection must
-	// not be able to reach another origin.
+	// An injected handler or script tag must not run. An injection must not
+	// reach another origin.
 	if strings.Contains(csp, "unsafe-inline") && strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
 		t.Error("script-src allows inline script, which defeats the point")
 	}

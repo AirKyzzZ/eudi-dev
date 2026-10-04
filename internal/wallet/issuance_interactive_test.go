@@ -28,8 +28,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// interactiveIssuer is a stand-in authorization server and credential issuer
-// that asks for a presentation before it issues (OpenID4VCI 1.1 §6).
+// interactiveIssuer is a test authorization server and credential issuer that
+// asks for a presentation before it issues (OpenID4VCI 1.1 §6).
 type interactiveIssuer struct {
 	t *testing.T
 
@@ -40,15 +40,15 @@ type interactiveIssuer struct {
 	openid4vpRequest map[string]any
 
 	// satisfiedImmediately answers the first request with a code.
-	// interactionsToAsk is how many interactions to require before the code
-	// (one by default). challengeError answers with that document instead.
+	// interactionsToAsk is the number of interactions before the code (one by
+	// default). challengeError is returned in place of a challenge.
 	satisfiedImmediately bool
 	interactionsToAsk    int
 	challengeError       map[string]any
 
-	// authorizeRedirect is what the authorization endpoint's redirect back to
-	// the wallet carries (for the auth_via_web interaction), e.g. "code=x".
-	// The initial request's state and this server's iss are appended.
+	// authorizeRedirect is the query of the redirect back to the wallet for the
+	// auth_via_web interaction, for example "code=x". The server appends the
+	// initial state and its iss.
 	authorizeRedirect string
 
 	initialForm      url.Values
@@ -93,8 +93,8 @@ func (s *interactiveIssuer) handler() http.HandlerFunc {
 				"authorization_challenge_endpoint":  s.url + "/authorize-challenge",
 				"require_interactive_authorization": true,
 			}
-			// Only a server scripted for the browser interaction has an
-			// authorization endpoint: several tests depend on its absence.
+			// Several tests depend on the authorization endpoint being absent
+			// unless the browser interaction is scripted.
 			if s.authorizeRedirect != "" {
 				metadata["authorization_endpoint"] = s.url + "/authorize"
 			}
@@ -150,8 +150,8 @@ func (s *interactiveIssuer) handleChallenge(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// A new auth_session with every response, which §5.3.1 of the
-	// first-party-apps specification allows and clients must follow.
+	// §5.3.1 of the first-party-apps specification lets the server send a new
+	// auth_session with every response.
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusForbidden)
 	response := map[string]any{
@@ -218,8 +218,8 @@ func newInteractiveWallet(t *testing.T) *Wallet {
 	return w
 }
 
-// Exercise the full interactive exchange: presentation challenge, credential
-// presentation, authorization code and issuance.
+// The full interactive exchange runs from the presentation challenge through
+// the presentation and the authorization code to issuance.
 func TestInteractiveAuthorizationIssuesAfterAPresentation(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -235,8 +235,8 @@ func TestInteractiveAuthorizationIssuesAfterAPresentation(t *testing.T) {
 		t.Errorf("challenge rounds = %d, want 2", issuer.challengeRounds)
 	}
 
-	// §6.1.1: the initial request says what the wallet can do, and carries the
-	// ordinary authorization request parameters.
+	// §6.1.1: the initial request lists the interaction types and carries the
+	// usual authorization request parameters.
 	if got := issuer.initialForm.Get("interaction_types_supported"); got != interactionTypePresentation {
 		t.Errorf("interaction_types_supported = %q, want %q", got, interactionTypePresentation)
 	}
@@ -281,8 +281,8 @@ func TestInteractiveAuthorizationIssuesAfterAPresentation(t *testing.T) {
 		t.Errorf("key binding nonce = %q, want %q", got, interactiveTestNonce)
 	}
 
-	// Section 6 of the first-party-apps specification: no redirect_uri was in
-	// the authorization request, so none is in the token request.
+	// Section 6 of the first-party-apps specification: the authorization
+	// request had no redirect_uri, so the token request has none.
 	if got := issuer.tokenForm.Get("code"); got != "interactive-code" {
 		t.Errorf("token request code = %q, want interactive-code", got)
 	}
@@ -294,9 +294,8 @@ func TestInteractiveAuthorizationIssuesAfterAPresentation(t *testing.T) {
 	}
 }
 
-// An authorization server that is satisfied straight away answers the initial
-// request with a code (Section 5.2.1 of the first-party-apps specification),
-// and nothing is presented.
+// A server that is satisfied at once answers the initial request with a code
+// (Section 5.2.1 of the first-party-apps specification). Nothing is presented.
 func TestInteractiveAuthorizationTakesACodeWithoutAnInteraction(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -314,10 +313,10 @@ func TestInteractiveAuthorizationTakesACodeWithoutAnInteraction(t *testing.T) {
 	}
 }
 
-// The conversation runs for as many interactions as the server asks for, and
-// §5.3.1 of the first-party-apps specification says clients "MUST NOT assume
-// that auth_session values are static", so each request carries the value from
-// the response before it.
+// The exchange runs for as many interactions as the server asks for. §5.3.1 of
+// the first-party-apps specification says clients "MUST NOT assume that
+// auth_session values are static", so each request carries the value from the
+// previous response.
 func TestInteractiveAuthorizationFollowsSeveralRoundsAndARotatingSession(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -340,7 +339,7 @@ func TestInteractiveAuthorizationFollowsSeveralRoundsAndARotatingSession(t *test
 	}
 }
 
-// Stop after the interaction limit instead of following an endless challenge sequence.
+// The wallet stops at the interaction limit.
 func TestInteractiveAuthorizationStopsAfterTooManyRounds(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -358,9 +357,9 @@ func TestInteractiveAuthorizationStopsAfterTooManyRounds(t *testing.T) {
 	}
 }
 
-// §6.2.2 defines missing_interaction_type for a wallet that offered no type the
-// server can work with. Any Authorization Challenge Error Response ends the
-// flow with what the server said.
+// §6.2.2 defines missing_interaction_type for a wallet that offered no usable
+// type. Any Authorization Challenge Error Response ends the flow with the
+// server's description.
 func TestInteractiveAuthorizationReportsAChallengeError(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -381,8 +380,8 @@ func TestInteractiveAuthorizationReportsAChallengeError(t *testing.T) {
 	}
 }
 
-// At feature level 1.0, use the redirect flow. Fail if its authorization endpoint is
-// unavailable rather than silently enabling 1.1.
+// At feature level 1.0 the wallet uses the redirect flow and fails when the
+// server has no authorization endpoint.
 func TestInteractiveAuthorizationIsNotUsedAtFeatureLevel10(t *testing.T) {
 	w := newInteractiveWallet(t)
 	w.VCIVersion = VCIVersion10
@@ -401,10 +400,8 @@ func TestInteractiveAuthorizationIsNotUsedAtFeatureLevel10(t *testing.T) {
 }
 
 // HAIP 1.0 profiles the channels a Verifier sends an Authorization Request
-// over, and says nothing about a presentation made inside an OpenID4VCI 1.1 §6
-// exchange. Holding one to its response_mode and signed-request rules would
-// stop a HAIP wallet using the feature at all, which is what strict mode makes
-// visible here. The public demo runs HAIP.
+// over. It does not cover a presentation inside an OpenID4VCI 1.1 §6 exchange,
+// so a HAIP wallet in strict mode applies no HAIP channel rules to it.
 func TestInteractiveAuthorizationIsNotHeldToHAIPChannelRules(t *testing.T) {
 	w := newInteractiveWallet(t)
 	w.RequireHAIP = true
@@ -506,9 +503,8 @@ func TestInteractiveAuthorizationChecksExpectedOrigins(t *testing.T) {
 	})
 }
 
-// A wallet that holds nothing the server asked for answers the interaction
-// with an OpenID4VP error rather than going quiet, which is what §6.2.1.1
-// provides for. The server then decides what to do about it.
+// A wallet that holds nothing matching answers the interaction with an
+// OpenID4VP error (§6.2.1.1).
 func TestInteractiveAuthorizationReportsThatItHoldsNothingMatching(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -522,8 +518,8 @@ func TestInteractiveAuthorizationReportsThatItHoldsNothingMatching(t *testing.T)
 		},
 	}
 
-	// The stub answers the intermediate request with a code regardless, so the
-	// assertion is about what the wallet sent, not about how it ended.
+	// The stub answers the intermediate request with a code in any case, so the
+	// test checks what the wallet sent.
 	if _, err := w.ProcessCredentialOffer(interactiveOfferURI(issuer.url)); err != nil {
 		t.Fatalf("ProcessCredentialOffer() error = %v", err)
 	}
@@ -540,8 +536,8 @@ func TestInteractiveAuthorizationReportsThatItHoldsNothingMatching(t *testing.T)
 	}
 }
 
-// §6.2.1.1: with ia_post.jwt the response is encrypted, and the draft's
-// example shows it travelling as {"response": ...} inside openid4vp_response.
+// §6.2.1.1: with ia_post.jwt the response is encrypted. The draft's example
+// sends it as {"response": ...} inside openid4vp_response.
 func TestInteractiveAuthorizationEncryptsWithIAPostJWT(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -614,11 +610,11 @@ func keyBindingClaims(t *testing.T, presentation string) map[string]any {
 	return claims
 }
 
-// The browser interaction of §6.2.1.2: the server answers the challenge with
-// auth_via_web and a request_uri, the wallet builds an authorization request
+// The browser interaction of §6.2.1.2. The server answers the challenge with
+// auth_via_web and a request_uri. The wallet builds an authorization request
 // from it (RFC 9126 §4), and the redirect back carries the code. The token
-// request then repeats the redirect URI, because the authorization request
-// carried one (RFC 6749 §4.1.3).
+// request repeats the redirect URI because the authorization request carried
+// one (RFC 6749 §4.1.3).
 func TestInteractiveAuthorizationAuthViaWeb(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -661,9 +657,9 @@ func TestInteractiveAuthorizationAuthViaWeb(t *testing.T) {
 	}
 }
 
-// §6.2.1.2: the redirect back may carry an auth_session instead of a code,
-// which says further steps remain at the challenge endpoint. The wallet
-// continues the conversation with that auth_session.
+// §6.2.1.2: the redirect back may carry an auth_session in place of a code when
+// further steps remain at the challenge endpoint. The wallet continues with
+// that auth_session.
 func TestInteractiveAuthorizationAuthViaWebContinuesWithAuthSession(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)
@@ -693,9 +689,9 @@ func TestInteractiveAuthorizationAuthViaWebContinuesWithAuthSession(t *testing.T
 	}
 }
 
-// A wallet without a redirect URI cannot complete the browser interaction, so
-// it does not advertise it (§6.2.1 would force it to abort when asked), and a
-// server that asks for it anyway is refused.
+// A wallet without a redirect URI cannot complete the browser interaction. It
+// does not advertise it, since §6.2.1 would make it abort when asked, and it
+// refuses a server that asks anyway.
 func TestInteractiveAuthorizationAuthViaWebIsNotOfferedWithoutARedirectURI(t *testing.T) {
 	w := newInteractiveWallet(t)
 	issuer := newInteractiveIssuer(t, w)

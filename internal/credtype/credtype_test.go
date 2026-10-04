@@ -37,8 +37,8 @@ func TestAnswers(t *testing.T) {
 			"urn:example:pid:xx:1", []string{PIDVCT}, PIDVCT, true,
 		},
 		{
-			// Inheritance runs one way. A verifier asking for the German PID
-			// wants the German attributes, which the general type has not got.
+			// Inheritance runs one way. A request for the German PID needs
+			// German attributes, and the general type lacks them.
 			"the extended type does not answer for the extending one",
 			PIDVCT, nil, GermanPIDVCT, false,
 		},
@@ -70,9 +70,8 @@ func TestChain(t *testing.T) {
 			GermanPIDVCT, []string{PIDVCT}, []string{GermanPIDVCT, PIDVCT},
 		},
 		{
-			// The chain continues through what aka_vcts reached, so a type
-			// naming only its immediate parent still answers for that
-			// parent's parent.
+			// A type that lists only its immediate parent in aka_vcts also
+			// answers for that parent's parent.
 			"inheritance continues through aka_vcts",
 			"urn:example:pid:de:regional:1", []string{GermanPIDVCT},
 			[]string{"urn:example:pid:de:regional:1", GermanPIDVCT, PIDVCT},
@@ -116,9 +115,8 @@ func TestAkaVCTs(t *testing.T) {
 }
 
 // PID_14 makes every domestic PID type an extension of the
-// country-independent one, so this holds for countries nothing here has heard
-// of. Inheritance says what a credential is, not who may issue it: nothing
-// here may grow into a trust decision (draft-ietf-oauth-sd-jwt-vc-19 §7.7).
+// country-independent one. This holds for any country code. Inheritance is
+// never a trust decision (draft-ietf-oauth-sd-jwt-vc-19 §7.7).
 func TestExtends(t *testing.T) {
 	tests := []struct {
 		vct    string
@@ -127,13 +125,12 @@ func TestExtends(t *testing.T) {
 		{GermanPIDVCT, PIDVCT},
 		{"urn:eudi:pid:fr:1", PIDVCT},
 		{"urn:eudi:pid:es:2", PIDVCT},
-		// A region code, which PID_06 allows for the mdoc namespace and
-		// PID_14 leaves open for the type.
+		// PID_06 allows a region code in the mdoc namespace. PID_14
+		// allows it in the type.
 		{"urn:eudi:pid:de-by:1", PIDVCT},
 		{PIDVCT, ""},
 		{"urn:eudi:pid:2", ""},
-		// Outside the PID namespace nothing is implied. Such a type states
-		// its own relationships in aka_vcts.
+		// A type outside the PID namespace states its parents in aka_vcts.
 		{"urn:eudi:mdl:1", ""},
 		{"https://credentials.example.com/membership", ""},
 		{"", ""},

@@ -43,7 +43,7 @@ func TestPredefinedTemplates(t *testing.T) {
 		t.Errorf("expected %d claims, got %d", len(mock.SDJWTPIDClaims), len(sdjwt.Claims))
 	}
 
-	// Pre-defined template claims must be copies: mutating them must not touch the mock maps.
+	// Mutating pre-defined template claims must not change the mock maps.
 	sdjwt.Claims["family_name"] = "CHANGED"
 	addr := sdjwt.Claims["address"].(map[string]any)
 	addr["country"] = "XX"
@@ -104,8 +104,8 @@ func TestPIDTemplatesCarryDisplayDescription(t *testing.T) {
 	}
 }
 
-// Template claims are package variables initialized at startup. Refresh their dates
-// when loading a template so issuance uses the current date.
+// Template claims are package variables set at startup. Issuance must use the
+// current date.
 func TestPredefinedTemplates_RecomputeDatedClaims(t *testing.T) {
 	stale := "2000-01-01"
 	original := mock.SDJWTPIDClaims["date_of_issuance"]

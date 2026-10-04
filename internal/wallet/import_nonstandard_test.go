@@ -29,9 +29,9 @@ func nonStandardCredential(t *testing.T) string {
 	return strings.TrimSpace(string(raw))
 }
 
-// A PID from a real issuer nests _sd_alg, mirrors its claims into a
-// credentialSubject, and carries a W3C StatusList2021Entry. Debug mode keeps
-// such a credential and records the rule breaks, strict mode refuses it.
+// This PID from a real issuer nests _sd_alg, copies its claims into a
+// credentialSubject and carries a W3C StatusList2021Entry. Debug mode keeps
+// the credential and records the rule breaks. Strict mode refuses it.
 func TestImportSDJWT_NonStandardCredential(t *testing.T) {
 	raw := nonStandardCredential(t)
 

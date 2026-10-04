@@ -38,8 +38,8 @@ type postgresStore struct {
 	db    *sql.DB
 	label string
 
-	// Connect and create schema objects on first use, so commands routed to a
-	// server need no database connection.
+	// Commands routed to a server need no database connection, so the schema is
+	// created on first use.
 	prepareMu sync.Mutex
 	prepared  bool
 }
@@ -47,7 +47,7 @@ type postgresStore struct {
 // Openers using the same connection URL share a pool within the process.
 var postgresPools sync.Map
 
-// Open lazily so commands routed to a wallet server need no local database connection.
+// Commands routed to a wallet server need no local database connection.
 func openPostgres(dsn string) (Store, error) {
 	if store, ok := postgresPools.Load(dsn); ok {
 		return store.(*postgresStore), nil
@@ -63,11 +63,11 @@ func openPostgres(dsn string) (Store, error) {
 	return store.(*postgresStore), nil
 }
 
-// prepare creates the table, prefix index and version sequence. Failed attempts are
-// retried on the next call. Concurrent creation can report duplicate-object errors even
-// when the objects now exist.
+// prepare creates the table, prefix index and version sequence. A failed attempt is
+// retried on the next call. Concurrent creation can report duplicate-object errors
+// even when the objects exist.
 //
-// The prefix index supports LIKE queries under collations where the primary-key index
+// The prefix index serves LIKE queries under collations where the primary-key index
 // cannot.
 func (s *postgresStore) prepare() error {
 	s.prepareMu.Lock()
@@ -95,7 +95,7 @@ func (s *postgresStore) prepare() error {
 	return nil
 }
 
-// Omit database credentials from diagnostic messages.
+// postgresLabel omits database credentials from diagnostic messages.
 func postgresLabel(dsn string) string {
 	u, err := url.Parse(dsn)
 	if err != nil {
@@ -301,7 +301,7 @@ func (s *postgresStore) WriteIf(key string, data []byte, _ fs.FileMode, expected
 	return postgresStamp(version, int64(len(data))), nil
 }
 
-// A shared sequence gives recreated rows new versions, so cached readers detect them.
+// A shared sequence gives a recreated row a new version, so cached readers detect it.
 func postgresStamp(version, size int64) Stamp {
 	return Stamp{Version: strconv.FormatInt(version, 10), Size: size}
 }

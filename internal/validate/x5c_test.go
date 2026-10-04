@@ -24,8 +24,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/trustlist"
 )
 
-// A JWK's x5c arrives from JSON as []any and from Go code as []string, and
-// both have to be read the same way.
+// A JWK's x5c arrives from JSON as []any and from Go code as []string. Both
+// must read the same.
 func TestNormalizeX5CEntries(t *testing.T) {
 	t.Run("a slice of strings", func(t *testing.T) {
 		got, err := normalizeX5CEntries([]string{"a", "b"})
@@ -78,8 +78,7 @@ func TestExtractAndValidateJWKX5C(t *testing.T) {
 		}
 	})
 
-	// Without anchors there is nothing to validate against, so the x5c is not
-	// consulted at all rather than trusted on its own.
+	// Without anchors the x5c is ignored.
 	t.Run("no trust anchors", func(t *testing.T) {
 		key, err := extractAndValidateJWKX5C(map[string]any{"x5c": []any{leafB64}}, nil)
 		if err != nil {
@@ -186,8 +185,8 @@ func TestFindIssuerMetadataJWK(t *testing.T) {
 		}
 	})
 
-	// An empty kid falls back to the first key. A metadata document with a
-	// single key relies on that.
+	// An empty kid selects the first key, which a single-key metadata document
+	// relies on.
 	t.Run("an empty kid takes the first key", func(t *testing.T) {
 		got, err := findIssuerMetadataJWK(doc(map[string]any{"kid": "one"}), "")
 		if err != nil {
@@ -233,8 +232,8 @@ func TestFindIssuerMetadataJWK(t *testing.T) {
 	})
 }
 
-// COSE decoders hand back the x5chain label as either an int64 or a uint64,
-// and a single certificate is a bare byte string rather than an array.
+// COSE decoders return the x5chain label as an int64 or a uint64. A single
+// certificate is a bare byte string.
 func TestExtractMDOCX5ChainCertificates(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)

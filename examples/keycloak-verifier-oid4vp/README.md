@@ -8,7 +8,7 @@ This example runs a local same-device OpenID4VP login against Keycloak using `eu
 2. `./scripts/generate-wallet.sh` prepares the standard `eudi-dev` wallet with PID credentials and a trust list endpoint reachable from Docker as `http://host.docker.internal:8085`.
 3. `docker compose up --force-recreate` starts Keycloak `26.7.2`, mounts `realm/wallet-demo-realm.json`, imports the realm on startup, and loads the OID4VP provider jar.
 4. `./scripts/bootstrap.sh` waits for the imported realm and prints the endpoints.
-5. `./scripts/login.py` starts the OIDC browser login, extracts the `openid4vp://` request, hands it to `eudi wallet accept --auto-accept --docker --port 8085` for the automated headless path, follows the broker flow, and exchanges the returned code for tokens.
+5. `./scripts/login.py` starts the OIDC browser login, extracts the `openid4vp://` request, passes it to `eudi wallet accept --auto-accept --docker --port 8085`, follows the broker flow, and exchanges the returned code for tokens.
 
 ## Flow Diagram
 
@@ -37,7 +37,7 @@ sequenceDiagram
 
 - `start.sh`: runs the full setup and by default executes the headless same-device verifier flow
 - `docker-compose.yml`: starts Keycloak, mounts provider jars from `providers/`, and imports the realm from `realm/`
-- `realm/wallet-demo-realm.json`: source-of-truth Keycloak realm config for the example
+- `realm/wallet-demo-realm.json`: the Keycloak realm config for the example
 - `scripts/download-extension.sh`: downloads `keycloak-extension-oid4vp` `0.11.1`
 - `scripts/bootstrap.sh`: waits for the imported realm and prints the endpoints
 - `scripts/generate-wallet.sh`: generates the wallet's PID credentials and exports the wallet CA
@@ -113,7 +113,7 @@ The DCQL query is generated from the OID4VP mappers on the `oid4vp` provider. Ea
 
 The extension adds the principal claim (`personal_administrative_number`) to the request, so the generated query asks the wallet for those four claims of `urn:eudi:pid:1` in `dc+sd-jwt`.
 
-Trust material lives on a separate provider referenced by `trustMaterialIdps`:
+A separate provider holds the trust material. `trustMaterialIdps` references it:
 
 | Parameter (`demo-trust-list`) | Value |
 |---|---|

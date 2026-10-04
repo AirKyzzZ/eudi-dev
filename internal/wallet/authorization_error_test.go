@@ -26,10 +26,10 @@ import (
 )
 
 // captureVerifier stands in for a verifier waiting on its response_uri. Every
-// refusal the wallet decides on has to arrive here: OpenID4VP 1.0 §5.6 says
+// refusal the wallet decides on must arrive here. OpenID4VP 1.0 §5.6 says
 // "Both successful and error responses SHOULD be returned using the supplied
-// Response Mode, or if none is supplied, using the default Response Mode", and
-// a verifier told nothing waits until it times out.
+// Response Mode, or if none is supplied, using the default Response Mode". A
+// verifier that gets no answer waits until it times out.
 type captureVerifier struct {
 	*httptest.Server
 	mu   sync.Mutex
@@ -126,9 +126,9 @@ func TestNoMatchingCredentialsReturnsAccessDeniedToTheVerifier(t *testing.T) {
 }
 
 // §8.5 vp_formats_not_supported: "The Wallet does not support any of the
-// formats requested by the Verifier". A query naming only a format the wallet
-// cannot present never reached the stored credentials at all, so the holdings
-// are not the reason and access_denied would misreport it.
+// formats requested by the Verifier". A query for a format the wallet cannot
+// present fails before any stored credential is checked. The cause is the
+// format and has nothing to do with what the wallet holds.
 func TestAQueryForAnUnsupportedFormatReturnsVPFormatsNotSupported(t *testing.T) {
 	srv := newTestServer(t, true)
 	verifier := newCaptureVerifier(t)
@@ -153,12 +153,12 @@ func TestAQueryForAnUnsupportedFormatReturnsVPFormatsNotSupported(t *testing.T) 
 	}
 }
 
-// A request that fails validation names a response endpoint the wallet has no
-// reason to trust. §8.5 says the error response "follows the rules as defined
-// in [RFC6749]", and RFC 6749 §4.1.2.1 is explicit about this case: the server
-// "SHOULD inform the resource owner of the error and MUST NOT automatically
-// redirect the user-agent to the invalid redirection URI". So nothing is sent
-// to the verifier and the caller is told instead.
+// The wallet cannot trust the response endpoint of a request that fails
+// validation. §8.5 says the error response "follows the rules as defined in
+// [RFC6749]". RFC 6749 §4.1.2.1 says the server "SHOULD inform the resource
+// owner of the error and MUST NOT automatically redirect the user-agent to the
+// invalid redirection URI". The wallet tells the caller and sends nothing to
+// the verifier.
 func TestValidationFailuresAreNotSentToTheVerifier(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -193,8 +193,8 @@ func TestValidationFailuresAreNotSentToTheVerifier(t *testing.T) {
 					"request_uri_method": {"PATCH"},
 				}
 			},
-			// This path answers before the request is built, so it names the
-			// parameter rather than the §8.5 code.
+			// This path answers before the request is built. Its error is the
+			// parameter name.
 			wantLocal: "request_uri_method",
 		},
 	}
@@ -219,9 +219,8 @@ func TestValidationFailuresAreNotSentToTheVerifier(t *testing.T) {
 	}
 }
 
-// A profile violation is found while validating the request, so it falls under
-// the same rule: the counterparty is not told through an endpoint the wallet
-// has not been able to validate.
+// A profile violation is found during request validation, so the same rule
+// applies. The wallet sends nothing to an endpoint it could not validate.
 func TestAHAIPViolationIsNotSentToTheVerifier(t *testing.T) {
 	srv := newTestServer(t, true)
 	srv.wallet.RequireHAIP = true
@@ -353,9 +352,8 @@ func TestDCAPIErrorObjectCarriesOnlyTheErrorCode(t *testing.T) {
 
 // A request that fails validation gets no protocol response over the Digital
 // Credentials API either. §8.5 says the error response "follows the rules as
-// defined in [RFC6749]", and RFC 6749 §4.1.2.1 has the server inform the user
-// rather than answer a request it could not validate. The caller is told with
-// an HTTP error, which is how the calling page learns the wallet refused.
+// defined in [RFC6749]". RFC 6749 §4.1.2.1 has the server inform the user. The
+// calling page learns about the refusal from an HTTP error.
 func TestDCAPIMalformedRequestIsRefusedWithoutAProtocolResponse(t *testing.T) {
 	srv := newTestServer(t, true)
 
@@ -399,9 +397,8 @@ func TestDCAPIMalformedRequestIsRefusedWithoutAProtocolResponse(t *testing.T) {
 // OID4VP 1.0 Appendix A.4: "Protocol error responses are returned as an object
 // within the data property. This object has a single property with the name
 // error and a value containing the error response code as defined in Section
-// 8.5." That holds for dc_api.jwt too. A Verifier that asked for an encrypted
-// response and receives a JWE where the error object belongs reads a response
-// rather than a refusal.
+// 8.5." That holds for dc_api.jwt too. A Verifier that finds a JWE in place of
+// the error object would read it as a response.
 func TestDCAPIErrorIsNotEncryptedUnderTheEncryptedResponseMode(t *testing.T) {
 	w := generateTestWallet(t)
 	params := PresentationParams{

@@ -42,8 +42,8 @@ func msoWithDeviceKey(t *testing.T, coseKey map[any]any) *Document {
 	}
 }
 
-// coseEC2 is a COSE_Key with the integer labels a real one carries:
-// 1=kty, -1=crv, -2=x, -3=y.
+// coseEC2 is a COSE_Key with integer labels 1=kty, -1=crv, -2=x, -3=y
+// (RFC 9053 §7.1.1).
 func coseEC2(x, y []byte) map[any]any {
 	return map[any]any{
 		int64(1):  int64(2),
@@ -73,8 +73,8 @@ func TestDeviceKey_ResolvesTheBoundKey(t *testing.T) {
 	}
 }
 
-// Find a key with a leading zero coordinate byte to test padding. Encoders using
-// big.Int.Bytes() omit that byte.
+// Encoders that use big.Int.Bytes() omit a leading zero coordinate byte.
+// DeviceKey must pad it back.
 func TestDeviceKey_ShortCoordinate(t *testing.T) {
 	for attempt := 0; attempt < 20000; attempt++ {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -88,7 +88,6 @@ func TestDeviceKey_ShortCoordinate(t *testing.T) {
 		if x[0] != 0 {
 			continue
 		}
-		// Unpadded, the way a lax encoder would write it.
 		doc := msoWithDeviceKey(t, coseEC2(bytes.TrimLeft(x, "\x00"), y))
 		got, err := DeviceKey(doc)
 		if err != nil {
@@ -102,8 +101,8 @@ func TestDeviceKey_ShortCoordinate(t *testing.T) {
 	t.Fatal("no key with a short X coordinate generated in 20000 attempts")
 }
 
-// Malformed device keys must fail instead of binding the credential to an invalid or
-// different key.
+// A malformed device key must fail, so the credential is never bound to a
+// wrong key.
 func TestDeviceKey_Rejects(t *testing.T) {
 	valid := make([]byte, 32)
 	valid[31] = 1
@@ -138,8 +137,8 @@ func TestDeviceKey_Rejects(t *testing.T) {
 	}
 }
 
-// CBOR decoders differ on the Go type they give an integer, and the label
-// values arrive through that. All of these mean EC2 over P-256.
+// CBOR decoders differ on the Go type of an integer. All of these mean EC2
+// over P-256.
 func TestDeviceKey_IntegerLabelTypes(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

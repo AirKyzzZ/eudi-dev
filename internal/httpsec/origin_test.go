@@ -37,22 +37,20 @@ func TestGuardAPI(t *testing.T) {
 		ownOrigins []string
 		want       bool
 	}{
-		// The caller the guard exists for: a page on another site, sending
-		// the one request shape CORS does not preflight.
+		// A page on another site sends a request that CORS does not preflight.
 		{name: "foreign origin on the API", method: "POST", path: "/api/presentations", origin: "https://evil.example", want: false},
 		{name: "foreign origin reading credentials", method: "GET", path: "/api/credentials", origin: "https://evil.example", want: false},
-		// A CLI, curl or a test harness sends no Origin at all.
+		// A CLI, curl or a test harness sends no Origin.
 		{name: "no origin", method: "POST", path: "/api/presentations", want: true},
 		{name: "same origin", method: "POST", path: "/api/presentations", origin: "http://wallet.test", want: true},
 		{name: "same origin, other scheme", method: "POST", path: "/api/presentations", origin: "https://wallet.test", want: true},
 		// A deployment whose public URL is not the Host it receives.
 		{name: "configured own origin", method: "POST", path: "/api/issue", origin: "https://eudi-test.dev", ownOrigins: []string{"https://eudi-test.dev"}, want: true},
 		{name: "own origin does not admit others", method: "POST", path: "/api/issue", origin: "https://evil.example", ownOrigins: []string{"https://eudi-test.dev"}, want: false},
-		// A sandboxed frame or a file:// page reports this, and it is
-		// nobody's own origin.
+		// A sandboxed frame or a file:// page sends "null".
 		{name: "null origin", method: "POST", path: "/api/issue", origin: "null", want: false},
 		{name: "unparseable origin", method: "POST", path: "/api/issue", origin: "://", want: false},
-		// Protocol endpoints are meant to be reached from elsewhere.
+		// Other sites must reach protocol endpoints.
 		{name: "foreign origin off the API", method: "GET", path: "/authorize", origin: "https://evil.example", want: true},
 		{name: "verifier posting a response", method: "POST", path: "/callback", origin: "https://verifier.example", want: true},
 		{name: "static asset", method: "GET", path: "/app.js", origin: "https://evil.example", want: true},
@@ -90,8 +88,8 @@ func TestGuardAPI(t *testing.T) {
 	}
 }
 
-// The port is part of an origin: another service on the same host is still
-// somebody else, which is the common case on a developer machine.
+// The port is part of an origin. Another service on the same host is a foreign
+// origin, which is common on a developer machine.
 func TestGuardAPIComparesPorts(t *testing.T) {
 	for _, origin := range []string{"http://localhost:3000", "http://localhost"} {
 		hit := false

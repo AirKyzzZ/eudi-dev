@@ -65,8 +65,8 @@ func PrintEntry(entry *TrafficEntry, dashboardPort int) {
 	PrintEntryWithDecodeBase(entry, base)
 }
 
-// PrintEntryWithDecodeBase uses the remote dashboard origin in decode links. Its localhost
-// address may not be reachable by the CLI. With no dashboard, print a CLI command instead.
+// PrintEntryWithDecodeBase uses the remote dashboard origin in decode links. The CLI may
+// not reach the dashboard's localhost address. Without a dashboard it prints a CLI command.
 func PrintEntryWithDecodeBase(entry *TrafficEntry, decodeBase string) {
 	ts := entry.Timestamp.Format("15:04:05")
 

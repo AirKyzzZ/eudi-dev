@@ -258,8 +258,7 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 		}
 		out["mso"] = msoOut
 	}
-	// Summarize the holder key because raw COSE integer labels and bytes are hard to
-	// identify in the output.
+	// Raw COSE integer labels and bytes are hard to read, so the holder key is summarized.
 	out["deviceKey"] = buildDeviceKeyJSON(doc)
 	out["issuerAuth"] = buildIssuerAuthJSON(doc)
 	out["issuerSignedItems"] = buildIssuerSignedItemsJSON(doc)
@@ -270,7 +269,6 @@ func BuildMDOCJSON(doc *mdoc.Document) map[string]any {
 	return out
 }
 
-// Display issuerAuth as separate header and signature fields, matching the JWT view.
 func buildIssuerAuthJSON(doc *mdoc.Document) map[string]any {
 	if doc.IssuerAuth == nil {
 		return nil
@@ -301,8 +299,6 @@ func cborKeyedMap(m map[any]any) map[string]any {
 	return out
 }
 
-// Show each disclosed element with its salt, digest ID, value and digest verification
-// result.
 func buildIssuerSignedItemsJSON(doc *mdoc.Document) map[string]any {
 	if len(doc.NameSpaces) == 0 {
 		return nil
@@ -380,8 +376,7 @@ func deviceAuthType(doc *mdoc.Document) string {
 	}
 }
 
-// Report a missing device key because the credential cannot then be presented with
-// device authentication.
+// A credential without a device key cannot be presented with device authentication.
 func printDeviceKey(doc *mdoc.Document, mso *mdoc.MSO, opts Options) {
 	if mso.DeviceKeyInfo == nil {
 		printSection("Device Key")
@@ -404,8 +399,7 @@ func printDeviceKey(doc *mdoc.Document, mso *mdoc.MSO, opts Options) {
 	}
 }
 
-// Only a DeviceResponse carries holder authentication. A bare credential has not yet
-// been presented.
+// Only a DeviceResponse carries holder authentication.
 func printDeviceAuth(doc *mdoc.Document, opts Options) {
 	if !doc.IsDeviceResponse {
 		return
@@ -481,7 +475,7 @@ func PrintMDOC(doc *mdoc.Document, opts Options) {
 	for _, ns := range namespaces {
 		items := doc.NameSpaces[ns]
 		printSection(fmt.Sprintf("Namespace: %s (%d claims)", ns, len(items)))
-		// Copy before sorting so printing does not reorder the caller's document.
+		// Sorting in place reorders the caller's document.
 		items = append([]mdoc.IssuerSignedItem(nil), items...)
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].ElementIdentifier < items[j].ElementIdentifier
@@ -672,8 +666,7 @@ func isSimpleArray(arr []any) bool {
 }
 
 func formatDisclosuresJSON(token *sdjwt.Token, disclosures []sdjwt.Disclosure) []map[string]any {
-	// A disclosure only discloses something if the credential refers to its
-	// digest. One that does not belongs to another credential.
+	// A disclosure whose digest the credential does not reference belongs to another credential.
 	referenced := sdjwt.ReferencedDigests(token)
 	result := make([]map[string]any, len(disclosures))
 	for i, d := range disclosures {
@@ -886,8 +879,7 @@ func PrintAuthorizationRequest(req *oid4vc.AuthorizationRequest, opts Options) {
 		printMap(req.RequestObject.Payload, 2)
 	}
 
-	// Only print these as separate sections when there's no request object,
-	// since the request object payload already contains them.
+	// The request object payload already contains these fields.
 	if req.RequestObject == nil {
 		if req.DCQLQuery != nil {
 			printSection("DCQL Query")

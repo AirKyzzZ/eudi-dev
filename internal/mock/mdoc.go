@@ -33,9 +33,9 @@ import (
 )
 
 // SplitClaimsByNamespace groups claims by namespace. A key of the form
-// "namespace:element" goes into that namespace, everything else into
-// defaultNamespace. The German PID needs this: its national additions live in
-// eu.europa.ec.eudi.pid.de.1 while the rest stays in eu.europa.ec.eudi.pid.1.
+// "namespace:element" goes into that namespace. Every other key goes into
+// defaultNamespace. The German PID puts its national additions in
+// eu.europa.ec.eudi.pid.de.1.
 func SplitClaimsByNamespace(claims map[string]any, defaultNamespace string) map[string]map[string]any {
 	out := make(map[string]map[string]any)
 	for key, value := range claims {
@@ -114,9 +114,8 @@ type MDOCConfig struct {
 	DocType           string
 	Namespace         string
 	Claims            map[string]any
-	// NamespaceClaims optionally maps namespaces to their claims. When set,
-	// Namespace and Claims are ignored and each namespace is emitted
-	// separately in the MSO and IssuerSigned structures.
+	// NamespaceClaims optionally maps namespaces to their claims. When set it
+	// replaces Namespace and Claims.
 	NamespaceClaims map[string]map[string]any
 	Key             *ecdsa.PrivateKey
 	HolderKey       *ecdsa.PublicKey    // optional: adds deviceKeyInfo to MSO
@@ -125,15 +124,14 @@ type MDOCConfig struct {
 	StatusListURI   string              // optional: status list URI for revocation
 	StatusListIdx   int                 // optional: index in the status list
 	CertChain       []*x509.Certificate // optional: x5chain certificate chain [leaf, CA]
-	// KeepTrustAnchor embeds the chain as given, keeping a terminal
-	// self-signed root that is otherwise stripped from x5chain.
+	// KeepTrustAnchor embeds the chain as given, including a terminal
+	// self-signed root.
 	KeepTrustAnchor bool
-	// OmitValidityInfo drops the MSO validityInfo, which ISO 18013-5 requires,
-	// for testing how a verifier handles an mdoc that states no validity period.
+	// OmitValidityInfo drops the MSO validityInfo, which ISO 18013-5 requires.
+	// Tests use it to check verifiers.
 	OmitValidityInfo bool
 	// OmitDigestAlgorithm drops the MSO digestAlgorithm, which ISO 18013-5
-	// requires, for testing how a verifier handles its absence. The digests are
-	// still computed with SHA-256.
+	// requires. The digests still use SHA-256.
 	OmitDigestAlgorithm bool
 }
 
@@ -154,7 +152,7 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 		namespaceClaims = SplitClaimsByNamespace(cfg.Claims, cfg.Namespace)
 	}
 
-	// Keep digest IDs unique across namespaces.
+	// Digest IDs are unique across namespaces.
 	tag24ItemsByNS := make(map[string]any, len(namespaceClaims))
 	valueDigestsByNS := make(map[string]any, len(namespaceClaims))
 
@@ -230,8 +228,7 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 			return "", fmt.Errorf("encoding holder key: %w", err)
 		}
 
-		// COSE_Key: kty=2 (EC2), crv=1 (P-256), x, y
-		// Using COSE key labels: 1=kty, -1=crv, -2=x, -3=y
+		// COSE_Key labels 1=kty, -1=crv, -2=x, -3=y (RFC 9053 §7.1.1).
 		coseKey := map[any]any{
 			int64(1):  int64(2), // kty: EC2
 			int64(-1): int64(1), // crv: P-256
@@ -263,8 +260,8 @@ func GenerateMDOC(cfg MDOCConfig) (string, error) {
 	msg.Headers.Protected.SetAlgorithm(cose.AlgorithmES256)
 	msg.Payload = taggedMSOBytes
 
-	// Publish the leaf and intermediates in x5chain. Verifiers obtain the root from
-	// their trust list. KeepTrustAnchor preserves a supplied root for tests.
+	// Verifiers take the root from their trust list, so x5chain holds the leaf
+	// and intermediates.
 	chain := cfg.CertChain
 	if !cfg.KeepTrustAnchor {
 		chain = WithoutSelfSignedTrustAnchor(chain)

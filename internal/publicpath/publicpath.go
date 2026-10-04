@@ -17,7 +17,7 @@
 // forwarding a request or keep it.
 //
 // All URLs in protocol messages come from the base URL. Forwarded headers only affect
-// responses to the browser: redirects, the page's <base href> and the cookie path.
+// redirects, the page's <base href> and the cookie path.
 // See docs/adr/0019-the-base-url-is-the-public-identity.md.
 package publicpath
 
@@ -34,8 +34,8 @@ import (
 	"sync"
 )
 
-// prefixPattern accepts absolute paths made of URL path characters. Anything else
-// could turn a prefixed redirect or base href into a link to another site.
+// prefixPattern accepts absolute paths of URL path characters only. Other
+// characters could turn a redirect or base href into a link to another site.
 var prefixPattern = regexp.MustCompile(`^(/[A-Za-z0-9\-._~!$&'()*+,;=:@%]+)+$`)
 
 // BasePath returns the path of baseURL without a trailing slash, or "" for a URL
@@ -60,9 +60,8 @@ func BasePath(baseURL string) (string, error) {
 }
 
 // FirstSegment returns the first segment of the base URL's path, such as "some" for
-// https://example.com/some/context. A server must not use that segment for its own
-// routes, or it could not tell its own /some/... paths apart from requests where the
-// proxy kept the prefix.
+// https://example.com/some/context. A server must not route that segment itself.
+// Its own /some/... paths would look like requests where the proxy kept the prefix.
 func FirstSegment(baseURL string) (string, error) {
 	p, err := BasePath(baseURL)
 	if err != nil {
@@ -83,13 +82,12 @@ func cleanPrefix(p string) (string, bool) {
 	return p, true
 }
 
-// Options describes where the server is published.
 type Options struct {
 	// BaseURL is the public URL. Callers check it with BasePath at startup. An invalid
 	// value is treated like one without a path.
 	BaseURL string
 	// OnMismatch is called once for each distinct forwarded host or prefix that does
-	// not match BaseURL. That usually means a proxy route or BaseURL is wrong.
+	// not match BaseURL. Such a mismatch points to a wrong proxy route or BaseURL.
 	OnMismatch func(observed string)
 }
 
@@ -102,12 +100,11 @@ func Prefix(r *http.Request) string {
 	return prefix
 }
 
-// Wrap passes requests to next as if the server ran at the root:
-//   - it removes the base path when the proxy kept it
-//   - it maps the issuer metadata URLs at the host root, which put the well-known name
-//     before the base path (RFC 8414 §3.1, OpenID4VCI 1.0 §12.2.2), to the root
-//     well-known paths
-//   - it adds the request's prefix to root-relative redirects
+// Wrap passes requests to next as if the server ran at the root. It removes
+// the base path when the proxy kept it. It maps metadata URLs that put the
+// well-known name before the base path (RFC 8414 §3.1, OpenID4VCI 1.0 §12.2.2)
+// to the root well-known paths. It adds the request's prefix to root-relative
+// redirects.
 func Wrap(opts Options, next http.Handler) http.Handler {
 	basePath, _ := BasePath(opts.BaseURL)
 	publicHost := ""
@@ -142,9 +139,9 @@ func Wrap(opts Options, next http.Handler) http.Handler {
 }
 
 // publicPrefix determines the path prefix the browser used. X-Forwarded-Prefix is the
-// part the proxy stripped, and a base path the proxy kept is appended to it. Without
-// either, a request for the public host came through a proxy that stripped the base
-// path, and any other request reached the server directly.
+// part the proxy stripped. A base path the proxy kept is appended to it. Without
+// either header, a request for the public host came through a proxy that stripped
+// the base path. Any other request reached the server directly.
 func publicPrefix(r *http.Request, basePath, publicHost string, keptBase bool) string {
 	removed := forwardedPrefix(r)
 	switch {
@@ -203,7 +200,6 @@ func forwardedPrefix(r *http.Request) string {
 	return p
 }
 
-// browserHost is the host the browser connected to, as reported by the proxy.
 func browserHost(r *http.Request) string {
 	host, proto := forwardedHostAndProto(r)
 	if host == "" {
@@ -239,8 +235,8 @@ func forwardedHostAndProto(r *http.Request) (host, proto string) {
 	return host, strings.ToLower(proto)
 }
 
-// firstValue returns the first entry of a comma separated header, which the proxy
-// closest to the browser added.
+// firstValue returns the first entry of a comma separated header. The proxy
+// closest to the browser added that entry.
 func firstValue(v string) string {
 	first, _, _ := strings.Cut(v, ",")
 	return strings.TrimSpace(first)
@@ -263,8 +259,7 @@ func normalizeHost(host, scheme string) string {
 	return host
 }
 
-// maxMismatches limits how many values are reported, because clients choose the
-// headers.
+// Clients choose the forwarded headers, so the number of reports is capped.
 const maxMismatches = 32
 
 type mismatches struct {
@@ -300,7 +295,7 @@ func (m *mismatches) check(r *http.Request, prefix string) {
 }
 
 // locationWriter adds the prefix to redirects like "/decoder/", so handlers can write
-// them as if the server ran at the root. Full URLs and "//host/..." stay as they are.
+// them as if the server ran at the root. Full URLs and "//host/..." stay unchanged.
 type locationWriter struct {
 	http.ResponseWriter
 	prefix      string
@@ -323,7 +318,7 @@ func (w *locationWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// Flush keeps event streams working through the wrapper.
+// Flush passes flushes through so event streams keep working.
 func (w *locationWriter) Flush() {
 	w.WriteHeader(http.StatusOK)
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
@@ -333,9 +328,9 @@ func (w *locationWriter) Flush() {
 
 func (w *locationWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// ServeIndex serves index for "/" and files for everything else. Under a path prefix,
-// the index gets a <base href> so its relative links also work when the browser URL
-// has no trailing slash (/some/context instead of /some/context/).
+// ServeIndex serves index for "/" and files for everything else. Under a path prefix
+// the index gets a <base href>. Its relative links then also work for a browser URL
+// without a trailing slash, such as /some/context.
 func ServeIndex(index []byte, files http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		prefix := Prefix(r)

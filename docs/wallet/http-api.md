@@ -20,7 +20,7 @@ Use it to manage a wallet on another host or to drive a hosted instance from aut
 
 A client that opens a wallet page supplies the same browser ID in the page's `owner` query parameter and the API's `X-Eudi-Owner` header. The CLI and remote URL handler do this automatically. Requests without a browser ID remain visible to all callers, including curl, CI jobs and commands using `--no-open`.
 
-The `mine` field of a request document indicates ownership. Bundled clients also send `X-Eudi-Client: <name>/<release>`. The server logs an upgrade notice once for interactive submissions that omit it.
+The `mine` field of a request document shows ownership. Bundled clients also send `X-Eudi-Client: <name>/<release>`. The server logs an upgrade notice once for interactive submissions that omit it.
 
 `GET /api/error` and `DELETE /api/error` follow the same ownership rules. A caller can read and clear its own errors and unowned errors.
 
@@ -293,7 +293,7 @@ eudi wallet serve --pid --docker
 eudi wallet serve --pid --base-url http://my-host:8085
 ```
 
-The status of a credential can be changed at runtime (the wallet UI has Revoke and Activate buttons on the credential cards for this):
+Change the status of a credential at runtime with the API or with the Revoke and Activate buttons on the credential cards:
 
 ```bash
 # Revoke a credential (status=1)
@@ -311,7 +311,7 @@ curl -X POST http://localhost:8085/api/credentials/<id>/status \
 curl http://localhost:8085/api/credentials/<id>/status
 ```
 
-Any Status Type from 0 to 255 is accepted, so a credential can be set to SUSPENDED (`2`) or to an application specific value. The published list is 1, 2, 4 or 8 bits wide depending on the largest status it contains (the issuer's choice under section 7) and carries the exact value that was set.
+The endpoint accepts any Status Type from 0 to 255, for example SUSPENDED (`2`) or an application specific value. The published list carries the exact value. Its width is 1, 2, 4 or 8 bits, depending on the largest status in the list (the issuer's choice under section 7).
 
 The GET response contains `status`, `managed`, `uri`, `idx`, and `source` (`wallet` for the wallet's own list, `remote` for a fetched external list). It returns 404 for credentials without any status list reference, 422 for a malformed reference, and 502 when an external status list cannot be fetched.
 
@@ -463,7 +463,7 @@ The instance version is shown when a target is selected, in the `VERSION` column
 
 ### Automatic routing (single writer)
 
-When a live instance serves the same wallet directory and no remote target is configured, the CLI routes commands through that instance's REST API. It prints `Routing through the running wallet instance <url>`, the release and process ID to stderr, and reports version incompatibilities there too.
+When a live instance serves the same wallet directory and no remote target is configured, the CLI routes commands through that instance's REST API. It prints `Routing through the running wallet instance <url>`, the release and the process ID to stderr. Version incompatibilities are reported there as well.
 
 Use `--remote local` or an explicit `--templates-dir` to bypass routing and access storage directly. While a server is running, prefer routing so the server sees each change immediately.
 

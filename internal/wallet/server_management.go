@@ -71,8 +71,8 @@ func (s *Server) handleGetCredentialStatus(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if ref.Invalid != "" {
-		// A malformed status_list object violates section 6.2. Report a credential
-		// error, not an unreachable provider.
+		// A malformed status_list object violates section 6.2. Report it as a
+		// credential error.
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": ref.Invalid})
 		return
 	}
@@ -211,8 +211,8 @@ func (w *Wallet) IssueSummary(opts IssueOptions) (map[string]any, error) {
 	if result.TemplatePath != "" {
 		summary["template_path"] = result.TemplatePath
 	}
-	// Echo the override so callers can detect older servers that silently ignore it
-	// and use their own signing key.
+	// Echo the override. A caller can then detect an older server that ignores it
+	// and signs with its own key.
 	if opts.SigningKey != nil {
 		summary["signing_override"] = true
 	}

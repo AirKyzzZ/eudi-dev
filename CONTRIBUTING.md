@@ -31,7 +31,7 @@ go test ./internal/sdjwt/...
 go test -v -count=1 ./internal/wallet/...
 ```
 
-Tests use `EUDI_DEV_STORAGE` to select a storage backend. CI runs them on files, memory and Postgres. To test the other backends locally:
+`EUDI_DEV_STORAGE` selects the storage backend for tests. CI runs the tests on file, memory and Postgres storage. To test the other backends locally:
 
 ```bash
 EUDI_DEV_STORAGE=memory go test ./...
@@ -39,11 +39,11 @@ docker run -d --name eudi-pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=eudi -p 5432
 EUDI_DEV_STORAGE='postgres://postgres:pg@localhost:5432/eudi?sslmode=disable' go test ./...
 ```
 
-Tests use separate wallet directories to avoid collisions. Rows from earlier runs remain in the database. Start with a fresh database when those rows could affect a measurement.
+Each test uses its own wallet directory. Rows from earlier runs stay in the database. Use a fresh database when old rows could affect a measurement.
 
 ### E2E Tests
 
-E2E tests use Playwright. Its `webServer` builds the binary and starts `serve`, so the suite runs against a live server:
+E2E tests use Playwright. Its `webServer` builds the binary and starts `serve`. The tests run against that live server:
 
 ```bash
 cd e2e
@@ -54,7 +54,7 @@ npx playwright test
 
 [examples/load-test](examples/load-test/README.md) checks correctness under load against two wallet servers on one database.
 
-The Docker specs (`docker.spec.js`) need a running Docker daemon. Skip them with `--grep-invert docker`. The wallet started by the suite also uses `EUDI_DEV_STORAGE`. CI runs the suite once per backend.
+The Docker specs (`docker.spec.js`) need a running Docker daemon. Skip them with `--grep-invert docker`. The wallet that the suite starts also reads `EUDI_DEV_STORAGE`. CI runs the suite once per backend.
 
 ## Code Style
 

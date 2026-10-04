@@ -91,8 +91,8 @@ func (s *Server) lookupPendingOffer(id string) *pendingOffer {
 // continue the flow in the background. The issuer's redirect to /callback resumes
 // issuance. The caller opens the URL in their browser.
 func (s *Server) runOffer(uri string, logDetails map[string]any, opts OfferOptions) (*IssuanceResult, *pendingOffer, error) {
-	// A subscriber lets the flow return the sign-in URL instead of failing when
-	// interaction is required.
+	// A subscriber lets the flow return the sign-in URL when interaction is
+	// required.
 	authCh, unsubscribe := s.wallet.SubscribeAuthorization()
 	p := &pendingOffer{ID: newConsentID(), CreatedAt: time.Now()}
 	done := make(chan struct{})

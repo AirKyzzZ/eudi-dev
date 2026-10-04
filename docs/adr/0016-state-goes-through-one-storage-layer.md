@@ -36,6 +36,6 @@ Use the file or memory backend for one wallet server. A server using file storag
 
 File compare-and-swap operations use a lock shared by processes for signing keys, certificates and counters. A wallet save still writes one `wallet.json`, so this does not make file storage suitable for multiple wallet servers.
 
-The keys, the CA and every credential are stored in the clear on every backend (ADR-0003). Anyone with access to the stored CA key can sign certificates trusted by verifiers that use this CA.
+The keys, the CA and every credential are stored in the clear on every backend ([ADR-0003](0003-keys-and-credentials-are-stored-unencrypted.md)). Anyone with access to the stored CA key can sign certificates trusted by verifiers that use this CA.
 
 Postgres is the only external backend. Adding another engine means adding another `Store` implementation that uses the same keys.

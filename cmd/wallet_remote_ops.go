@@ -161,9 +161,9 @@ func orDash(s string) string {
 	return s
 }
 
-// credDisplay reads the credential's issuer-declared display, tolerating both
-// the JSON object a remote wallet sends and the struct value a local wallet
-// hands over in-process.
+// credDisplay reads the display the issuer declared for the credential. A
+// remote wallet sends it as a JSON object and a local wallet passes the
+// struct value, so it accepts both.
 func credDisplay(cred map[string]any) map[string]any {
 	raw, ok := cred["display"]
 	if !ok || raw == nil {
@@ -193,9 +193,9 @@ func credDisplayDescription(cred map[string]any) string {
 	return desc
 }
 
-// credClaimCount is the subject-attribute count the server reports (the
-// protocol members left out), falling back to the full claim count when the
-// field is absent.
+// credClaimCount returns the subject attribute count the server reports,
+// which leaves out protocol members. Without that field it returns the full
+// claim count.
 func credClaimCount(cred map[string]any) int {
 	if n, ok := docNumber(cred, "claim_count"); ok {
 		return int(n)
@@ -235,8 +235,8 @@ func credStatusLabel(cred map[string]any) string {
 	return strings.Join(parts, ", ")
 }
 
-// credExpiry reads the expiry every credential listing carries. A credential
-// that states no lifetime has none, which is not the same as an expired one.
+// credExpiry reads the expiry from a credential listing. A credential that
+// states no lifetime has no expiry and is never reported as expired.
 func credExpiry(cred map[string]any) (time.Time, bool) {
 	raw := docString(cred, "expires_at")
 	if raw == "" {
@@ -275,8 +275,7 @@ func credValidityLabel(cred map[string]any) string {
 func printCredentialDoc(cred map[string]any, decoded bool) error {
 	raw := docString(cred, "raw")
 	if !decoded {
-		// The documented contract of this form is the credential string and
-		// nothing else, so that it can be piped.
+		// This form prints only the credential string so it can be piped.
 		fmt.Println(raw)
 		return nil
 	}
@@ -304,8 +303,7 @@ func printCredentialDoc(cred map[string]any, decoded bool) error {
 			fmt.Printf("Batch:    yes (the wallet holds %s and presents an unused one each time)\n", copies)
 			printed = true
 		}
-		// The description is issuer prose that can run long, so it stays behind
-		// -v the way the other verbose detail does.
+		// The issuer's description can be long, so it shows only with -v.
 		if verbose {
 			if desc := credDisplayDescription(cred); desc != "" {
 				fmt.Printf("Description: %s\n", desc)
@@ -384,9 +382,9 @@ func remoteAccept(c *remote.Client, uri, txCode string, interactive bool) error 
 	return nil
 }
 
-// signInPollInterval is how often the CLI asks how a sign-in went. The wait
-// itself is bounded by config.AuthorizationCallbackWait, the same span the
-// flow being watched uses.
+// signInPollInterval is how often the CLI polls the sign-in status.
+// config.AuthorizationCallbackWait bounds the total wait, as it does for the
+// flow itself.
 const signInPollInterval = 2 * time.Second
 
 // The hosted wallet returns a sign-in URL for the local browser. After sign-in, the

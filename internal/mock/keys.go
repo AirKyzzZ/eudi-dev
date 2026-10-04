@@ -45,22 +45,21 @@ func SigningCertificateURL(issuer string, cert *x509.Certificate, extension stri
 	return fmt.Sprintf("%s/api/certificates/signers/%x.%s", issuer, digest, extension)
 }
 
-// DefaultCertificateCountry is the subject countryName generated certificates
-// carry when the credential being signed does not name an issuing country. It
-// matches the issuing_country of the default PID claim sets, because ISO/IEC
-// 18013-5 Table B.3 requires the document signer certificate's countryName to
-// equal the credential's issuing_country element.
+// DefaultCertificateCountry is the subject countryName of a generated certificate
+// when the credential has no issuing country. ISO/IEC 18013-5 Table B.3 requires
+// the document signer certificate's countryName to equal the credential's
+// issuing_country element, so it matches the default PID claim sets.
 const DefaultCertificateCountry = "NL"
 
-// issuerContactURI is where the operator of a generated CA can be reached.
-// ISO/IEC 18013-5 Annex B requires an issuer alternative name extension with
-// issuer contact information on IACA and document signer certificates.
+// issuerContactURI is the contact of the operator of a generated CA. ISO/IEC
+// 18013-5 Annex B requires an issuer alternative name extension with issuer
+// contact information on IACA and document signer certificates.
 const issuerContactURI = "https://github.com/dominikschlosser/eudi-dev"
 
 var (
 	oidExtensionIssuerAltName    = asn1.ObjectIdentifier{2, 5, 29, 18}
 	oidExtensionExtendedKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
-	// mdlDS, the document signing key purpose of ISO/IEC 18013-5 Annex B.
+	// mdlDS is the document signing key purpose of ISO/IEC 18013-5 Annex B.
 	oidMdlDocumentSigner = asn1.ObjectIdentifier{1, 0, 18013, 5, 1, 2}
 )
 
@@ -75,7 +74,7 @@ const (
 )
 
 // randomSerialNumber returns a positive certificate serial of at most 20
-// octets (RFC 5280 §4.1.2.2, mirrored by ISO/IEC 18013-5 Annex B).
+// octets (RFC 5280 §4.1.2.2 and ISO/IEC 18013-5 Annex B).
 func randomSerialNumber() (*big.Int, error) {
 	limit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serial, err := rand.Int(rand.Reader, limit)
@@ -100,7 +99,7 @@ func issuerAltNameExtension() (pkix.Extension, error) {
 }
 
 // subjectKeyIdentifier computes the SHA-1 hash of the subject public key BIT
-// STRING value, the derivation every ISO/IEC 18013-5 Annex B profile requires.
+// STRING value. Every ISO/IEC 18013-5 Annex B profile requires this derivation.
 func subjectKeyIdentifier(pub *ecdsa.PublicKey) ([]byte, error) {
 	spki, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
@@ -173,10 +172,7 @@ func PublicKeyJWK(key *ecdsa.PublicKey) string {
 }
 
 // GenerateCACert creates a self-signed CA certificate for the given key. It
-// follows the IACA root certificate profile of ISO/IEC 18013-5 Table B.1:
-// subject countryName, keyCertSign and cRLSign only, critical basicConstraints
-// with a pathLenConstraint of 0, a SHA-1 subject key identifier, and an issuer
-// alternative name with issuer contact information.
+// follows the IACA root certificate profile of ISO/IEC 18013-5 Table B.1.
 func GenerateCACert(caKey *ecdsa.PrivateKey) (*x509.Certificate, error) {
 	return generateCACert(caKey, 0)
 }
@@ -194,9 +190,8 @@ func generateCACert(caKey *ecdsa.PrivateKey, maxPathLen int) (*x509.Certificate,
 	if err != nil {
 		return nil, err
 	}
-	// Explicit, because the identifier Go would generate on its own follows
-	// RFC 7093 (truncated SHA-256) while Annex B requires the RFC 5280
-	// method 1 SHA-1 derivation.
+	// Go generates an RFC 7093 identifier (truncated SHA-256). Annex B requires
+	// the RFC 5280 method 1 SHA-1 derivation.
 	subjectKeyID, err := subjectKeyIdentifier(&caKey.PublicKey)
 	if err != nil {
 		return nil, err
@@ -251,28 +246,22 @@ type LeafCertOptions struct {
 	// EU 2026/1731, EAA-6.2.10.1-08 permits status signing without an EKU.
 	StatusListSigner bool
 	// Country becomes the subject countryName. ISO/IEC 18013-5 Table B.3
-	// requires it to equal the signed credential's issuing_country element,
-	// so pass that value when the claims carry one. Empty uses
-	// DefaultCertificateCountry.
+	// requires it to equal the signed credential's issuing_country element.
+	// Empty uses DefaultCertificateCountry.
 	Country string
-	// CRLDistributionPoints name where revocation information for this
-	// certificate is published. Table B.3 requires at least one URI.
+	// CRLDistributionPoints are the URIs of the revocation information for this
+	// certificate. Table B.3 requires at least one.
 	CRLDistributionPoints []string
 	// DNSNames, URIs and IPAddresses become the subject alternative names.
-	// A verifier resolving an issuer key from the x5c header checks the
-	// credential's iss against them (HAIP 1.0), so a signing leaf without
-	// them signs credentials that verifier refuses.
+	// A verifier that resolves an issuer key from the x5c header checks the
+	// credential's iss against them (HAIP 1.0).
 	DNSNames    []string
 	URIs        []*url.URL
 	IPAddresses []net.IP
 }
 
-// GenerateLeafCertWithOptions creates a leaf certificate signed by the CA. By default,
-// it follows the document signer certificate profile of ISO/IEC 18013-5:2021 Table
-// B.3: subject countryName, digitalSignature only, a critical extended key
-// usage with the mdlDS document signing purpose, a SHA-1 subject key
-// identifier, CRL distribution points, an issuer alternative name with issuer
-// contact information, and no basicConstraints (an end-entity certificate).
+// GenerateLeafCertWithOptions creates a leaf certificate signed by the CA. By default
+// it follows the document signer certificate profile of ISO/IEC 18013-5:2021 Table B.3.
 func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certificate, leafPubKey *ecdsa.PublicKey, opts LeafCertOptions) (*x509.Certificate, error) {
 	commonName := opts.CommonName
 	if commonName == "" {
@@ -382,7 +371,7 @@ func GenerateLeafCertWithOptions(caKey *ecdsa.PrivateKey, caCert *x509.Certifica
 }
 
 // WithoutSelfSignedTrustAnchor removes a terminal self-signed root certificate from
-// a certificate chain before publishing it in JOSE headers or JWK metadata.
+// a chain for JOSE headers or JWK metadata.
 func WithoutSelfSignedTrustAnchor(chain []*x509.Certificate) []*x509.Certificate {
 	if len(chain) == 0 {
 		return nil
@@ -425,9 +414,8 @@ func PrivateKeyJWK(key *ecdsa.PrivateKey) string {
 // generates random keys.
 type Seed []byte
 
-// Key derives the P-256 key for a label: HKDF-SHA256 over the seed, reduced
-// into the curve order as FIPS 186-5 A.2.1 describes, so every label yields
-// an independent key.
+// Key derives an independent P-256 key for each label. It runs HKDF-SHA256
+// over the seed and reduces the result into the curve order (FIPS 186-5 A.2.1).
 func (s Seed) Key(label string) (*ecdsa.PrivateKey, error) {
 	if len(s) == 0 {
 		return GenerateKey()

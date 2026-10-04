@@ -32,27 +32,26 @@ const (
 
 	ConsentTimeout = 5 * time.Minute
 
-	// The CLI uses the same timeout as the authorization flow so it stops polling when
-	// the wallet stops waiting for sign-in.
+	// The CLI stops polling at the moment the wallet stops waiting for sign-in.
 	AuthorizationCallbackWait = 5 * time.Minute
 
-	// Sign-in and consent can take longer than ordinary HTTP requests. This timeout
+	// Sign-in and consent take longer than ordinary HTTP requests. This timeout
 	// covers server response writes, remote CLI requests and consent approval waits.
 	SlowRequestTimeout = 2 * time.Minute
 )
 
-// ClientHeader names the client behind an API call and its release, as
-// "<name>/<version>". OwnerHeader names the browser a client submits on behalf
-// of. Both live here because the wallet reads them and the CLI sends them.
+// ClientHeader identifies the client behind an API call as "<name>/<version>".
+// OwnerHeader identifies the browser a client submits on behalf of. The wallet
+// reads both and the CLI sends both.
 const (
 	ClientHeader = "X-Eudi-Client"
 	OwnerHeader  = "X-Eudi-Owner"
 )
 
-// BaseDir returns the tool's state directory. Resolution order: the
-// EUDI_DEV_HOME environment variable, the legacy OID4VC_DEV_HOME variable,
-// an existing ~/.eudi-dev directory, an existing legacy ~/.oid4vc-dev
-// directory, and ~/.eudi-dev otherwise.
+// BaseDir returns the tool's state directory. It checks in order the
+// EUDI_DEV_HOME variable, the OID4VC_DEV_HOME variable, an existing
+// ~/.eudi-dev directory and an existing ~/.oid4vc-dev directory. The fallback
+// is ~/.eudi-dev.
 func BaseDir() string {
 	if custom := os.Getenv("EUDI_DEV_HOME"); custom != "" {
 		return custom

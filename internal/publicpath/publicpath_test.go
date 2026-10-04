@@ -54,7 +54,6 @@ func TestBasePath(t *testing.T) {
 	}
 }
 
-// seen records what the wrapped handler received.
 type seen struct {
 	path, prefix string
 }

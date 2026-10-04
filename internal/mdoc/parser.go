@@ -109,9 +109,8 @@ func parseDeviceSigned(ds map[any]any) *DeviceSigned {
 		return result
 	}
 	result.DeviceAuth = convertCBORMapToStringKeys(da)
-	// The COSE_Sign1 has to be verified as it arrived. The converted map above
-	// is for display: it turns integer header labels into strings and unwraps
-	// tags, neither of which round-trips back to a verifiable signature.
+	// The COSE_Sign1 must be verified as it arrived. The display map above turns
+	// integer labels into strings and unwraps tags, so it cannot be verified.
 	if sig, ok := da["deviceSignature"]; ok {
 		if encoded, err := cbor.Marshal(sig); err == nil {
 			result.RawDeviceSignature = encoded
@@ -131,8 +130,8 @@ func parseIssuerSigned(data []byte) (*Document, error) {
 		NameSpaces: make(map[string][]IssuerSignedItem),
 	}
 
-	// Skip malformed namespace parts with a finding so the rest of the document
-	// remains inspectable.
+	// A malformed namespace part becomes a finding, so the rest of the document
+	// stays inspectable.
 	if ns, ok := issuerSigned["nameSpaces"]; ok {
 		nsMap, isMap := ns.(map[any]any)
 		if !isMap {
@@ -178,8 +177,8 @@ func parseIssuerSigned(data []byte) (*Document, error) {
 }
 
 func parseIssuerSignedItem(raw any) (*IssuerSignedItem, error) {
-	// Items are Tag-24 wrapped CBOR bstr. rawTag24 keeps the full Tag-24
-	// encoding because MSO ValueDigests hash the complete #6.24(bstr) encoding.
+	// Items are Tag-24 wrapped CBOR bstr. MSO ValueDigests hash the complete
+	// #6.24(bstr) encoding, so rawTag24 keeps it.
 	var itemBytes []byte
 	var rawTag24 []byte
 
@@ -249,9 +248,8 @@ func parseIssuerSignedItem(raw any) (*IssuerSignedItem, error) {
 }
 
 func parseIssuerAuth(raw any) (*IssuerAuth, error) {
-	// COSE_Sign1 = [protected, unprotected, payload, signature]
-	// coseBytes: the untagged array for internal parsing
-	// rawCOSE: the Tag-18 wrapped bytes for go-cose verification
+	// COSE_Sign1 = [protected, unprotected, payload, signature]. coseBytes is the
+	// untagged array for parsing. rawCOSE is the Tag-18 form go-cose verifies.
 	var coseBytes []byte
 	var rawCOSE []byte
 
@@ -283,8 +281,7 @@ func parseIssuerAuth(raw any) (*IssuerAuth, error) {
 			coseBytes = b
 		}
 	default:
-		// Typically []any from a DeviceResponse roundtrip (tag stripped).
-		// Marshal as untagged for internal parsing, and wrap with Tag 18 for go-cose.
+		// A DeviceResponse round trip strips the tag and leaves []any. go-cose needs Tag 18.
 		b, err := cbor.Marshal(raw)
 		if err != nil {
 			return nil, fmt.Errorf("cannot handle issuerAuth type %T", raw)
@@ -307,7 +304,6 @@ func parseIssuerAuth(raw any) (*IssuerAuth, error) {
 
 	ia := &IssuerAuth{RawCOSE: rawCOSE}
 
-	// Protected header (bstr containing CBOR map)
 	var protectedBytes []byte
 	if err := cborDecMode.Unmarshal(coseArr[0], &protectedBytes); err == nil && len(protectedBytes) > 0 {
 		var ph map[any]any
@@ -316,13 +312,12 @@ func parseIssuerAuth(raw any) (*IssuerAuth, error) {
 		}
 	}
 
-	// Unprotected header (CBOR map)
 	var uph map[any]any
 	if err := cborDecMode.Unmarshal(coseArr[1], &uph); err == nil {
 		ia.UnprotectedHeader = uph
 	}
 
-	// Payload (bstr, possibly nil or Tag-24 wrapped)
+	// The payload may be nil or Tag-24 wrapped.
 	var payload []byte
 	if err := cborDecMode.Unmarshal(coseArr[2], &payload); err == nil {
 		ia.Payload = payload
@@ -398,8 +393,7 @@ func parseMSO(data []byte) (*MSO, error) {
 
 	if dk, ok := msoMap["deviceKeyInfo"].(map[any]any); ok {
 		mso.DeviceKeyInfo = convertCBORMapToStringKeys(dk)
-		// Re-encoded here, where the labels are still integers, rather than
-		// from the display map above, whose keys are strings by then.
+		// The labels are still integers here. The display map above has string keys.
 		if raw, err := cbor.Marshal(dk["deviceKey"]); err == nil {
 			mso.DeviceKeyCBOR = raw
 		}
@@ -430,7 +424,7 @@ func parseValidityInfo(vi map[any]any) *ValidityInfo {
 		case time.Time:
 			return &val
 		case cbor.Tag:
-			// Tag 0 = date-time string
+			// Tag 0 is a date-time string (RFC 8949 §3.4.1).
 			if s, ok := val.Content.(string); ok {
 				t, err := time.Parse(time.RFC3339, s)
 				if err != nil {
@@ -452,9 +446,8 @@ func parseValidityInfo(vi map[any]any) *ValidityInfo {
 func convertCBORValue(v any) any {
 	switch val := v.(type) {
 	case time.Time:
-		// The decoder turns a tdate (tag 0) into a time.Time, while a
-		// full-date (tag 1004) stays a string. Both are dates in a
-		// credential, so present them the same way.
+		// The decoder turns a tdate (tag 0) into a time.Time. A full-date
+		// (tag 1004) stays a string. Both display the same way.
 		return val.UTC().Format(time.RFC3339)
 	case map[any]any:
 		return convertCBORMapToStringKeys(val)

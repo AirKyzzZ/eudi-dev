@@ -34,7 +34,7 @@ import (
 
 // Instance describes a running wallet server. Every `wallet serve` writes an
 // instance file on startup and removes it on graceful shutdown. Discovery
-// prunes files whose process is gone.
+// removes files whose process is gone.
 type Instance struct {
 	PID       int       `json:"pid"`
 	Port      int       `json:"port"`
@@ -46,12 +46,12 @@ type Instance struct {
 type DiscoveredInstance struct {
 	Instance
 	BuildID string `json:"build_id,omitempty"`
-	// Version is the release the instance reports on /api/version. It is
-	// empty for an instance too old to report one.
+	// Version is the release the instance reports on /api/version. Older
+	// instances report none.
 	Version string `json:"version,omitempty"`
-	// Source is "registry" (instance file), "process" (found via process
-	// scan without an instance file), or "active" (the remote target set by
-	// "wallet use", reachable but not locally discoverable).
+	// Source is "registry" for an instance file, "process" for a process scan
+	// match without an instance file, or "active" for the remote target set by
+	// "wallet use" that local discovery cannot see.
 	Source string `json:"source"`
 }
 
@@ -121,11 +121,10 @@ func fetchInstanceConfig(url string, timeout time.Duration) map[string]any {
 	return cfg
 }
 
-// Discover finds running wallet instances on the local system: everything in
-// the instance registry (pruning entries whose server is gone) plus wallet
-// serve processes found by scanning the process list. The active remote
-// target set by "wallet use" is included as well when it responds,
-// even when it is not locally discoverable.
+// Discover finds running wallet instances on the local system. It reads the
+// instance registry, removes entries whose server is gone and scans the process
+// list for wallet serve processes. It also includes the active remote target
+// set by "wallet use" when that target responds.
 func Discover(timeout time.Duration) []DiscoveredInstance {
 	if timeout <= 0 {
 		timeout = time.Second
@@ -157,8 +156,7 @@ func Discover(timeout time.Duration) []DiscoveredInstance {
 			livePID = int(pid)
 		}
 		if livePID != inst.PID {
-			// A new process can reuse a dead server's port. Require the process ID to
-			// match before accepting the registry entry.
+			// A new process can reuse a dead server's port, so the process ID must match.
 			_ = os.Remove(filepath.Join(instancesDir(), entry.Name()))
 		}
 		if seenPorts[inst.Port] {
@@ -194,8 +192,8 @@ func Discover(timeout time.Duration) []DiscoveredInstance {
 		seenPorts[proc.Port] = true
 	}
 
-	// An active remote may run in a container or another host, outside local process
-	// discovery. Include it when its API responds.
+	// An active remote may run in a container or on another host, outside local
+	// process discovery.
 	if active := Active(); active != "" {
 		known := false
 		for _, inst := range found {
@@ -231,9 +229,9 @@ func Discover(timeout time.Duration) []DiscoveredInstance {
 }
 
 // InstanceForWalletDir returns the running wallet instance that serves the
-// given wallet directory, or nil when no live instance owns it. This backs
-// the single-writer rule: while a server owns a wallet directory, CLI
-// commands route through its API instead of writing the store directly.
+// given wallet directory, or nil when no live instance owns it. While a server
+// owns a wallet directory, CLI commands route through its API so the server
+// stays the only writer.
 func InstanceForWalletDir(dir string, timeout time.Duration) *DiscoveredInstance {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {

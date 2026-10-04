@@ -38,8 +38,8 @@ func (w *Wallet) SigningCertChainForIssuedCredential(spec IssuedAttestationSpec,
 	return chain, err
 }
 
-// SigningMaterialForIssuedAttestation reads the key and chain together to avoid mixing
-// values across a reset.
+// SigningMaterialForIssuedAttestation reads the key and chain together so a reset
+// cannot pair values from before and after it.
 func (w *Wallet) SigningMaterialForIssuedAttestation(spec IssuedAttestationSpec) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	return w.signingMaterialForProfile(trustListProfileFromSpec(spec), "")
 }
@@ -61,7 +61,7 @@ func IssuingCountryFromClaims(claims map[string]any) string {
 	return ""
 }
 
-// Hold one lock while reading the key and chain. A concurrent demo reset could
+// Hold one lock while reading the key and chain. A concurrent reset could
 // otherwise pair a new key with an old chain.
 func (w *Wallet) signingMaterialForProfile(profile trustListProfile, country string) (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	if w == nil {
@@ -186,8 +186,8 @@ func (w *Wallet) auxiliarySigningMaterial(keyRole string, opts mock.LeafCertOpti
 	return key, []*x509.Certificate{leaf, ca}, nil
 }
 
-// TrustAnchorCertificate holds the lock because a reset can replace the chain
-// concurrently. Slice header writes are not atomic.
+// TrustAnchorCertificate holds the read lock because a reset can replace the
+// chain concurrently.
 func (w *Wallet) TrustAnchorCertificate() *x509.Certificate {
 	if w == nil {
 		return nil
@@ -233,8 +233,8 @@ func (w *Wallet) StatusListSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certifi
 	return issuerKey, []*x509.Certificate{leaf, caCert}, nil
 }
 
-// DefaultSigningMaterial reads the key and chain together. A reload or demo reset between
-// separate reads could return a pair that cannot produce a verifiable signature.
+// DefaultSigningMaterial reads the key and chain together. A reload or reset between
+// two separate reads could return a key that does not match the chain.
 func (w *Wallet) DefaultSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificate, error) {
 	group, ok := DefaultTrustListGroupForWallet(w)
 	if !ok {
@@ -253,9 +253,9 @@ func (w *Wallet) DefaultSigningMaterial() (*ecdsa.PrivateKey, []*x509.Certificat
 	return w.signingMaterialForProfile(group.Profile, "")
 }
 
-// SD-JWT VC draft-08 and earlier require the issuer identifier in the signing leaf's
-// SANs. Include both DNS and URI forms for verifier compatibility. IP hosts use an IP
-// SAN.
+// SD-JWT VC draft-08 and earlier require the issuer identifier in the signing
+// leaf's SANs. Verifiers check either the DNS or the URI form, so both are
+// included. IP hosts get an IP SAN.
 func issuerSubjectAltNames(issuerURL string) (dnsNames []string, ips []net.IP, uris []*url.URL) {
 	raw := strings.TrimRight(strings.TrimSpace(issuerURL), "/")
 	if raw == "" {

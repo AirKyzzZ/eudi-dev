@@ -22,13 +22,12 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
 )
 
-// renewalMargin is how long before expiry a credential is worth renewing. It
-// only has to cover the round trip to the issuer.
+// renewalMargin is how long before expiry a credential is renewed. It only
+// has to cover the round trip to the issuer.
 const renewalMargin = time.Minute
 
-// CredentialExpiry reports when a credential stops being valid, or the zero
-// time when it says nothing. The formats differ: an SD-JWT carries exp in its
-// payload, an mdoc validUntil in its MSO.
+// CredentialExpiry reads exp from a JWT payload or validUntil from an mdoc
+// MSO. It returns the zero time when the credential has no expiry.
 func CredentialExpiry(cred StoredCredential) time.Time {
 	switch cred.Format {
 	case "mso_mdoc":
@@ -54,8 +53,8 @@ func CredentialExpiry(cred StoredCredential) time.Time {
 	}
 }
 
-// CredentialNeedsRenewal excludes credentials without an expiry because renewal cannot be
-// scheduled.
+// CredentialNeedsRenewal is false for a credential without an expiry, since
+// there is nothing to schedule against.
 func CredentialNeedsRenewal(cred StoredCredential, now time.Time) bool {
 	expiry := CredentialExpiry(cred)
 	if expiry.IsZero() {
@@ -64,9 +63,8 @@ func CredentialNeedsRenewal(cred StoredCredential, now time.Time) bool {
 	return now.Add(renewalMargin).After(expiry)
 }
 
-// CredentialIssuedAt is when a credential says it was issued, or the zero time
-// when it says nothing. Same split as CredentialExpiry: iat in a JWT payload,
-// signed in an mdoc MSO.
+// CredentialIssuedAt reads iat from a JWT payload or signed from an mdoc MSO.
+// It returns the zero time when the credential has neither.
 func CredentialIssuedAt(cred StoredCredential) time.Time {
 	if !cred.issuedAt.IsZero() {
 		return cred.issuedAt
@@ -87,9 +85,8 @@ func CredentialIssuedAt(cred StoredCredential) time.Time {
 	}
 }
 
-// SortCredentialsNewestFirst orders credentials by issuance time, newest
-// first. Credentials stating no issuance time sort last. Ties keep arrival
-// order (ids are random, so they are no tiebreaker).
+// SortCredentialsNewestFirst sorts credentials without an issuance time
+// last. Ties keep arrival order because IDs are random.
 func SortCredentialsNewestFirst(creds []StoredCredential) {
 	issued := make(map[string]time.Time, len(creds))
 	for _, c := range creds {

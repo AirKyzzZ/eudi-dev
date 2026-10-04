@@ -29,8 +29,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// Return HTTP 202 with transaction_id and interval while deferred credentials are
-// pending (OpenID4VCI 1.0 §9.2). Release them after pendingRounds polls.
+// deferringIssuer answers HTTP 202 with transaction_id and interval while the
+// credential is pending (OpenID4VCI 1.0 §9.2). It releases the credential after
+// pendingRounds polls.
 func deferringIssuer(t *testing.T, w *Wallet, pendingRounds int, intervalSeconds int) (*httptest.Server, string, func() int) {
 	t.Helper()
 
@@ -213,11 +214,11 @@ func TestDeferredIssuancePending(t *testing.T) {
 	}
 }
 
-// Return a deferred transaction immediately so consent and CLI callers do not wait
-// through the issuer's interval.
+// A deferred transaction returns at once, so consent and CLI callers do not
+// wait through the issuer's interval.
 func TestProcessCredentialOffer_DeferredIsRecordedNotWaitedOut(t *testing.T) {
 	w := generateTestWallet(t)
-	// The offer flow must not poll a credential whose collection is deferred.
+	// The offer flow leaves polling to the background collector.
 	srv, offerURI, polls := deferringIssuer(t, w, 1000, 3600)
 	defer srv.Close()
 
@@ -251,7 +252,7 @@ func TestProcessCredentialOffer_DeferredIsRecordedNotWaitedOut(t *testing.T) {
 	}
 }
 
-// Record deferral even when the request contained batch proofs.
+// Deferral is recorded when the request carried batch proofs too.
 func TestProcessCredentialOffer_DeferredWithBatchAdvertised(t *testing.T) {
 	w := generateTestWallet(t)
 	var serverURL string
@@ -331,7 +332,7 @@ func TestProcessCredentialOffer_DeferredWithBatchAdvertised(t *testing.T) {
 	}
 }
 
-// Record failures after the credential response in the activity log.
+// A failure after the credential response shows in the activity log.
 func TestProcessCredentialOffer_FailureIsLogged(t *testing.T) {
 	w := generateTestWallet(t)
 	var serverURL string
@@ -385,8 +386,8 @@ func TestProcessCredentialOffer_FailureIsLogged(t *testing.T) {
 	}
 }
 
-// Keep renewal settings with the credential because the issuance flow ends long before
-// refresh is needed.
+// Renewal settings stay with the credential, since the issuance flow ends long
+// before a refresh is needed.
 func TestIssuanceRemembersHowToRenew(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -405,8 +406,8 @@ func TestIssuanceRemembersHowToRenew(t *testing.T) {
 		t.Errorf("refresh token = %q", stored.Renewal.RefreshToken)
 	}
 
-	// Without a refresh token, omit renewal settings so the credential does not appear
-	// renewable.
+	// Without a refresh token no renewal settings are stored, so the credential
+	// does not look renewable.
 	w.Credentials = append(w.Credentials, StoredCredential{ID: "cred-2", Format: "dc+sd-jwt", Raw: credRaw})
 	w.rememberRenewal("cred-2", "", CredentialRenewal{
 		Issuer: "https://issuer.example", TokenEndpoint: "https://issuer.example/token",
@@ -424,7 +425,7 @@ func TestIssuanceRemembersHowToRenew(t *testing.T) {
 // encryption_required is true. Note that this object will be used for
 // encrypting the response, regardless of what was sent in the initial
 // Credential Request. If it is not included encryption will not be performed."
-// A plaintext poll at an issuer that requires encryption never collects the
+// An issuer that requires encryption never answers a plaintext poll with the
 // credential.
 func TestDeferredCredentialRequestIsEncryptedWhenTheIssuerRequiresIt(t *testing.T) {
 	w := generateTestWallet(t)
@@ -518,7 +519,8 @@ func TestDeferredCredentialRequestIsEncryptedWhenTheIssuerRequiresIt(t *testing.
 	}
 }
 
-// Persist deferred records before a request reload can replace them with older state.
+// Deferred records are saved before a request reload could replace them with
+// older state.
 func TestReloadKeepsUnpersistedDeferral(t *testing.T) {
 	srv := newTestServer(t, true)
 	store := NewWalletStore(t.TempDir())
@@ -544,8 +546,7 @@ func TestReloadKeepsUnpersistedDeferral(t *testing.T) {
 	}
 }
 
-// Retry display metadata resolution at collection if it failed when the offer was
-// accepted.
+// Collection resolves the display metadata again when it failed at offer time.
 func TestDeferredCollectionRecoversAMissingDisplay(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -619,8 +620,8 @@ func TestDeferredCollectionRecoversAMissingDisplay(t *testing.T) {
 	}
 }
 
-// Skip parsing an unchanged wallet file. An unsaved in-memory credential surviving the
-// reload proves that the file was not reread.
+// An unchanged wallet file is not parsed again. An unsaved in-memory credential
+// that survives the reload shows the file was not reread.
 func TestReloadSkipsUnchangedStore(t *testing.T) {
 	srv := newTestServer(t, true)
 	store := NewWalletStore(t.TempDir())

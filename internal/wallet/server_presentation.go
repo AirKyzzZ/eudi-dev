@@ -78,7 +78,6 @@ func (s *Server) handlePresentationAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear the previous flow's error before starting a new request.
 	s.wallet.ClearLastError(callerOwners(r))
 
 	s.log("Received authorization request")

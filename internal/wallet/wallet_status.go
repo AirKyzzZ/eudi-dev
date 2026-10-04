@@ -120,8 +120,7 @@ func (w *Wallet) BuildStatusList() (int, []byte) {
 	return bits, bitstring
 }
 
-// NextStatusIndex uses the shared backend counter when available and the local counter
-// otherwise.
+// NextStatusIndex uses the shared backend counter when there is one.
 func (w *Wallet) NextStatusIndex() (int, error) {
 	w.mu.RLock()
 	allocate := w.allocateStatusIndex
@@ -160,7 +159,8 @@ func (w *Wallet) StatusEntryFor(credID string) (StatusEntry, bool) {
 	return entry, ok
 }
 
-// CredentialStatusRef reads JWT status claims or mdoc MSO status. mdoc uses MSO status.
+// CredentialStatusRef reads the status claim of a JWT credential or the MSO status
+// of an mdoc.
 func CredentialStatusRef(c StoredCredential) *statuslist.StatusRef {
 	switch c.Format {
 	case "mso_mdoc":

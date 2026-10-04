@@ -336,7 +336,7 @@ func TestServerCapturesMultilineBodyWithoutForwardingInternalHeaders(t *testing.
 }
 
 func TestServerErrorHandler(t *testing.T) {
-	// The error handler answers 502 when the backend drops the connection
+	// The error handler must answer 502 when the backend drops the connection.
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hj, ok := w.(http.Hijacker)
 		if !ok {

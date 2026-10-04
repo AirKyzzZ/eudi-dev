@@ -25,9 +25,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
 )
 
-// extractJWKThumbprint extracts the encryption JWK from the request object
-// and computes its RFC 7638 thumbprint (SHA-256).
-// Returns nil if no encryption key is found.
+// extractJWKThumbprint returns the RFC 7638 SHA-256 thumbprint of the request
+// object's encryption JWK. It returns nil when there is no encryption key.
 func extractJWKThumbprint(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) []byte {
 	jwk := findEncryptionJWK(reqObj, clientMetadata)
 	if jwk == nil {
@@ -36,7 +35,7 @@ func extractJWKThumbprint(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[st
 	return computeJWKThumbprint(jwk)
 }
 
-// findEncryptionJWK locates the first encryption JWK in client_metadata.jwks
+// findEncryptionJWK returns the first encryption JWK in client_metadata.jwks
 // (OID4VP 1.0).
 func findEncryptionJWK(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) map[string]any {
 	return firstJWK(encryptionJWKS(reqObj, clientMetadata))
@@ -54,9 +53,8 @@ func encryptionJWKS(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]a
 	return nil
 }
 
-// firstSigningOnlyEncryptionJWK returns the first key marked "use":"sig" whose
-// material the wallet could still encrypt to. It is the debug-mode fallback when
-// the verifier published no encryption-marked key at all.
+// firstSigningOnlyEncryptionJWK returns the first usable key marked "use":"sig".
+// Debug mode encrypts to it when the verifier published no encryption key.
 func firstSigningOnlyEncryptionJWK(jwksVal any) map[string]any {
 	jwks, ok := jwksVal.(map[string]any)
 	if !ok {
@@ -78,9 +76,9 @@ func firstSigningOnlyEncryptionJWK(jwksVal any) map[string]any {
 	return nil
 }
 
-// firstJWK extracts the first usable encryption key from a JWKS value
-// ({"keys": [...]}). Keys the wallet cannot use (unsupported kty, unsupported
-// curve, or a signing-only use) are skipped per RFC 7517 §5.
+// firstJWK returns the first usable encryption key in a JWKS ({"keys": [...]}).
+// It skips keys with an unsupported kty or curve and keys marked for signing
+// (RFC 7517 §5).
 func firstJWK(jwksVal any) map[string]any {
 	jwks, ok := jwksVal.(map[string]any)
 	if !ok {
@@ -90,8 +88,8 @@ func firstJWK(jwksVal any) map[string]any {
 	if !ok || len(keysSlice) == 0 {
 		return nil
 	}
-	// Prefer an EC key: ECDH-ES on P-256 is the OID4VP baseline and the only
-	// option HAIP allows. A usable RSA-OAEP key is the fallback.
+	// Prefer an EC key. ECDH-ES on P-256 is the OID4VP baseline and the only
+	// option HAIP allows. RSA-OAEP is the fallback.
 	var fallback map[string]any
 	for _, entry := range keysSlice {
 		jwk, ok := entry.(map[string]any)
@@ -133,9 +131,9 @@ func encryptableKeyMaterial(jwk map[string]any) bool {
 	}
 }
 
-// computeJWKThumbprint computes the RFC 7638 JWK Thumbprint using SHA-256.
-// For EC keys, the required members in lexicographic order are: crv, kty, x, y.
-// For RSA keys: e, kty, n.
+// computeJWKThumbprint returns the RFC 7638 JWK Thumbprint using SHA-256. The
+// required members in lexicographic order are crv, kty, x, y for EC keys and
+// e, kty, n for RSA keys.
 func computeJWKThumbprint(jwk map[string]any) []byte {
 	kty, _ := jwk["kty"].(string)
 
@@ -160,7 +158,7 @@ func computeJWKThumbprint(jwk map[string]any) []byte {
 		return nil
 	}
 
-	// RFC 7638: JSON must have members in lexicographic order, no whitespace
+	// RFC 7638 requires the members in lexicographic order and no whitespace.
 	canonicalJSON, err := json.Marshal(canonical)
 	if err != nil {
 		return nil
@@ -170,7 +168,7 @@ func computeJWKThumbprint(jwk map[string]any) []byte {
 	return hash[:]
 }
 
-// encryptionKeyInfo holds the extracted encryption key parameters from a JWK.
+// encryptionKeyInfo holds the encryption key parameters of a JWK.
 // Exactly one of Key (ECDH-ES) or RSAKey (RSA-OAEP) is set.
 type encryptionKeyInfo struct {
 	Key    *ecdsa.PublicKey

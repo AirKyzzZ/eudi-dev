@@ -141,8 +141,8 @@ func TestFromSDJWT_NoVCT(t *testing.T) {
 	if cq.ID != "credential_0" {
 		t.Errorf("ID = %q, want credential_0", cq.ID)
 	}
-	// Section 6.1 makes meta REQUIRED, and an empty object is how a query
-	// places no constraints on the metadata of the requested Credential.
+	// OID4VP 1.0 Section 6.1 makes meta REQUIRED. An empty object places no
+	// constraints on the metadata.
 	if len(cq.Meta.VCTValues) != 0 || cq.Meta.DoctypeValue != "" {
 		t.Errorf("meta should be empty when no VCT, got %v", cq.Meta)
 	}
@@ -248,8 +248,7 @@ func TestSanitizeID(t *testing.T) {
 		{"urn:eudi:pid:1", "urn_eudi_pid_1"},
 		{"org.iso.18013.5.1.mDL", "org_iso_18013_5_1_mDL"},
 		{"", ""},
-		// Section 6.1 allows alphanumeric, underscore and hyphen only, so
-		// everything else a vct can carry becomes an underscore.
+		// OID4VP 1.0 Section 6.1 allows only alphanumeric, underscore and hyphen in an id.
 		{"https://issuer.example/pid#1", "https___issuer_example_pid_1"},
 		{"vct with spaces", "vct_with_spaces"},
 		{"keep-hyphens_and_1", "keep-hyphens_and_1"},

@@ -21,9 +21,8 @@ import (
 	josev4 "github.com/go-jose/go-jose/v4"
 )
 
-// SupportedAlgorithms are the signature algorithms this toolkit verifies. The
-// list is passed to every parse rather than inferred from the token, so a
-// token cannot choose how it is checked. "none" is deliberately absent.
+// SupportedAlgorithms are the signature algorithms this toolkit verifies. Every
+// parse receives this list, so a token cannot choose how it is checked.
 var SupportedAlgorithms = []josev4.SignatureAlgorithm{
 	josev4.ES256, josev4.ES384, josev4.ES512,
 	josev4.RS256, josev4.RS384, josev4.RS512,

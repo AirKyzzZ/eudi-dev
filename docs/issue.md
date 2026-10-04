@@ -1,6 +1,6 @@
 # Issue
 
-Issue test SD-JWT, JWT, or mdoc credentials. The output is signed with an ephemeral P-256 key by default (the public JWK is printed to stderr).
+Issue test SD-JWT, JWT, or mdoc credentials. By default, the output is signed with an ephemeral P-256 key and the public JWK is printed to stderr.
 
 ```bash
 eudi issue sdjwt
@@ -107,11 +107,11 @@ The JWT subcommand produces a standard JWT with all claims directly in the paylo
 | `--status-list-uri` | None                    | Status list URI to embed in credential         |
 | `--status-list-idx` | `0`                     | Status list index to embed in credential       |
 
-Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set: fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements, matching the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md).
+Without `--claims`, a minimal PID-like claim set is used (given_name, family_name, birthdate). `--pid` issues the full PID claim set. It has fifteen top-level SD-JWT claims (including the nested `address` and `place_of_birth` objects) or nineteen mdoc elements. The claims follow the [EUDI PID Rulebook v1.7](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md).
 
 `issue jwt --pid` puts the same claim set in a plain JWT VC for verifier testing.
 
-`--vct urn:eudi:pid:de:1` selects the German PID: fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the predefined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names overrides the claim set that `--pid` issues. See [templates](templates.md).
+`--vct urn:eudi:pid:de:1` selects the German PID. It has fourteen top-level SD-JWT claims (including `aka_vcts` and the age thresholds) or twenty-three mdoc elements across two namespaces. The claim sets come from the predefined `pid-sdjwt`, `pid-mdoc`, `german-pid-sdjwt` and `german-pid-mdoc` templates. A user template saved under one of those names overrides the claim set that `--pid` issues. See [templates](templates.md).
 
 `--template` supplies the claim set and defaults for type, namespace, and expiry. Explicit flags override the template. `--claims` overrides individual top level claims. `--omit` removes claims from the result. See [templates](templates.md) for the file format and the `templates` commands.
 
@@ -136,7 +136,7 @@ Issued PID signatures include protected certificate URLs and SHA-256 fingerprint
 
 Without explicit status list flags, `--wallet` registers the credential in the wallet's own status list.
 
-If a wallet server is running for the same wallet directory, `--wallet` issues through its REST API (see [remote control](wallet/http-api.md#automatic-routing-single-writer)). Otherwise the command writes directly into the store and the embedded URLs resolve once `wallet serve` is running.
+If a wallet server is running for the same wallet directory, `--wallet` issues through its REST API (see [remote control](wallet/http-api.md#automatic-routing-single-writer)). Otherwise the command writes directly into the store. The embedded URLs resolve once `wallet serve` is running.
 
 Trust lists are built from the wallet's issued-attestation registry:
 
@@ -168,7 +168,7 @@ These flags set the stored trust and issuer metadata for the credential type:
 
 ### Display metadata
 
-These flags set the card appearance of the imported credential and apply with `--wallet` on all three subcommands. Colors must conform to OpenID4VCI 1.0 §12.2.4 (an invalid one is dropped with a warning). Images are subject to the same address policy and size limit as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
+With `--wallet`, these flags set the card appearance of the imported credential on all three subcommands. Colors must conform to OpenID4VCI 1.0 §12.2.4. An invalid color is dropped with a warning. Images are subject to the same address policy and size limit as an issuer's display metadata. A public demo ignores the logo and background-image flags and keeps the template's images.
 
 | Flag | Default | Description |
 |------|---------|-------------|

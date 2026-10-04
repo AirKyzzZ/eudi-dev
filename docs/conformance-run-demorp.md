@@ -2,7 +2,7 @@
 
 Test the demo issuer at `/issuer` and verifier at `/verifier` with the official OIDF plans. The suite acts as the wallet. To test `eudi-dev` as the wallet instead, use the [wallet runbook](./conformance-run.md).
 
-Only the wallet goes through certification. These issuer and verifier plans run locally (or on the hosted demo service) as quality checks, and the wrapper refuses the production certification service.
+Only the wallet goes through certification. These issuer and verifier plans run locally (or on the hosted demo service) as quality checks. The wrapper refuses to run them on the production certification service.
 
 ## What Runs
 
@@ -15,19 +15,19 @@ The wrapper starts one wallet server and drives these plans through the official
 | `oid4vp-1final-verifier-test-plan` | Signed SD-JWT VC, unsigned SD-JWT VC with `redirect_uri`, and signed mdoc |
 | `oid4vp-1final-verifier-haip-test-plan` | SD-JWT VC and mdoc, both `direct_post.jwt` |
 
-The HAIP issuer plan runs only VCI modules. The demo issuer supports PAR, PKCE S256, DPoP and attestation-based client authentication. The appended FAPI2 server modules require a full OAuth authorization server.
+The HAIP issuer plan runs only VCI modules. The demo issuer supports PAR, PKCE S256, DPoP and attestation-based client authentication. The plan also appends FAPI2 server modules. These need a full OAuth authorization server, so the wrapper leaves them out.
 
-The wrapper excludes modules for features the demo services do not offer. The official runner counts skips as failures.
+The wrapper excludes modules for features the demo services lack, because the official runner counts skips as failures.
 
 Excluded issuer checks cover signed metadata, required key attestations and credential encryption. Batch checks run only in scenarios that supply a batch offer. Signed verifier scenarios exclude `request-uri-method-post` because the demo verifier serves requests through GET.
 
-The pre-authorized code scenario also leaves out the six client attestation negative modules. Suite release-v5.2.4 breaks them under that grant: after the expected token refusal the module continues into the credential request and the suite aborts it with "Condition called when test status is 'WAITING'. This is a bug in the test module". The same modules complete under both authorization code scenarios, where the refusal happens at the PAR endpoint.
+The pre-authorized code scenario also excludes the six client attestation negative modules. Suite release-v5.2.4 breaks them under that grant: after the expected token refusal the module continues into the credential request and the suite aborts it with "Condition called when test status is 'WAITING'. This is a bug in the test module". The same modules complete under both authorization code scenarios, where the refusal happens at the PAR endpoint.
 
 The harness performs the steps the plans expect from a human tester:
 
 - it pushes a fresh demo credential offer to the suite's exposed `credential_offer` endpoint whenever an issuer-initiated module waits for one (by value, since a `credential_offer_uri` must be https)
 - it signs in at the demo issuer's authorization page as the demo account (alice) and follows the redirect to the suite's callback
-- it creates a demo verifier request per verifier module and delivers its query string to the suite's authorization endpoint, in place of the wallet an `openid4vp://` link would invoke
+- it creates a demo verifier request per verifier module and sends its query string to the suite's authorization endpoint (the step a wallet performs when it opens an `openid4vp://` link)
 - it uploads the screenshot placeholders the verifier plans require at the end
 
 Verifier modules end in `REVIEW` because the suite cannot observe the verifier's decision. The harness also checks the demo verifier's recorded result. Tampered presentations must be `failed` and valid presentations must be `verified`. A mismatch exits with code 3.
@@ -58,13 +58,13 @@ The `--rerun` selector passes through to the official runner exactly as in the w
 
 The verifier plans require the `request_uri` and the `response_uri` to be https, and the HAIP issuer metadata checks require an https credential issuer. The wrapper starts the wallet with an https base URL and `--serve-tls`, so the wallet serves that origin itself over TLS with its own certificate (the suite skips certificate verification on outbound calls).
 
-The suite signs the credentials it presents to the demo verifier under its own CAs (the `vp-signing` CA from `scripts/certs-keys` for SD-JWT VCs, a built-in mdoc IACA root for mdocs). The wrapper passes both to the wallet as `--demo-verifier-trust-anchor` files, so the demo verifier accepts those chains in addition to the wallet CA. The IACA root is published by the suite server at `/mdoc-iaca-root.pem`. When that endpoint is unavailable the wrapper extracts the same certificate from the suite source.
+The suite signs the credentials it presents to the demo verifier under its own CAs (the `vp-signing` CA from `scripts/certs-keys` for SD-JWT VCs, a built-in mdoc IACA root for mdocs). The wrapper passes both to the wallet as `--demo-verifier-trust-anchor` files, so the demo verifier accepts those chains in addition to the wallet CA. The suite server publishes the IACA root at `/mdoc-iaca-root.pem`. When that endpoint is unavailable, the wrapper extracts the same certificate from the suite source.
 
-The generated configs also give the suite the wallet CA: as `credential.trust_anchor_pem` in the issuer configs, so the suite validates the demo ticket's certificate chain, and as `client.request_object_trust_anchor_pem` in the verifier configs, so it validates the demo verifier's signed request objects.
+The generated configs also pass the wallet CA to the suite. The issuer configs set it as `credential.trust_anchor_pem`, so the suite validates the demo ticket's certificate chain. The verifier configs set it as `client.request_object_trust_anchor_pem`, so the suite validates the demo verifier's signed request objects.
 
 ## Environment Overrides
 
-The [wallet runbook's suite and server overrides](conformance-run.md#environment-overrides) also apply here. On a loaded machine, set `OIDF_REQUEST_TIMEOUT=60`. For repeated runs, leave `OIDF_KEEP_SUITE_DB` unset so old results do not slow the suite enough to stall modules.
+The [wallet runbook's suite and server overrides](conformance-run.md#environment-overrides) also apply here. On a loaded machine, set `OIDF_REQUEST_TIMEOUT=60`. For repeated runs, leave `OIDF_KEEP_SUITE_DB` unset. Old results slow the suite and can stall modules.
 
 This wrapper also accepts:
 

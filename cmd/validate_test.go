@@ -102,7 +102,7 @@ func TestExtractAndValidateX5C_TrustedChain(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
 
-	// base64 standard encoding (as x5c uses)
+	// x5c uses standard base64.
 	leafB64 := encodeBase64Std(leafDER)
 
 	header := map[string]any{

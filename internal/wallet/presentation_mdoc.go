@@ -301,7 +301,7 @@ func emptyDeviceNamespacesBytes() ([]byte, error) {
 	return cbor.Marshal(cbor.Tag{Number: 24, Content: encodedEmptyMap})
 }
 
-// createDeviceAuth creates a COSE_Sign1 DeviceAuth with proper DeviceAuthentication payload.
+// createDeviceAuth signs the DeviceAuthentication structure into a COSE_Sign1 DeviceAuth.
 // DeviceAuthentication = ["DeviceAuthentication", SessionTranscript, DocType, DeviceNameSpacesBytes]
 // The payload is Tag24(CBOR(DeviceAuthentication)).
 func (w *Wallet) createDeviceAuth(sessionTranscriptBytes []byte, docType string, signingKey *ecdsa.PrivateKey) ([]byte, error) {
@@ -317,7 +317,6 @@ func (w *Wallet) createDeviceAuth(sessionTranscriptBytes []byte, docType string,
 		return nil, fmt.Errorf("encoding DeviceNameSpaces: %w", err)
 	}
 
-	// DeviceAuthentication = ["DeviceAuthentication", SessionTranscript, DocType, DeviceNameSpacesBytes]
 	deviceAuth := []any{
 		"DeviceAuthentication",
 		sessionTranscript,

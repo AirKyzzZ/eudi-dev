@@ -27,11 +27,10 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// holderBinding is the key a credential's issuer bound it to: the one that
-// signs the KB-JWT of an SD-JWT (RFC 9901 §4.3) and the DeviceSigned of an
-// mdoc (ISO 18013-5 §9.1.3). Bound without a Key is a credential naming a key
-// of a kind this wallet never holds (a cnf carrying only a kid, a JWK on
-// another curve).
+// holderBinding is the key the issuer bound a credential to. It signs the KB-JWT
+// of an SD-JWT (RFC 9901 §4.3) and the DeviceSigned of an mdoc (ISO 18013-5
+// §9.1.3). Bound with a nil Key means the credential uses a key type this wallet
+// cannot hold, such as a cnf with only a kid or a JWK on another curve.
 type holderBinding struct {
 	Bound bool
 	Key   *ecdsa.PublicKey
@@ -95,9 +94,8 @@ func mdocHolderBinding(raw string) holderBinding {
 	return holderBinding{Bound: true, Key: key}
 }
 
-// mdocNamesDeviceKey reports whether the MSO names a device key at all, which
-// separates an mdoc issued without holder binding from one whose device key
-// this build cannot read.
+// mdocNamesDeviceKey reports whether the MSO contains a device key. This tells an
+// mdoc without holder binding apart from one whose device key the wallet cannot read.
 func mdocNamesDeviceKey(doc *mdoc.Document) bool {
 	if doc == nil || doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return false
@@ -137,8 +135,7 @@ func (w *Wallet) keyBindingNotHeld(cred *StoredCredential) bool {
 	if cred == nil {
 		return false
 	}
-	// A batch copy is bound to its own key, which the wallet holds alongside
-	// the holder key, so the copy's key is what its binding is checked against.
+	// Each batch copy is bound to its own key, so the check uses that copy's key.
 	signingKey, err := w.batchSigningKey(*cred)
 	if err != nil || signingKey == nil {
 		return false
@@ -147,8 +144,8 @@ func (w *Wallet) keyBindingNotHeld(cred *StoredCredential) bool {
 	return binding.Bound && !binding.heldBy(&signingKey.PublicKey)
 }
 
-// Log unavailable holder keys on import, issuance and renewal so the limitation is
-// visible before presentation.
+// Log unavailable holder keys on import, issuance and renewal so the user sees
+// the problem before presenting.
 func (w *Wallet) noteUnheldKeyBinding(cred *StoredCredential) {
 	if !w.keyBindingNotHeld(cred) {
 		return

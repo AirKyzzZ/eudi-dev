@@ -22,8 +22,8 @@ import (
 	"time"
 )
 
-// DeferredIssuance persists independently because issuance may take hours. Store
-// everything the poller needs after the original flow ends.
+// DeferredIssuance is stored on its own because issuance may take hours. It
+// holds everything the poller needs after the original flow ends.
 type DeferredIssuance struct {
 	ID               string `json:"id"`
 	TransactionID    string `json:"transaction_id"`
@@ -31,27 +31,27 @@ type DeferredIssuance struct {
 	DeferredEndpoint string `json:"deferred_endpoint"`
 	ConfigurationID  string `json:"credential_configuration_id,omitempty"`
 	Format           string `json:"format,omitempty"`
-	// VCT and DocType name what is being issued, read from the issuer's
-	// metadata for this configuration (an offer carries only configuration
-	// ids).
+	// VCT and DocType identify what is being issued. They come from the
+	// issuer metadata, since an offer carries only configuration ids.
 	VCT     string `json:"vct,omitempty"`
 	DocType string `json:"doctype,omitempty"`
-	// Keep display metadata until collection completes, after the original metadata
-	// fetch has ended.
+	// Display keeps the display metadata from the original flow until
+	// collection completes.
 	Display     *CredentialDisplay `json:"display,omitempty"`
 	AccessToken string             `json:"access_token"`
 	AuthScheme  string             `json:"auth_scheme,omitempty"`
-	// RefreshToken and AccessTokenExpiresAt let a long deferral obtain a new
-	// access token. The one the credential request used is short lived, and
-	// an issuer may ask the wallet back in an hour.
+	// RefreshToken and AccessTokenExpiresAt let a long deferral get a new
+	// access token. The original token is short lived, and an issuer may ask
+	// the wallet to come back in an hour.
 	RefreshToken         string    `json:"refresh_token,omitempty"`
 	AccessTokenExpiresAt time.Time `json:"access_token_expires_at,omitempty"`
-	// Keep the token endpoint and client ID for later refresh requests.
+	// The refresh request goes to the original token endpoint with the same
+	// client ID.
 	TokenEndpoint string `json:"token_endpoint,omitempty"`
 	ClientID      string `json:"client_id,omitempty"`
-	// ClientAuth is how the issuance authenticated this client, when it had
-	// to. Renewing the access token is another token request at the same
-	// endpoint, held to the same rule.
+	// ClientAuth records how the issuance authenticated this client. A token
+	// refresh is a request to the same endpoint and needs the same
+	// authentication.
 	ClientAuth      *ClientAuthentication `json:"client_auth,omitempty"`
 	UseDPoP         bool                  `json:"use_dpop,omitempty"`
 	IntervalSeconds int                   `json:"interval_seconds,omitempty"`
@@ -59,9 +59,9 @@ type DeferredIssuance struct {
 	NextAttemptAt   time.Time             `json:"next_attempt_at"`
 	Attempts        int                   `json:"attempts,omitempty"`
 	LastError       string                `json:"last_error,omitempty"`
-	// ProofKeyPEMs holds the keys the credential request offered for binding,
-	// holder key first. A batch request adds ephemeral keys that exist nowhere
-	// else, and the credential still has to be matched back to one of them.
+	// ProofKeyPEMs holds the binding keys from the credential request, holder
+	// key first. A batch request adds ephemeral keys that exist only here, and
+	// each credential is matched back to one of them.
 	ProofKeyPEMs []string `json:"proof_keys,omitempty"`
 }
 
@@ -197,8 +197,8 @@ func (w *Wallet) UpdateDeferredIssuance(id string, apply func(*DeferredIssuance)
 	}
 }
 
-// A deferred response is a successful handoff to background collection, not a failed
-// issuance.
+// recordDeferredIssuance hands a deferred response to background collection
+// and reports the issuance as successful.
 func (w *Wallet) recordDeferredIssuance(pending *DeferredIssuance) *IssuanceResult {
 	w.AddDeferredIssuance(pending)
 	w.addProtocolLog("issuance", "issuance_deferred",
@@ -217,8 +217,8 @@ func (w *Wallet) recordDeferredIssuance(pending *DeferredIssuance) *IssuanceResu
 	}
 }
 
-// Use the credential type from metadata to label deferred records. Offers carry only
-// configuration IDs.
+// credentialTypeForConfiguration reads the credential type from metadata to
+// label deferred records. Offers carry only configuration IDs.
 func credentialTypeForConfiguration(metadata map[string]any, configID string) (vct, docType string) {
 	configs, ok := metadata["credential_configurations_supported"].(map[string]any)
 	if !ok {
@@ -233,8 +233,8 @@ func credentialTypeForConfiguration(metadata map[string]any, configID string) (v
 	return vct, docType
 }
 
-// AccessTokenExpired includes a small margin so the token is unlikely to expire during
-// the request.
+// AccessTokenExpired includes a small margin so the token does not expire
+// during the request.
 func (p *DeferredIssuance) AccessTokenExpired(now time.Time) bool {
 	if p == nil || p.AccessTokenExpiresAt.IsZero() {
 		return false

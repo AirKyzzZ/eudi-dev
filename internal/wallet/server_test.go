@@ -1983,8 +1983,8 @@ func TestOpenIDCredentialIssuerMetadata_SignedJWTContainsIssuerInfo(t *testing.T
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
 	}
-	// §12.2.2 names application/jwt as the media type of the signed form.
-	// openidvci-issuer-metadata+jwt is the typ inside it, not a media type.
+	// §12.2.2 gives application/jwt as the media type of the signed form.
+	// openidvci-issuer-metadata+jwt is the typ header inside it.
 	if ct := resp.Header().Get("Content-Type"); ct != "application/jwt" {
 		t.Fatalf("expected signed issuer metadata content type, got %s", ct)
 	}
@@ -2994,7 +2994,6 @@ func TestListCredentialsPaging(t *testing.T) {
 		t.Error("pages returned the same first credential")
 	}
 
-	// A page beyond the current total returns an empty result.
 	if beyond, _ := listed("?limit=10&offset=999"); len(beyond) != 0 {
 		t.Errorf("offset past the end returned %d credentials", len(beyond))
 	}

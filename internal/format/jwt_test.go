@@ -82,8 +82,8 @@ func TestParseJWTParts_TwoParts(t *testing.T) {
 }
 
 func TestParseJWTParts_FourParts(t *testing.T) {
-	// SplitN leaves c.d in the third part. Signature bytes are ignored here, but
-	// header and payload must decode as JSON.
+	// SplitN leaves c.d in the third part. The header and payload must still
+	// decode as JSON.
 	_, _, _, err := ParseJWTParts("not-base64.not-base64.c.d")
 	if err == nil {
 		t.Error("expected error for invalid base64url header")
@@ -107,7 +107,6 @@ func TestParseJWTParts_InvalidPayloadBase64(t *testing.T) {
 }
 
 func TestParseJWTParts_InvalidHeaderJSON(t *testing.T) {
-	// Valid base64url but not JSON
 	notJSON := base64.RawURLEncoding.EncodeToString([]byte("not json"))
 	p, _ := json.Marshal(map[string]any{"sub": "test"})
 	jwt := notJSON + "." + base64.RawURLEncoding.EncodeToString(p) + ".c2ln"

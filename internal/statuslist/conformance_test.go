@@ -30,7 +30,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// Build headers and claims explicitly so each test can corrupt one field.
+// handcraftedToken takes explicit headers and claims, so each test can corrupt one field.
 func handcraftedToken(t *testing.T, key *ecdsa.PrivateKey, header, payload map[string]any) string {
 	t.Helper()
 	full := map[string]any{"alg": "ES256", "typ": TypJWT, "jwk": mock.PublicKeyJWKMap(&key.PublicKey)}
@@ -48,7 +48,7 @@ func handcraftedToken(t *testing.T, key *ecdsa.PrivateKey, header, payload map[s
 	return token
 }
 
-// zlibLST returns the base64url of a zlib-compressed bitstring, the lst
+// zlibLST returns the base64url of a zlib-compressed bitstring as the lst
 // member of Section 4.2.
 func zlibLST(t *testing.T, bitstring []byte) string {
 	t.Helper()
@@ -74,11 +74,9 @@ func serveToken(t *testing.T, status int, contentType, body string) *httptest.Se
 
 // Section 8.3: "The subject claim (sub or 2) of the Status List Token MUST be
 // equal to the uri claim in the status_list object of the Referenced Token".
-// Without the comparison, any status list token a relying party trusts
-// answers for any credential.
 func TestCheck_RejectsSubjectThatIsNotTheReferencedURI(t *testing.T) {
 	key := mustGenerateKey(t)
-	// The substituted list reports valid status for a different URI.
+	// This list belongs to a different URI.
 	token := handcraftedToken(t, key, nil, map[string]any{
 		"sub":         "https://elsewhere.example/statuslists/9",
 		"iat":         time.Now().Unix(),
@@ -96,8 +94,7 @@ func TestCheck_RejectsSubjectThatIsNotTheReferencedURI(t *testing.T) {
 	}
 }
 
-// A token with no sub at all is equally unusable: Section 5.1 makes it
-// REQUIRED.
+// Section 5.1 makes sub REQUIRED.
 func TestCheck_RejectsTokenWithoutSubject(t *testing.T) {
 	key := mustGenerateKey(t)
 	token := handcraftedToken(t, key, nil, map[string]any{
@@ -113,12 +110,11 @@ func TestCheck_RejectsTokenWithoutSubject(t *testing.T) {
 
 // Section 5.1: "The JWT MUST be secured using a cryptographic signature or MAC
 // algorithm. Relying Parties MUST reject JWTs with an invalid signature."
-// There is no exception for a relying party without a trust list.
+// This applies without a trust list too.
 func TestCheck_RejectsBadSignatureWithoutATrustList(t *testing.T) {
 	key := mustGenerateKey(t)
 	other := mustGenerateKey(t)
-	// The token advertises the other key but is signed with this one, so the
-	// key it resolves to does not verify it.
+	// The token carries the other key but is signed with this one.
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := handcraftedToken(t, key, map[string]any{"jwk": mock.PublicKeyJWKMap(&other.PublicKey)}, map[string]any{
@@ -137,7 +133,7 @@ func TestCheck_RejectsBadSignatureWithoutATrustList(t *testing.T) {
 	}
 }
 
-// Without a verification key, the checker cannot establish a credential's status.
+// Without a verification key the checker can state no status.
 func TestCheck_RejectsTokenWithNoResolvableKey(t *testing.T) {
 	key := mustGenerateKey(t)
 	var srv *httptest.Server
@@ -162,9 +158,9 @@ func TestCheck_RejectsTokenWithNoResolvableKey(t *testing.T) {
 	}
 }
 
-// A Status Provider naming its key by a DID gets an error naming the DID.
-// Section 11.3 leaves key resolution to the ecosystem, and this one resolves
-// a Status Issuer through x5c.
+// A DID key reference gets an error that contains the DID. Section 11.3 leaves
+// key resolution to the ecosystem. The EUDI ecosystem resolves a Status Issuer
+// through x5c.
 func TestCheck_NamesADIDItCannotResolve(t *testing.T) {
 	key := mustGenerateKey(t)
 	const did = "did:key:z6MkuR4XP7DmHiEzKK46ypK2RyZ3XgqQCz1DHw7XtMg3CEuf"
@@ -190,8 +186,7 @@ func TestCheck_NamesADIDItCannotResolve(t *testing.T) {
 	}
 }
 
-// Report whether the signing key is trusted separately from whether the signature
-// verifies.
+// Trust in the signing key is reported apart from signature validity.
 func TestCheck_ReportsAnUnanchoredKeyAsAWarning(t *testing.T) {
 	key := mustGenerateKey(t)
 	srv := jwtServer(t, key, 1, make([]byte, 16), nil)
@@ -209,8 +204,7 @@ func TestCheck_ReportsAnUnanchoredKeyAsAWarning(t *testing.T) {
 }
 
 // Section 8.3: "If the expiration time is defined (exp or 4), it MUST be
-// checked if the Status List Token is expired". An unchecked exp lets a copy
-// of the list captured before a credential was revoked keep answering for it.
+// checked if the Status List Token is expired".
 func TestCheck_RejectsExpiredToken(t *testing.T) {
 	key := mustGenerateKey(t)
 	var srv *httptest.Server
@@ -260,9 +254,9 @@ func TestCheck_RejectsTokenWithoutIssuedAt(t *testing.T) {
 	}
 }
 
-// Section 5.1: "typ: REQUIRED. The JWT type MUST be statuslist+jwt." Without
-// the check, any JWT signed by a key the relying party already trusts (an
-// issued credential, an access token) can stand in for a status list.
+// Section 5.1: "typ: REQUIRED. The JWT type MUST be statuslist+jwt." A
+// credential or an access token signed by a trusted key must not pass as a
+// status list.
 func TestCheck_RejectsWrongOrMissingTyp(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, tc := range []struct {
@@ -298,8 +292,8 @@ func TestCheck_RejectsWrongOrMissingTyp(t *testing.T) {
 	}
 }
 
-// RFC 7515 section 4.1.9 allows the "application/" prefix to be omitted, so
-// the long spelling denotes the same media type and must be accepted.
+// RFC 7515 section 4.1.9 allows the "application/" prefix to be omitted. The
+// long spelling must also pass.
 func TestCheck_AcceptsTypWithTheApplicationPrefix(t *testing.T) {
 	key := mustGenerateKey(t)
 	var srv *httptest.Server
@@ -320,8 +314,8 @@ func TestCheck_AcceptsTypWithTheApplicationPrefix(t *testing.T) {
 	}
 }
 
-// Section 4.2: "bits: REQUIRED". A missing or unreadable bits is refused, not
-// defaulted to 1, because the wrong width reads other credentials' entries.
+// Section 4.2: "bits: REQUIRED". A missing or unreadable bits must fail
+// because a wrong width reads other credentials' entries.
 func TestCheck_RejectsMissingOrUnreadableBits(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, tc := range []struct {
@@ -361,8 +355,7 @@ func TestCheck_RejectsMissingOrUnreadableBits(t *testing.T) {
 	}
 }
 
-// Section 6.2 makes idx REQUIRED. A missing idx is refused, not read as
-// index 0.
+// Section 6.2 makes idx REQUIRED. A missing idx must fail.
 func TestExtractStatusRef_RequiresIdx(t *testing.T) {
 	ref := ExtractStatusRef(map[string]any{
 		"status": map[string]any{
@@ -393,8 +386,8 @@ func TestExtractStatusRef_RejectsNonIntegerAndNegativeIdx(t *testing.T) {
 	}
 }
 
-// idx*bits overflows for an index a credential is free to choose, so the
-// bounds check has to run on idx itself.
+// A credential chooses its index, and idx*bits can overflow. The bounds check
+// must run on idx.
 func TestExtractStatus_DoesNotOverflowOnAHugeIndex(t *testing.T) {
 	bitstring := make([]byte, 16)
 	for _, tc := range []struct {
@@ -436,8 +429,7 @@ func TestCheck_DoesNotPanicOnAHugeCredentialIndex(t *testing.T) {
 }
 
 // Section 8.2: "A successful response that contains a Status List Token MUST
-// use an HTTP status code in the 2xx range." A Status Provider behind a cache
-// or proxy answers 203.
+// use an HTTP status code in the 2xx range." A cache or proxy can answer 203.
 func TestCheck_AcceptsAny2xx(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, code := range []int{200, 202, 203, 206} {
@@ -459,8 +451,8 @@ func TestCheck_AcceptsAny2xx(t *testing.T) {
 	}
 }
 
-// Section 8.2 makes the response content type mandatory. A response that
-// declares something else is still read, and the caller is warned.
+// Section 8.2 makes the response content type mandatory. A response with
+// another type is read with a warning.
 func TestCheck_WarnsAboutTheContentType(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, tc := range []struct {
@@ -512,7 +504,7 @@ func TestCheck_DoesNotWarnAboutTheCorrectContentType(t *testing.T) {
 }
 
 // Section 4.1 requires the ZLIB data format around the DEFLATE stream. A bare
-// DEFLATE stream is still read, and the caller is warned.
+// DEFLATE stream is read with a warning.
 func TestCheck_ReportsRawDeflateAsAWarning(t *testing.T) {
 	key := mustGenerateKey(t)
 	var buf bytes.Buffer
@@ -555,9 +547,8 @@ func TestCheck_ReportsRawDeflateAsAWarning(t *testing.T) {
 	}
 }
 
-// Section 7.1 gives every status value a name. A suspended credential (0x02,
-// "usually temporary") is reported apart from a permanently invalid one, and
-// an unregistered value apart from both.
+// Section 7.1 gives every status value a name. SUSPENDED (0x02, "usually
+// temporary"), INVALID and an unregistered value each get their own name.
 func TestStatusName(t *testing.T) {
 	for _, tc := range []struct {
 		value int
@@ -606,8 +597,8 @@ func hasWarning(warnings []string, substring string) bool {
 	return false
 }
 
-// Section 8.1 content negotiation: a client that asks for the CWT form gets
-// it, and everything else keeps getting the JWT form.
+// Section 8.1 content negotiation. A client that asks for the CWT form gets
+// it. Every other client gets the JWT form.
 func TestNegotiateMediaType(t *testing.T) {
 	for _, tc := range []struct {
 		accept string

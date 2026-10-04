@@ -32,8 +32,8 @@ func Classify(entry *TrafficEntry) {
 	entry.Credentials, entry.CredentialLabels = extractCredentials(entry)
 }
 
-// StatefulClassifier learns advertised protocol endpoints from earlier traffic
-// so later dynamic requests can be classified without relying on fixed paths.
+// StatefulClassifier learns advertised protocol endpoints from earlier traffic.
+// It classifies later requests to dynamic paths with them.
 type StatefulClassifier struct {
 	mu        sync.Mutex
 	endpoints map[string]TrafficClass
@@ -58,9 +58,8 @@ func (c *StatefulClassifier) Classify(entry *TrafficEntry) {
 
 	entry.Class = class
 	entry.ClassLabel = entry.Class.Label()
-	// Validate outside the classifier lock. Issuer metadata fetches can be slow and
-	// would otherwise block all proxied traffic. Keep endpoint map access under the
-	// lock.
+	// Decoding runs outside the classifier lock because issuer metadata fetches can be
+	// slow. The endpoint map stays under the lock.
 	entry.Decoded = decodeEntry(entry)
 	entry.Credentials, entry.CredentialLabels = extractCredentials(entry)
 
@@ -105,8 +104,8 @@ func classifyEntry(e *TrafficEntry) TrafficClass {
 	if e.Method == "GET" && isJWTBody(e.ResponseBody) {
 		return ClassVPRequestObject
 	}
-	// VP Request Object via POST (request_uri_method=post per OID4VP 1.0 §5.10):
-	// wallet sends wallet_metadata/wallet_nonce, verifier responds with JWT or JWE
+	// With request_uri_method=post (OID4VP 1.0 §5.10) the wallet sends
+	// wallet_metadata or wallet_nonce. The verifier answers with a JWT or JWE.
 	if e.Method == "POST" && (hasBodyField(e.RequestBody, "wallet_metadata") || hasBodyField(e.RequestBody, "wallet_nonce")) {
 		return ClassVPRequestObject
 	}
@@ -123,7 +122,7 @@ func classifyEntry(e *TrafficEntry) TrafficClass {
 			return ClassVPAuthResponse
 		}
 
-		// OIDC Token Request: detect well-known OIDC endpoints before generic /token handling.
+		// OIDC token endpoints take precedence over the generic /token match.
 		if isOIDCTokenRequest(path, e.RequestBody, e.ResponseBody) {
 			return ClassOIDCTokenRequest
 		}
@@ -236,7 +235,7 @@ func decodeEntry(e *TrafficEntry) map[string]any {
 	case ClassVPAuthResponse:
 		fields := parseFormOrJSON(e.RequestBody)
 
-		// direct_post.jwt: encrypted/signed JARM response in "response" field
+		// direct_post.jwt carries the encrypted or signed response in the "response" field.
 		if jarm, ok := fields["response"]; ok && jarm != "" {
 			decoded["response_preview"] = format.Truncate(jarm, 100)
 			decodeJARMResponse(jarm, e.DebugJWEKey, e.DebugJWK, decoded)
@@ -403,10 +402,9 @@ func isJWE(s string) bool {
 	return len(parts) == 5 && len(parts[0]) > 0
 }
 
-// decodeJARMResponse decodes a JARM response (direct_post.jwt).
-// JWE (5 parts): only the protected header is readable unless a debug CEK
-// (content encryption key) or a JWK private key is available for decryption.
-// JWS (3 parts): header and payload are readable.
+// decodeJARMResponse decodes a JARM response (direct_post.jwt). For a JWE only the
+// protected header is readable without a debug CEK or a private JWK. For a JWS the
+// header and payload are readable.
 func decodeJARMResponse(raw string, cekB64 string, jwkJSON string, decoded map[string]any) {
 	raw = strings.TrimSpace(raw)
 
@@ -430,7 +428,6 @@ func decodeJARMResponse(raw string, cekB64 string, jwkJSON string, decoded map[s
 		if kid, ok := header["kid"].(string); ok {
 			decoded["encryption_kid"] = kid
 		}
-		// Ephemeral public key from the JWE sender (wallet)
 		if epk, ok := header["epk"].(map[string]any); ok {
 			decoded["encryption_epk"] = epk
 		}
@@ -481,7 +478,7 @@ func extractJARMCredentials(payload map[string]any) ([]string, []string) {
 	var creds []string
 	var labels []string
 
-	// vp_token can be a string, a map of query_id → []string, or a map of query_id → string
+	// vp_token can be a string or a map from query_id to a string or a []string.
 	if vpToken, ok := payload["vp_token"]; ok {
 		switch vp := vpToken.(type) {
 		case string:
@@ -629,8 +626,7 @@ func parseFormOrJSON(body string) map[string]string {
 	result := make(map[string]string)
 	trimmed := strings.TrimSpace(body)
 
-	// Prefer JSON when the body is actually JSON. url.ParseQuery is permissive
-	// enough to treat arbitrary JSON text as a single query key.
+	// url.ParseQuery reads arbitrary JSON text as a single query key.
 	if strings.HasPrefix(trimmed, "{") {
 		var m map[string]any
 		if err := json.Unmarshal([]byte(trimmed), &m); err == nil {
@@ -1014,9 +1010,8 @@ func describeCorrelationKey(key string) (string, string) {
 	return parts[1], parts[2]
 }
 
-// extractCredentials pulls raw credential strings from the entry so the
-// dashboard can offer "View in Decoder" links. Returns parallel slices of
-// credential values and human-readable labels.
+// extractCredentials returns the raw credentials of the entry for the dashboard's
+// "View in Decoder" links. It returns parallel slices of values and labels.
 func extractCredentials(e *TrafficEntry) ([]string, []string) {
 	var creds []string
 	var labels []string
@@ -1099,16 +1094,16 @@ func extractCredentials(e *TrafficEntry) ([]string, []string) {
 	return creds, labels
 }
 
-// extractVPTokenCredentials normalizes vp_token values for direct_post responses.
-// vp_token can be a raw credential string or a JSON object keyed by query ID.
+// extractVPTokenCredentials reads vp_token values of direct_post responses.
+// vp_token is a raw credential string or a JSON object keyed by query ID.
 func extractVPTokenCredentials(vpToken string) ([]string, []string) {
 	var payload any
 	if err := json.Unmarshal([]byte(vpToken), &payload); err != nil {
 		return []string{vpToken}, []string{"vp_token"}
 	}
 
-	// Some clients send vp_token as a JSON string whose content is itself
-	// the DCQL query_id -> credential map. Unwrap one layer and parse again.
+	// Some clients send vp_token as a JSON string that holds the DCQL query_id
+	// to credential map.
 	if s, ok := payload.(string); ok {
 		trimmed := strings.TrimSpace(s)
 		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {

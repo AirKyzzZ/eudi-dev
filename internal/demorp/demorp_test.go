@@ -180,8 +180,8 @@ func TestIssuerPreAuthFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsing leaf certificate: %v", err)
 	}
-	// The ticket signs under the local trust profile of its own attestation
-	// spec, so the leaf names the issuer that profile describes.
+	// The ticket is signed under the local trust profile of its attestation
+	// spec. The leaf therefore identifies the issuer of that profile.
 	if !strings.HasPrefix(leaf.Subject.CommonName, "EUDI Dev Wallet Issuer") {
 		t.Errorf("ticket leaf names %q, want the local trust profile issuer", leaf.Subject.CommonName)
 	}
@@ -220,18 +220,16 @@ func TestIssuerRejectsWrongNonce(t *testing.T) {
 	if code != http.StatusBadRequest {
 		t.Fatalf("credential request with wrong nonce: %d %v, want 400", code, doc)
 	}
-	// §8.3.1.2 reserves invalid_nonce for exactly this, and a wallet reading it
-	// fetches a fresh challenge and tries again. invalid_proof would end the
-	// flow instead.
+	// §8.3.1.2 reserves invalid_nonce for this case. A wallet that reads it
+	// fetches a fresh challenge and tries again.
 	if doc["error"] != "invalid_nonce" {
 		t.Errorf("error = %v, want invalid_nonce", doc["error"])
 	}
 }
 
-// §8.2 requires one of credential_identifier and credential_configuration_id
-// and forbids both, and §8.3.1.2 names the codes for a request that gets it
-// wrong. An issuer that ignores the members hands out its one credential to
-// any request at all.
+// OpenID4VCI 1.0 §8.2 requires exactly one of credential_identifier and
+// credential_configuration_id. §8.3.1.2 defines the error codes for a request
+// that breaks this rule. Without the check any request would get the credential.
 func TestIssuerChecksTheRequestedCredential(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.IssuerHandler()
@@ -282,9 +280,8 @@ func TestIssuerChecksTheRequestedCredential(t *testing.T) {
 	}
 }
 
-// OpenID4VCI 1.0 §8.2 defines proofs only. The singular proof member is a
-// draft shape, and accepting it lets a request the rest of this issuer was not
-// written for through.
+// OpenID4VCI 1.0 §8.2 defines only the proofs member. A request with a
+// singular proof member is refused.
 func TestIssuerRejectsTheSingularProofMember(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.IssuerHandler()
@@ -344,10 +341,9 @@ func presentTicket(t *testing.T, d *DemoRP, holderKey *ecdsa.PrivateKey, clientI
 	return presentCredential(t, holderKey, credential, clientID, nonce)
 }
 
-// The ticket's time claims sit on an hour boundary: RFC 9901 §10.1 asks
-// issuers to keep credentials unlinkable, and a batch of copies sharing the
-// precise issuance second would let colluding verifiers correlate them
-// through iat and the exp derived from it.
+// The ticket's time claims are rounded to the hour. RFC 9901 §10.1 asks
+// issuers to keep credentials unlinkable. Batch copies that share the exact
+// issuance second could be correlated through iat and exp.
 func TestTicketTimeClaimsAreRounded(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 
@@ -395,7 +391,8 @@ func presentCredentialAt(t *testing.T, holderKey *ecdsa.PrivateKey, credential, 
 
 // RFC 9901 §7.3 has the verifier "check that the creation time of the Key
 // Binding JWT, as determined by the iat claim, is within an acceptable
-// window". A binding created far from now proves an old session, not this one.
+// window". A binding created long before or after now belongs to another
+// session.
 func TestVerifierRejectsKeyBindingOutsideTheAcceptableWindow(t *testing.T) {
 	for name, iat := range map[string]time.Time{
 		"a year in the past":   time.Now().AddDate(-1, 0, 0),
@@ -703,8 +700,9 @@ func postPresentation(t *testing.T, h http.Handler, id, queryID, presentation st
 	return postPresentationTo(t, h, id, id, queryID, presentation)
 }
 
-// postPresentationTo allows the state inside the encrypted payload to differ
-// from the request being posted to, which is what proves the binding.
+// postPresentationTo lets the state inside the encrypted payload differ from
+// the request it is posted to. Tests use this to check how the verifier binds
+// a response to its request.
 func postPresentationTo(t *testing.T, h http.Handler, requestID, state, queryID, presentation string) int {
 	t.Helper()
 	payload := fetchRequestObject(t, h, "/request/"+requestID)
@@ -727,9 +725,9 @@ func postPresentationTo(t *testing.T, h http.Handler, requestID, state, queryID,
 	return code
 }
 
-// TestVerifierRejectsWrongCredentialType: the wallet decides what to send, so
-// the verifier has to enforce the type it asked for. A PID answering a ticket
-// request must not verify.
+// TestVerifierRejectsWrongCredentialType checks that the verifier enforces the
+// type it asked for. The wallet decides what to send, so a PID answering a
+// ticket request must not verify.
 func TestVerifierRejectsWrongCredentialType(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -865,9 +863,9 @@ func TestVerifierDomesticPIDRequestAcceptsThatType(t *testing.T) {
 	}
 }
 
-// A credential type exists only in SD-JWT VC. Asking for a national PID as an
-// mdoc would be answered by any PID at all, since they share a doctype, so the
-// request is refused instead of quietly meaning something else.
+// A credential type exists only in SD-JWT VC. All PIDs share one mdoc
+// doctype, so any PID would answer a national PID request in mdoc. The
+// verifier refuses such a request.
 func TestVerifierDomesticPIDHasNoMDocForm(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -881,8 +879,8 @@ func TestVerifierDomesticPIDHasNoMDocForm(t *testing.T) {
 	}
 }
 
-// The type is not a free-text field: PID_14 in Annex 2 of the ARF puts every
-// PID type in urn:eudi:pid:, so anything else is not a PID type at all.
+// PID_14 in Annex 2 of the ARF puts every PID type under urn:eudi:pid:. A PID
+// request for any other type is refused.
 func TestVerifierPIDRequestRefusesATypeOutsideThePIDNamespace(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -929,9 +927,9 @@ func TestVerifierPIDRequestTakesAnyDomesticType(t *testing.T) {
 }
 
 // HAIP 1.0 section 6.1.1 asks a credential to carry its issuer's signing
-// certificate and trust chain in x5c, with the trust anchor left out. The demo
-// says when it does not and accepts the presentation anyway, since the rule
-// comes from the profile.
+// certificate and trust chain in x5c, without the trust anchor. The demo
+// reports a credential that breaks this profile rule and still accepts the
+// presentation.
 func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -943,8 +941,8 @@ func TestVerifierWarnsWhenTheCredentialChainCarriesTheTrustAnchor(t *testing.T) 
 	if err != nil {
 		t.Fatalf("generating a leaf: %v", err)
 	}
-	// Twice, because the generator strips a single terminal anchor: what
-	// reaches the x5c header is the leaf followed by the self-signed CA.
+	// The generator strips one trailing anchor. Adding the CA twice leaves the
+	// leaf and the self-signed CA in the x5c header.
 	cred, err := mock.GenerateSDJWT(mock.SDJWTConfig{
 		Issuer:    d.issuerID(),
 		VCT:       mock.DefaultPIDVCT,
@@ -1045,9 +1043,10 @@ func TestVerifierKeepsResultOfAnsweredRequest(t *testing.T) {
 	}
 }
 
-// TestVerifierRejectsInjectedDisclosure models a malicious holder: they own
-// the key binding key, so they can append a disclosure and re-sign a matching
-// sd_hash. Only the "every disclosure is referenced" rule catches it.
+// TestVerifierRejectsInjectedDisclosure models a malicious holder. The holder
+// owns the key binding key, so it can append a disclosure and re-sign a
+// matching sd_hash. Only the rule that every disclosure is referenced catches
+// this.
 func TestVerifierRejectsInjectedDisclosure(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.VerifierHandler()
@@ -1118,7 +1117,7 @@ func serveDemoStack(t *testing.T, w *wallet.Wallet) (*DemoRP, *httptest.Server) 
 	base = ts.URL
 	w.BaseURL = ts.URL
 	// The authorization code flow needs a client identity and a redirect
-	// target on this origin, which is what demo mode configures.
+	// target on this origin. Demo mode configures both.
 	if w.VCIRedirectURI == "" {
 		w.VCIRedirectURI = ts.URL + "/callback"
 	}
@@ -1238,11 +1237,10 @@ func getJSONFrom(t *testing.T, target string) map[string]any {
 	return doc
 }
 
-// A pre-authorized code offer is conformant: HAIP 1.0 §4 requires an issuer
-// to support the authorization code flow, not to use it for everything, and
-// scopes pushed authorization requests to the authorization endpoint. So the
-// wallet accepts one even with enforcement on, and only the transport rule
-// applies to it.
+// HAIP 1.0 §4 requires an issuer to support the authorization code flow, and
+// its pushed authorization request rule covers only the authorization
+// endpoint. A pre-authorized code offer is therefore conformant. The wallet
+// accepts it with enforcement on, and only the transport rule applies.
 func TestIssuanceHAIPAcceptsPreAuthorizedOffer(t *testing.T) {
 	legacy := httptest.NewServer(legacyIssuerHandler(t))
 	t.Cleanup(legacy.Close)
@@ -1255,7 +1253,8 @@ func TestIssuanceHAIPAcceptsPreAuthorizedOffer(t *testing.T) {
 
 	result := postJSONTo(t, ts.URL+"/api/offers", `{"uri":`+jsonString(offerURI)+`}`)
 	errText, _ := result["error"].(string)
-	// It fails at the issuer's own token endpoint, not on the profile.
+	// The test issuer's token endpoint refuses the grant. That is the expected
+	// failure, and HAIP enforcement must not cause it.
 	if strings.Contains(errText, "HAIP") {
 		t.Errorf("a pre-authorized code offer must not be rejected by HAIP enforcement, got %q", errText)
 	}
@@ -1407,9 +1406,8 @@ func truncate(s string) string {
 	return s
 }
 
-// Without a wallet attestation the authorization server must refuse the
-// pushed authorization request: that is the client authentication HAIP
-// requires.
+// HAIP requires client authentication. The authorization server refuses a
+// pushed authorization request without a wallet attestation.
 func TestPushedAuthorizationRequestRequiresWalletAttestation(t *testing.T) {
 	w := newIssuanceWallet(t)
 	_, ts := serveDemoStack(t, w)
@@ -1477,8 +1475,8 @@ func TestIssuanceWithOverrideStillStoresTheCredential(t *testing.T) {
 	created := postJSONTo(t, ts.URL+"/issuer/api/offers", "")
 	schemeURI, _ := created["scheme_uri"].(string)
 
-	// haip:true is what the server already does, so the only difference here
-	// is that the request is served by a clone.
+	// haip:true matches the server default. The only difference is that a
+	// clone serves the request.
 	result := postJSONTo(t, ts.URL+"/api/offers", `{"uri":`+jsonString(schemeURI)+`,"haip":true}`)
 	if result["error"] != nil {
 		t.Fatalf("accepting the offer failed: %v", result["error"])
@@ -1597,8 +1595,8 @@ func TestIssuerOffersRevocableTicket(t *testing.T) {
 	if ref.URI != w.StatusListURL() {
 		t.Errorf("status uri = %q, want the wallet's own list %q", ref.URI, w.StatusListURL())
 	}
-	// Without an entry of its own the wallet could never flip the bit, and the
-	// Revoke button would not even appear.
+	// The wallet needs its own status entry to flip the bit and to show the
+	// Revoke button.
 	entry, managed := w.StatusEntryFor(ticket.ID)
 	if !managed {
 		t.Fatal("the wallet did not adopt the status entry of the ticket it issued to itself")
@@ -1688,8 +1686,8 @@ func TestIssuerReservesOneStatusIndexPerTicket(t *testing.T) {
 	}
 }
 
-// A wallet with no status list URL cannot issue a status reference, so the
-// offer is refused rather than silently handing out a ticket without one.
+// A wallet with no status list URL cannot issue a status reference, so it
+// refuses the offer.
 func TestIssuerRefusesStatusOfferWithoutAStatusList(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	code, doc := doJSON(t, d.IssuerHandler(), "POST", "/api/offers?status=true", "", nil)
@@ -1990,12 +1988,11 @@ func TestVerifierReportsTheReceivedMDOCPresentation(t *testing.T) {
 	}
 }
 
-// A signing failure is this issuer being broken, not something wrong with the
-// request. §8.3.1.2 codes describe the request and are answered with 400, and
-// credential_request_denied in particular says "The Wallet SHOULD treat this
-// error as unrecoverable, meaning if received from a Credential Issuer the
-// Credential cannot be issued", which sends the wallet away for good over a
-// fault the next attempt may not hit.
+// A signing failure is a server fault. The §8.3.1.2 codes describe faults in
+// the request and are answered with 400. credential_request_denied says "The
+// Wallet SHOULD treat this error as unrecoverable, meaning if received from a
+// Credential Issuer the Credential cannot be issued". The next attempt may
+// succeed, so the wallet must not give up.
 func TestIssuerReportsASigningFailureAsAServerFault(t *testing.T) {
 	d, w, holderKey := newDemoRP(t)
 	h := d.IssuerHandler()

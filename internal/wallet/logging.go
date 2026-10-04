@@ -177,9 +177,9 @@ func presentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wall
 	return PresentationResponseLogDetails(authReq, w, matches, vpResult, idToken, submissionURI)
 }
 
-// PresentationResponseLogDetails returns only the wallet's outbound
-// authorization response details. Request-only material such as DCQL,
-// request objects, client metadata, and nonce stays on presentation_request.
+// PresentationResponseLogDetails returns the details of the wallet's outbound
+// authorization response. Request material such as DCQL, request objects,
+// client metadata and nonce belongs to the presentation_request entry.
 func PresentationResponseLogDetails(authReq *AuthorizationRequestParams, w *Wallet, matches []CredentialMatch, vpResult *VPTokenMapResult, idToken, submissionURI string) map[string]any {
 	details := map[string]any{
 		"direction": "outbound",

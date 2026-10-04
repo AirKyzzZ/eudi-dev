@@ -23,8 +23,8 @@ import (
 
 const tinyPNGDataURI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
 
-// Store images separately and keep references in wallet.json to reduce reload work.
-// Existing embedded data URIs must remain readable.
+// Display images are stored as separate assets and wallet.json keeps only
+// references. Embedded data URIs must stay readable.
 func TestDisplayImagesStoredAsAssetsBesideWallet(t *testing.T) {
 	srv := newTestServer(t, true)
 	store := NewWalletStore(t.TempDir())
@@ -40,7 +40,7 @@ func TestDisplayImagesStoredAsAssetsBesideWallet(t *testing.T) {
 	}
 	id, _ := decodeJSON(t, resp)["id"].(string)
 
-	// Serve newly issued images before they have been saved as assets.
+	// A newly issued image is served before it is saved as an asset.
 	if before := serverRequest(t, srv, http.MethodGet, "/api/credentials/"+id+"/display/logo", ""); before.Code != http.StatusOK || before.Body.Len() == 0 {
 		t.Fatalf("embedded image not served before save: %d len=%d", before.Code, before.Body.Len())
 	}
@@ -84,7 +84,7 @@ func TestDisplayImagesStoredAsAssetsBesideWallet(t *testing.T) {
 	}
 }
 
-// Identical image content must produce one stored asset and one reference.
+// Identical image content produces one stored asset and one reference.
 func TestStoreDisplayAssetDedupes(t *testing.T) {
 	store := NewWalletStore(t.TempDir())
 	refA, okA := store.storeDisplayAsset(tinyPNGDataURI)
@@ -101,8 +101,8 @@ func TestStoreDisplayAssetDedupes(t *testing.T) {
 	}
 }
 
-// With --adhoc-display-images, pass HTTPS image URLs to the browser for loading on
-// demand. Data URIs remain embedded.
+// With --adhoc-display-images the browser loads HTTPS image URLs on demand.
+// Data URIs stay embedded.
 func TestAdhocDisplayImagesKeepsTheURL(t *testing.T) {
 	w := generateTestWallet(t)
 	w.AdhocDisplayImages = true
@@ -120,8 +120,8 @@ func TestAdhocDisplayImagesKeepsTheURL(t *testing.T) {
 	if got := w.cacheDisplayImage(tinyPNGDataURI, "logo"); !strings.HasPrefix(got, "data:") {
 		t.Fatalf("a data URI image should still be embedded in ad-hoc mode, got %.20q", got)
 	}
-	// An http URL is mixed content, so it is not kept ad-hoc: it falls through to
-	// the fetch path (which fails here against the unreachable host, returning "").
+	// An http URL would be mixed content, so the wallet fetches it instead.
+	// The fetch fails against this unreachable host and returns "".
 	if got := w.cacheDisplayImage("http://issuer.example/logo.png", "logo"); got == "http://issuer.example/logo.png" {
 		t.Fatal("an http image URL should not be kept ad-hoc")
 	}

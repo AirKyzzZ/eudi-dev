@@ -319,8 +319,8 @@ func serializeWalletServeArgs(cmd *cobra.Command) ([]string, error) {
 
 // parseDemoReset interprets the --demo-reset value: a duration ("24h", "0"),
 // a daily wall-clock time ("00:00"), or one with an explicit zone
-// ("00:00 Europe/Berlin"). A wall-clock schedule keeps the reset at the same
-// local time every day instead of drifting with each process restart.
+// ("00:00 Europe/Berlin"). A wall-clock schedule resets at the same local time
+// every day, independent of process restarts.
 func parseDemoReset(value string) (wallet.DemoOptions, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -445,9 +445,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		return fmt.Errorf("--key-attestation-level: %w", err)
 	}
 
-	// Always hold a request-object encryption key so wallet_metadata can offer
-	// it. Requiring the Verifier to actually encrypt the Request Object is the
-	// separate --require-encrypted-request opt-in.
+	// Always hold a request object encryption key so wallet_metadata can offer
+	// it. --require-encrypted-request decides whether the Verifier must use it.
 	if err := w.EnsureRequestEncryptionKey(); err != nil {
 		return err
 	}
@@ -674,9 +673,8 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 	if opts.Demo {
 		srv.SetDemo(demoOpts)
 	}
-	// Embed the credential decoder UI so stored credentials can be
-	// inspected from the wallet UI. Resolving credentials by id lets
-	// those links name a credential instead of carrying it.
+	// Embed the credential decoder UI so stored credentials can be inspected
+	// from the wallet UI. Its links refer to a credential by id.
 	srv.Mount("/decoder", web.NewMuxWithOptions(web.MuxOptions{
 		Version:     Version,
 		ImprintHTML: imprintHTML,
@@ -737,15 +735,15 @@ func runWalletServe(cmd *cobra.Command, opts *walletServeOptions) error {
 		fmt.Printf(format+"\n", args...)
 	})
 
-	// Point the user at the consent UI when an interactive request arrives: by
-	// opening it on a desktop, by printing the URL on a headless host. Not on
-	// a demo host, where visitors reach it through the browser redirect.
+	// When an interactive request arrives, open the consent UI on a desktop or
+	// print its URL on a headless host. A demo host does neither because
+	// visitors reach it through the browser redirect.
 	if !w.AutoAccept && !opts.Demo {
 		srv.SetOnUIRequest(func(requestID string) {
 			target := fmt.Sprintf("http://localhost:%d/?focus=overview", opts.Port)
 			if requestID != "" {
-				// Name the request this tab is being opened for, so it answers
-				// that one instead of whatever else happens to be pending.
+				// Pass the request id so the tab answers this request and no other
+				// pending one.
 				target += "&request=" + url.QueryEscape(requestID)
 			}
 			// A tab already watching is told over its event stream, so no

@@ -24,8 +24,8 @@ import (
 	"time"
 )
 
-// Limit batch proof keys so an advertised batch_size cannot make requests arbitrarily
-// large. Separate keys support EUDI ARF method C.
+// maxBatchProofKeys caps the proof keys so an advertised batch_size cannot make
+// requests arbitrarily large. Separate keys support EUDI ARF method C.
 const maxBatchProofKeys = 8
 
 func advertisedBatchSize(metadata map[string]any) int {
@@ -41,11 +41,10 @@ func advertisedBatchSize(metadata map[string]any) int {
 }
 
 // issuanceProofKeys returns the keys a credential request binds copies to,
-// holder key first: each signs a proof, or under a key attestation the single
-// attestation names them all (buildCredentialProofs). When the issuer
-// advertises batch issuance with batch_size >= 2, fresh ephemeral keys are
-// added so each credential in the batch is bound to a distinct key (required
-// for SD-JWT batches per RFC 9901 §10.1, recommended for mdoc).
+// with the holder key first. buildCredentialProofs turns them into proofs.
+// When the issuer advertises batch_size >= 2, fresh ephemeral keys bind each
+// credential in the batch to a distinct key. RFC 9901 §10.1 requires this for
+// SD-JWT batches. It is recommended for mdoc.
 func issuanceProofKeys(holderKey *ecdsa.PrivateKey, metadata map[string]any) ([]*ecdsa.PrivateKey, error) {
 	keys := []*ecdsa.PrivateKey{holderKey}
 	batchSize := advertisedBatchSize(metadata)
@@ -80,14 +79,14 @@ func createProofJWTs(keys []*ecdsa.PrivateKey, audience, clientID, cNonce string
 }
 
 // selectPrimaryCredential picks the credential to import as the primary copy
-// from a credential response. OID4VCI 1.0 defines no correspondence between the
-// order of the credentials array and the proofs in the request, so the binding
-// key is identified from each credential itself.
+// from a credential response. OID4VCI 1.0 does not tie the order of the
+// credentials array to the proofs in the request, so the binding key is read
+// from each credential.
 //
 // An issuer may "issue fewer Credentials" than the keys sent and binds each
-// key to at most one Credential. A single credential is taken whichever proof
-// key it names. Among several, each is matched to a distinct proof key and the
-// holder-key copy is preferred as the primary, falling back to the first.
+// key to at most one Credential. A single credential is taken with whatever
+// proof key it is bound to. Among several, each is matched to a distinct proof
+// key. The holder-key copy is the primary, or else the first one.
 func selectPrimaryCredential(credResp map[string]any, keys []*ecdsa.PrivateKey) (string, error) {
 	creds := credentialStringsFromResponse(credResp)
 	if len(creds) == 0 {
@@ -135,7 +134,7 @@ func proofKeyIndex(raw string, keys []*ecdsa.PrivateKey) int {
 
 // primaryBindingKeyPEM returns the PEM of the proof key a credential is bound to
 // when it is not the holder key (index 0), and "" otherwise. The holder key
-// needs no per-copy record, since batchSigningKey falls back to it.
+// needs no per-copy record because batchSigningKey falls back to it.
 func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 	if idx := proofKeyIndex(raw, keys); idx > 0 {
 		if pem, err := encodeECPrivateKeyPEM(keys[idx]); err == nil {
@@ -145,12 +144,12 @@ func primaryBindingKeyPEM(raw string, keys []*ecdsa.PrivateKey) string {
 	return ""
 }
 
-// Store batch copies under one group with their separate binding keys for EUDI ARF
-// method C (Annex 2 Topic 10, ISSU_51-54).
+// storeBatchSiblings stores batch copies under one group, each with its own
+// binding key, for EUDI ARF method C (Annex 2 Topic 10, ISSU_51-54).
 //
-// On a presentation clone, keep only the primary copy. The credential sink has already
-// forwarded it to the real wallet without the batch group, so storing siblings there
-// would leave them disconnected.
+// A presentation clone keeps only the primary copy. The credential sink has
+// already forwarded it to the real wallet without the batch group, so siblings
+// stored there would be disconnected from it.
 func (w *Wallet) storeBatchSiblings(primary *StoredCredential, credResp map[string]any, keys []*ecdsa.PrivateKey, display *CredentialDisplay) []*StoredCredential {
 	if primary == nil {
 		return nil
@@ -193,8 +192,8 @@ func (w *Wallet) storeBatchSiblings(primary *StoredCredential, credResp map[stri
 	return stored
 }
 
-// Offer one selected batch copy in consent so identical copies do not appear as
-// alternatives.
+// collapseBatchMatches keeps one copy per batch so consent does not show
+// identical copies as alternatives.
 func (w *Wallet) collapseBatchMatches(matches []CredentialMatch, credentials []StoredCredential) []CredentialMatch {
 	byID := make(map[string]StoredCredential, len(credentials))
 	for _, c := range credentials {
@@ -227,10 +226,10 @@ func (w *Wallet) collapseBatchMatches(matches []CredentialMatch, credentials []S
 	return out
 }
 
-// chooseBatchCopy returns the index into matches of the batch copy to present:
-// a random one among those presented the fewest times. That shows each copy
-// once in a random order and then resets and cycles again, reusing the copies,
-// once all have been used (EUDI ARF method C, ISSU_52).
+// chooseBatchCopy returns the index into matches of the batch copy to present.
+// It picks a random copy among those presented the fewest times. Each copy is
+// used once in random order before any copy is reused (EUDI ARF method C,
+// ISSU_52).
 func chooseBatchCopy(idxs []int, matches []CredentialMatch, byID map[string]StoredCredential) int {
 	fewest := -1
 	for _, i := range idxs {
@@ -260,8 +259,8 @@ func secureIntn(n int) int {
 }
 
 // recordBatchPresentation marks a batch copy as presented, so the next
-// presentation of the batch prefers a copy used fewer times. It is a no-op for
-// a credential that is not part of a batch.
+// presentation of the batch prefers a copy used fewer times. It does nothing
+// for a credential outside a batch.
 func (w *Wallet) recordBatchPresentation(id string) {
 	w.mu.Lock()
 	sink := w.batchPresentedSink
@@ -278,9 +277,8 @@ func (w *Wallet) recordBatchPresentation(id string) {
 		}
 	}
 	w.mu.Unlock()
-	// A presentation run on a clone carries the use back to the wallet the clone
-	// was made from, so the rotation still advances (auto-accept and
-	// ISO-transcript presentations run on a clone).
+	// Auto-accept and ISO-transcript presentations run on a clone. The use is
+	// recorded on the source wallet so the rotation still advances.
 	if bumped && sink != nil {
 		sink(id)
 	}
@@ -299,9 +297,8 @@ func (w *Wallet) setBatchFields(id, group, bindingKeyPEM string) {
 }
 
 // credentialStringsFromResponse extracts the credentials from a credential
-// response, reading only the shape §8.3 defines: a credentials array whose
-// "elements of the array MUST be objects", each with a credential member. A
-// top-level credential string and an array of bare strings are draft shapes.
+// response in the shape §8.3 defines. That is a credentials array whose
+// "elements of the array MUST be objects", each with a credential member.
 func credentialStringsFromResponse(resp map[string]any) []string {
 	rawCreds, ok := resp["credentials"].([]any)
 	if !ok {

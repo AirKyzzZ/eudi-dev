@@ -10,11 +10,11 @@ For a local wallet, the URL handler leaves the owner unset. The wallet opens its
 
 ## Not a security boundary
 
-The owner determines where UI events appear. It does not authenticate callers. Anyone can supply a cookie or header, and the API remains open ([ADR-0002](0002-the-wallet-http-api-is-unauthenticated.md)). The activity log is shared, so visitors can still read other flows there.
+The owner decides where UI events appear. It does not authenticate callers. Anyone can supply a cookie or header, and the API remains open ([ADR-0002](0002-the-wallet-http-api-is-unauthenticated.md)). The activity log is shared, so visitors can still read other flows there.
 
 ## Unowned flows stay answerable
 
-A flow without an owner is visible to every caller, and any caller can answer it. That keeps the CLI, curl, CI, Testcontainers, the conformance harness and every URL handler working. `TestBackwardsCompatibility_ClientsThatNameNoBrowser` and `TestUnownedRequestStaysAnswerable` cover it.
+Every caller can see and answer a flow without an owner. This keeps the CLI, curl, CI, Testcontainers, the conformance harness and every URL handler working. `TestBackwardsCompatibility_ClientsThatNameNoBrowser` and `TestUnownedRequestStaysAnswerable` cover it.
 
 A sign-in prompt goes only to its owner because it navigates the browser. Clients without an owner receive the sign-in URL in the API response.
 

@@ -133,8 +133,8 @@ func TestVerify(t *testing.T) {
 	}
 }
 
-// ISO 18013-5 requires validityInfo. When absent, leave dates and validity flags unset
-// so the caller can report the missing check.
+// ISO 18013-5 requires validityInfo. Without it the dates and validity flags
+// stay unset, so the caller can report the missing check.
 func TestVerify_NoValidityInfo(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	doc := generateTestMDoc(t, mock.MDOCConfig{
@@ -155,9 +155,8 @@ func TestVerify_NoValidityInfo(t *testing.T) {
 	}
 }
 
-// An mdoc whose MSO omits digestAlgorithm still verifies, since the value
-// digests fall back to SHA-256, but ISO 18013-5 requires the member: Verify
-// reports the omission as a warning.
+// ISO 18013-5 requires digestAlgorithm. An MSO without it verifies with
+// SHA-256 and gets a warning.
 func TestVerify_NoDigestAlgorithm(t *testing.T) {
 	key, _ := mock.GenerateKey()
 	doc := generateTestMDoc(t, mock.MDOCConfig{
@@ -266,7 +265,7 @@ func TestConvertCBORValue(t *testing.T) {
 }
 
 func TestDecodeCBOR(t *testing.T) {
-	// Valid CBOR-encoded integer (0x18 0x2A = unsigned integer 42)
+	// 0x18 0x2A is the unsigned integer 42.
 	got, err := decodeCBOR([]byte{0x18, 0x2a})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -317,7 +316,7 @@ func TestVerify_NilIssuerAuth(t *testing.T) {
 	}
 }
 
-// Handle a nil parsed document without dereferencing it.
+// Verify must handle a nil document without a panic.
 func TestVerify_NilDocument(t *testing.T) {
 	result := Verify(nil, nil)
 

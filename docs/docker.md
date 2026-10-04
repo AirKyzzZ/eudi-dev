@@ -1,6 +1,6 @@
 # Docker Verifier Testing Guide
 
-The Docker image is built for automated integration testing of OID4VP verifiers. The container is an EUDI wallet your verifier can send presentation requests to.
+The Docker image is built for automated integration tests of OID4VP verifiers. The container runs an EUDI wallet that accepts presentation requests from your verifier.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ docker pull ghcr.io/dominikschlosser/eudi-dev:latest
 docker run -p 8085:8085 -p 8086:8086 ghcr.io/dominikschlosser/eudi-dev
 ```
 
-The default command starts a headless wallet with PID credentials. It stores state in memory and derives keys from a fixed seed, so each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during that run.
+The default command starts a headless wallet with PID credentials. It stores state in memory and derives keys from a fixed seed. Each start uses the same keys and CA without a volume (see [Storage](#storage)). Stopping the container discards credentials issued or imported during the run.
 
 Override the command to use any CLI feature:
 
@@ -195,7 +195,7 @@ docker run -p 8085:8085 -v ./my-templates:/templates ghcr.io/dominikschlosser/eu
   wallet serve --auto-accept --pid --port 8085 --templates-dir /templates
 ```
 
-Or generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/`, so the shared CA persists alongside the credentials. Select the file backend and an empty seed, so the persisted CA is private:
+You can also generate customized PIDs into a mounted data directory first. Mount the parent of `wallet/` so the shared CA persists with the credentials. Select the file backend and an empty seed so the persisted CA is private:
 
 ```bash
 docker run --rm -v wallet-data:/home/app/.eudi-dev -e EUDI_DEV_STORAGE=file -e EUDI_DEV_SEED= ghcr.io/dominikschlosser/eudi-dev \

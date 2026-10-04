@@ -228,8 +228,8 @@ func TestStartDemoResetUsesDailySchedule(t *testing.T) {
 	next := srv.demo.nextReset
 	srv.demo.mu.Unlock()
 
-	// The next reset must be the upcoming 03:30 in Berlin, never an offset
-	// from process start.
+	// The next reset is the upcoming 03:30 in Berlin, independent of when the
+	// process started.
 	local := next.In(berlin)
 	if local.Hour() != 3 || local.Minute() != 30 {
 		t.Fatalf("next reset is %s, want the next 03:30 Berlin time", local)
@@ -248,12 +248,12 @@ func TestStartDemoResetUsesDailySchedule(t *testing.T) {
 	}
 }
 
-// Demo visitors must not remove or revoke protected baseline credentials.
+// Demo visitors cannot remove or revoke protected baseline credentials.
 func TestProtectedCredentials(t *testing.T) {
 	srv := newDemoTestServer(t)
 	srv.SetStore(NewWalletStore(t.TempDir()))
-	// Requests reload the store, so mutations have to be persisted the way
-	// the serve command wires it up.
+	// Requests reload the store, so changes are saved the way the serve
+	// command wires it up.
 	srv.onSave = func() {
 		if err := srv.store.Load().Save(srv.wallet); err != nil {
 			t.Errorf("saving wallet: %v", err)
@@ -351,7 +351,8 @@ func TestProtectedCredentials(t *testing.T) {
 	})
 }
 
-// Replace the old baseline even if a release changes PID type identifiers.
+// The old baseline is replaced even when a release changes the PID type
+// identifiers.
 func TestGenerateProtectedDefaults_ReplacesABaselineOfAnyType(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -385,7 +386,7 @@ func TestGenerateProtectedDefaults_ReplacesABaselineOfAnyType(t *testing.T) {
 	}
 }
 
-// Renew the signing leaf while keeping the CA stable for verifiers.
+// Renewing the signing leaf keeps the CA stable for verifiers.
 func TestRefreshSigningCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	before := w.CertChain
@@ -411,7 +412,7 @@ func TestRefreshSigningCertificate(t *testing.T) {
 	}
 }
 
-// Published key expiry must track the current leaf certificate.
+// The published key expiry follows the current leaf certificate.
 func TestSigningKeyExpiry_FollowsTheCertificate(t *testing.T) {
 	w := generateTestWallet(t)
 	s := NewServer(w, 0, nil)
@@ -432,7 +433,7 @@ func TestSigningKeyExpiry_FollowsTheCertificate(t *testing.T) {
 	}
 }
 
-// Renew the signing certificate only inside the renewal window.
+// The signing certificate is renewed only inside the renewal window.
 func TestRefreshSigningCertificateIfExpiring(t *testing.T) {
 	w := generateTestWallet(t)
 	expiry := w.SigningCertificateExpiry()
@@ -453,16 +454,16 @@ func TestRefreshSigningCertificateIfExpiring(t *testing.T) {
 	if !renewed {
 		t.Fatal("a certificate inside the renewal window should be re-issued")
 	}
-	// The re-issued leaf is dated from the real clock, so its validity is
-	// measured from now rather than from the simulated expiry above.
+	// The re-issued leaf is dated from the real clock, so its validity counts
+	// from now.
 	if w.SigningCertificateExpiry().Before(time.Now().Add(300 * 24 * time.Hour)) {
 		t.Errorf("the re-issued certificate expires %s, want roughly a year out",
 			w.SigningCertificateExpiry())
 	}
 }
 
-// The HTTPS listener reads its certificate per handshake, so renewal must take effect
-// without restart.
+// The HTTPS listener reads its certificate per handshake, so a renewal takes
+// effect without a restart.
 func TestRenewIssuerTLSCertificateIfNeeded(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8443"
@@ -502,7 +503,7 @@ func TestRenewIssuerTLSCertificateIfNeeded(t *testing.T) {
 	}
 }
 
-// Apply body limits to ordinary servers as well as demo servers.
+// The body limit applies to ordinary servers and demo servers.
 func TestRequestBodyIsCapped(t *testing.T) {
 	for _, demo := range []bool{false, true} {
 		name := "plain"
@@ -515,8 +516,8 @@ func TestRequestBodyIsCapped(t *testing.T) {
 				srv.SetDemo(DemoOptions{})
 			}
 
-			// An oversized credential also fails parsing. Check the body-read error to
-			// prove the limit rejected it first.
+			// An oversized credential also fails parsing. The body-read error
+			// shows that the limit rejected it first.
 			oversized := strings.Repeat("a", maxRequestBodyBytes+1)
 			req := httptest.NewRequest("POST", "/api/credentials", strings.NewReader(oversized))
 			req.Host = "localhost:8085"
@@ -542,8 +543,8 @@ func TestDemoBlocksClearingSharedHistory(t *testing.T) {
 	}
 }
 
-// Allow visitors to dismiss their own flow errors so the error does not reappear on
-// each reload.
+// A visitor can dismiss their own flow error so it does not reappear on each
+// reload.
 func TestDemoVisitorDismissesItsOwnError(t *testing.T) {
 	srv := newDemoTestServer(t)
 	srv.wallet.NotifyError(WalletError{Message: "this visitor's flow", Owner: "browser-a"})
@@ -572,8 +573,8 @@ func TestLocalWalletStillClearsItsLog(t *testing.T) {
 	}
 }
 
-// Use normal template resolution for baseline generation and resets so template
-// overrides apply consistently.
+// Baseline generation and resets use normal template resolution, so template
+// overrides apply to them too.
 func TestProtectedDefaultsFollowTemplateOverrides(t *testing.T) {
 	w := generateTestWallet(t)
 	dir := t.TempDir()

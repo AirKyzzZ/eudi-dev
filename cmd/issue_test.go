@@ -758,10 +758,10 @@ func TestDefaultClaims_HasExpectedFields(t *testing.T) {
 	}
 }
 
-// The PID claim sets mirror the rulebooks: the country-independent ones the
-// EUDI PID Rulebook (ARF Annex 3.01), the German ones the German PID Rulebook
-// (see internal/mock/claims.go). These pin the exact sets, since every
-// default PID, template and demo credential is built from them.
+// The country-independent PID claims follow the EUDI PID Rulebook (ARF
+// Annex 3.01). The German ones follow the German PID Rulebook (see
+// internal/mock/claims.go). Every default PID, template and demo credential
+// is built from these sets.
 func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 	want := map[string]bool{
 		"family_name": true, "given_name": true, "birthdate": true,
@@ -773,8 +773,8 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 	}
 	assertClaimSet(t, "SDJWTPIDClaims", mock.SDJWTPIDClaims, want)
 
-	// National additions belong to the German PID only. The age attributes
-	// are among them: EUDI PID Rulebook 1.1 has none (CIR 2024/2977).
+	// National additions belong to the German PID only. This includes the age
+	// attributes. EUDI PID Rulebook 1.1 defines none (CIR 2024/2977).
 	for _, name := range []string{
 		"birth_name", "title", "also_known_as", "source_document_type",
 		"age_equal_or_over", "age_in_years", "age_birth_year",
@@ -789,8 +789,8 @@ func TestSDJWTPIDClaims_HasExpectedFields(t *testing.T) {
 	if !ok {
 		t.Fatal("address should be a map")
 	}
-	// The rulebook keeps the house number out of the street address, unlike
-	// the German encoding.
+	// The rulebook puts the house number in its own claim. The German encoding
+	// keeps it in the street address.
 	assertClaimSet(t, "address", addr, map[string]bool{
 		"street_address": true, "house_number": true, "postal_code": true,
 		"locality": true, "region": true, "country": true,
@@ -829,8 +829,8 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		t.Errorf("aka_vcts should be [%q], got %v", credtype.PIDVCT, aka)
 	}
 
-	// Listed in the rulebook but explicitly not issued: the German eID does
-	// not supply them, so a realistic PID must not carry them either.
+	// The rulebook lists these, but the German eID does not supply them. A
+	// realistic PID does not carry them.
 	for _, name := range []string{
 		"sex", "picture", "email", "phone_number", "document_number",
 		"personal_administrative_number", "issuing_jurisdiction", "trust_anchor",
@@ -882,8 +882,7 @@ func TestSDJWTGermanPIDClaims_HasExpectedFields(t *testing.T) {
 }
 
 func TestMDOCPIDClaims_HasExpectedFields(t *testing.T) {
-	// All of it in eu.europa.ec.eudi.pid.1: this is the country-independent
-	// PID, so nothing is namespaced separately.
+	// The country-independent PID keeps every element in eu.europa.ec.eudi.pid.1.
 	want := map[string]bool{
 		"family_name": true, "given_name": true, "birth_date": true,
 		"family_name_birth": true, "sex": true, "place_of_birth": true,
@@ -936,8 +935,8 @@ func TestMDOCGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		"personal_administrative_number", "issuing_jurisdiction", "trust_anchor",
 		"age_in_years", "age_birth_year", "family_name_birth", "given_name_birth",
 		"resident_address", "resident_house_number", "administrative_number",
-		// The rulebook is explicit that the German PID carries no issuance
-		// date: only the technical validFrom of the credential.
+		// The German PID Rulebook says the German PID carries no issuance date.
+		// Only the technical validFrom of the credential is set.
 		"issuance_date",
 	} {
 		if _, ok := mock.MDOCGermanPIDClaims[name]; ok {
@@ -945,8 +944,8 @@ func TestMDOCGermanPIDClaims_HasExpectedFields(t *testing.T) {
 		}
 	}
 
-	// The national elements must not leak into the PID namespace, where a
-	// verifier reading the country-independent rulebook would find them.
+	// The national elements must stay out of the PID namespace. A verifier
+	// reading the country-independent rulebook would find them there.
 	for _, name := range []string{"birth_name", "academic_title", "also_known_as", "age_over_18"} {
 		if _, ok := mock.MDOCGermanPIDClaims[name]; ok {
 			t.Errorf("%q must sit in %s, not in the PID namespace", name, credtype.GermanPIDNamespace)

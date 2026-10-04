@@ -91,7 +91,7 @@ func txCodeIssuer(t *testing.T, w *Wallet, wantCode string) (*httptest.Server, s
 	return srv, "openid-credential-offer://?" + oid4vc.EncodeURIQuery(url.Values{"credential_offer": {string(offerJSON)}})
 }
 
-// Pass the transaction code from consent approval into the token request.
+// The transaction code from consent approval reaches the token request.
 func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 	w := generateTestWallet(t)
 	srv, offerURI := txCodeIssuer(t, w, "1234")
@@ -110,10 +110,10 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 	}{
 		{"correct code", "1234", ""},
 		{"wrong code", "9999", "Invalid 'tx_code'"},
-		// An offer that names a tx_code is refused here rather than at the
-		// issuer: §4.1.1 puts it in the grant because the Authorization
-		// Server expects one, so a request without it spends the
-		// pre-authorized code on an answer that was never going to work.
+		// An offer with a tx_code is refused before the issuer is called.
+		// §4.1.1 puts it in the grant because the Authorization Server
+		// expects one. A request without it would spend the pre-authorized
+		// code on a request that cannot succeed.
 		{"no code", "", "this offer requires a transaction code"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,8 +156,8 @@ func TestApproveRequest_CarriesTxCodeIntoIssuance(t *testing.T) {
 	}
 }
 
-// Fetch and embed the issuer logo with address checks so consent does not load it
-// directly from the issuer.
+// The wallet fetches and embeds the issuer logo with address checks, so the
+// consent dialog never loads it from the issuer directly.
 func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	var serverURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -195,8 +195,8 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 		t.Errorf("issuer logo was not fetched and embedded, got %.30q", details.IssuerLogo)
 	}
 
-	// --adhoc-display-images keeps card art as a URL, but the issuer logo is
-	// shown once at consent time and never stored, so it is embedded even then.
+	// --adhoc-display-images keeps card art as a URL. The issuer logo is still
+	// embedded because it shows once at consent and is never stored.
 	adhoc := generateTestWallet(t)
 	adhoc.AdhocDisplayImages = true
 	adhocDetails := adhoc.describeCredentialOffer(&oid4vc.CredentialOffer{CredentialIssuer: srv.URL})
@@ -205,8 +205,8 @@ func TestDescribeCredentialOfferEmbedsTheIssuerLogo(t *testing.T) {
 	}
 }
 
-// Show the transaction code's input mode, length and description, with a fallback
-// label when needed.
+// The dialog shows the transaction code's input mode, length and description.
+// Without a description it builds a hint from the input mode and length.
 func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -240,8 +240,8 @@ func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 				CredentialIssuer: "https://issuer.invalid",
 				Grants:           oid4vc.OfferGrants{PreAuthorizedCode: "code", TxCode: tc.txCode},
 			}
-			// An empty tx_code object is still a tx_code, but the parser only
-			// records a non-empty map, so exercise the describe path directly.
+			// An empty tx_code object still counts as a tx_code. The parser only
+			// records a non-empty map, so this case sets the grant directly.
 			if len(tc.txCode) == 0 {
 				offer.Grants.TxCode = map[string]any{"input_mode": ""}
 			}
@@ -265,11 +265,11 @@ func TestDescribeCredentialOffer_TxCodeShape(t *testing.T) {
 	}
 }
 
-// TestOfferNeedingATxCodeIsRefusedBeforeTheCodeIsSpent covers an offer that
-// names a tx_code reaching an issuance that was given none, which is what an
-// auto-accepting wallet or an API caller that forgot it produces. §4.1.1 puts
-// tx_code in the grant because the Authorization Server expects one, so the
-// pre-authorized code is not spent on a request that cannot succeed.
+// TestOfferNeedingATxCodeIsRefusedBeforeTheCodeIsSpent covers an offer with a
+// tx_code that reaches issuance without a code. This happens with auto-accept
+// or when an API caller omits it. §4.1.1 puts tx_code in the grant because the
+// Authorization Server expects one. The pre-authorized code is not spent on a
+// request that cannot succeed.
 func TestOfferNeedingATxCodeIsRefusedBeforeTheCodeIsSpent(t *testing.T) {
 	w := generateTestWallet(t)
 	srv, offerURI := txCodeIssuer(t, w, "1234")

@@ -2,7 +2,7 @@
 
 The harness runs OpenID Foundation wallet plans for OID4VP 1.0, OID4VCI 1.0 and HAIP 1.0 against `eudi-dev`. Separate issuer and verifier plans test the bundled demo services.
 
-The applicable versioned specifications define the requirements. These runs provide evidence for the selected plans, variants and test conditions. They do not assess the full EUDI specification set. Certificate profiles, trust lists, registration information, PID rulebooks and other ETSI and ISO requirements also need checks against their own sources. See [spec compliance](spec-compliance.md) and [test certificates](test-certificates.md) for that coverage and its limits.
+The versioned specifications define the requirements. The runs test only the selected plans, variants and test conditions. Certificate profiles, trust lists, registration information, PID rulebooks and other ETSI and ISO requirements need separate checks against their own sources. See [spec compliance](spec-compliance.md) and [test certificates](test-certificates.md) for that coverage and its limits.
 
 Related docs:
 
@@ -16,12 +16,12 @@ The harness targets a local OpenID Foundation conformance suite server by defaul
 
 Current local status:
 
-- The latest full wallet run has 524 `PASSED`, 178 `REVIEW` and 34 `FAILED` modules. The failures match the baseline: 32 mdoc pre-authorized issuance failures and two suite exceptions in multisigned presentations.
-- The latest demo issuer and verifier run has 61 `PASSED`, 36 `REVIEW` and four `FAILED` modules. The failures concern mdoc algorithm metadata. All 36 verifier decisions match expectations.
+- The latest full wallet run has 530 `PASSED`, 178 `REVIEW`, 26 `WARNING` and 2 `FAILED` modules. The two failures are suite exceptions in multisigned presentations. The warnings are the IACA path length advisory.
+- The latest demo issuer and verifier run has 61 `PASSED`, 36 `REVIEW` and 4 `WARNING` modules. The warnings concern metadata the suite's schemas do not know. All 36 verifier decisions match expectations.
 - Negative modules can end in `REVIEW` after the expected refusal. The local harness accepts that result only when there are no failing conditions.
 - Alpha Final plans use explicit VP module lists. Certifiable HAIP plans run complete and unfiltered.
 
-The baseline failures remain unresolved.
+The two multisigned failures are suite bugs and remain open.
 
 See [Current conformance results](./conformance-results.md) for the detailed plan matrix, artifact locations, result-page screenshots, and suite exclusions.
 
@@ -34,7 +34,7 @@ The wrapper runs the current Final wallet plans plus the current HAIP wallet pla
 - `oid4vp-1final-wallet-haip-test-plan`
 - `oid4vci-1_0-wallet-haip-test-plan`
 
-Only the two HAIP plans are part of the OIDF certification program. The suite publishes the plain Final wallet plans as alpha tests. Against the production certification service the wrapper runs only the HAIP plans, complete and unfiltered. Local and demo-service runs cover the whole matrix.
+Only the two HAIP plans are part of the OIDF certification program. The suite publishes the plain Final wallet plans as alpha tests. On the production certification service, the wrapper runs only the HAIP plans, complete and unfiltered. Local and demo-service runs cover the whole matrix.
 
 ## Default Matrix
 
@@ -45,14 +45,14 @@ VP Final generates the cross product of credential format (SD-JWT, mdoc), respon
 - `direct_post` and `direct_post.jwt` with `redirect_uri` (`url_query` and unsigned `request_uri`), `x509_hash` (signed), and `x509_san_dns` (signed)
 - `dc_api` and `dc_api.jwt` with `web-origin` (unsigned), `x509_hash` and `x509_san_dns` (signed and multisigned)
 
-VCI Final runs 32 plans covering both credential formats, both grants, both offer delivery methods, immediate and deferred issuance, and plain and encrypted responses. These scenarios use issuer initiation, client attestation, DPoP and scope requests.
+VCI Final runs 32 plans covering both credential formats, both grants, both offer delivery methods, immediate and deferred issuance, and plain and encrypted responses. These scenarios use issuer initiation, client attestation, DPoP and scope requests. The mdoc pre-authorized plans use the suite's `rar` variant. Under `simple` the suite always issues the SD-JWT PID in a pre-authorized flow.
 
 The HAIP plans expose fewer selectable variants (the module entries fix the rest):
 
 - VP HAIP: SD-JWT and mdoc with `direct_post.jwt` and `dc_api.jwt`, the latter covering unsigned (no `client_id`), signed `x509_hash`, and multisigned `x509_hash` Browser API modules (4 plans)
 - VCI HAIP: SD-JWT and mdoc, each issuer-initiated with the offer `by_value` and `by_reference` and wallet-initiated without an offer, each covering immediate plain, deferred plain, and immediate encrypted responses (6 plans)
 
-The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover issuance initiated by the wallet. The Final issuance matrix uses flows initiated by the issuer.
+The matrix omits the `pre_registered` and `decentralized_identifier` prefixes, `issuer_initiated_dc_api`, `rar` authorization requests in the authorization code flow, and mTLS or `private_key_jwt` client authentication. The wallet uses scope-based authorization. The HAIP plans cover issuance initiated by the wallet. The Final issuance matrix uses flows initiated by the issuer.
 
 The matrix is fixed in the wrapper. Use the official runner `--rerun` selector for targeted reruns of an already generated matrix, or `ONLY_SCENARIOS` (a comma separated list of slug substrings) to generate and run a subset.
 
@@ -96,7 +96,7 @@ The wallet runs a conformance test with its normal keys:
 
 ## What the Suite Does Not Cover
 
-The suite issues an authorization code without asking the user to sign in. These plans therefore do not test opening a sign-in URL in a browser. Playwright covers that step against the demo issuer, whose login page accepts each pushed `request_uri` only once (RFC 9126 §4).
+The suite issues an authorization code without a user sign-in, so these plans skip the browser sign-in step. Playwright tests that step against the demo issuer. Its login page accepts each pushed `request_uri` only once (RFC 9126 §4).
 
 ## References
 

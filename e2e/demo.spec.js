@@ -1,6 +1,6 @@
 // @ts-check
-// Demo requests belong to the browser that started them. Requests from older clients
-// without an owner remain available through the Review bar.
+// Demo requests belong to the browser that started them. A request without an owner
+// stays available through the Review bar.
 const { test, expect } = require("@playwright/test");
 const { execSync, spawn } = require("child_process");
 const http = require("http");
@@ -21,7 +21,7 @@ test.beforeAll(async () => {
   execSync("go build -o /tmp/eudi-demo-e2e ..", { cwd: __dirname });
 
   const walletDir = fs.mkdtempSync(path.join(os.tmpdir(), "eudi-demo-e2e-"));
-  // CI uploads the server log with test results so failures include wallet activity.
+  // CI uploads the server log with the test results, so a failure shows wallet activity.
   const resultsDir = path.join(__dirname, "test-results");
   fs.mkdirSync(resultsDir, { recursive: true });
   const walletLogFd = fs.openSync(path.join(resultsDir, "demo-wallet.log"), "w");
@@ -87,8 +87,8 @@ async function createVerifierRequest(page, credential) {
   await page.locator("#create-request").click();
 }
 
-// Only authorization code offers support a choice between presentation and browser
-// sign-in.
+// Only an authorization code offer lets the user choose between presentation and
+// browser sign-in.
 async function createIssuerOffer(page, { grant, authorization } = {}) {
   await page.goto(`${BASE}/issuer/`);
   if (grant) {
@@ -113,8 +113,8 @@ async function openAsSchemeHandler(page) {
   return owner;
 }
 
-// Pass no owner to emulate an older URL handler that submits unowned requests.
-// Keep submission errors so waitForPending can report the cause of a timeout.
+// No owner emulates a URL handler that submits unowned requests. Submission errors
+// are kept so waitForPending can report the cause of a timeout.
 let lastSubmitError = null;
 
 function submitAsSchemeHandler(pathname, uri, owner) {
@@ -124,8 +124,8 @@ function submitAsSchemeHandler(pathname, uri, owner) {
     headers["X-Eudi-Owner"] = owner;
   }
   lastSubmitError = null;
-  // Interactive submissions wait for consent. Drain completed responses to release
-  // connections.
+  // Interactive submissions wait for consent. Completed responses are drained to
+  // release connections.
   fetch(BASE + pathname, {
     method: "POST",
     headers,
@@ -283,8 +283,7 @@ test.describe("Demo mode consent visibility", () => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   });
 
-  // Reading an error does not clear it. Starting another flow must clear it before opening
-  // consent.
+  // Reading an error does not clear it. Another flow must clear it before consent opens.
   test("an earlier failure does not reopen on the next issuance", async ({ page }) => {
     const dead = "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify({
       credential_issuer: "https://issuer.invalid",
@@ -300,7 +299,8 @@ test.describe("Demo mode consent visibility", () => {
     const offerDoc = await (await fetch(offer.offer_uri)).json();
     const uri = "openid-credential-offer://?credential_offer=" + encodeURIComponent(JSON.stringify(offerDoc));
 
-    // Record dialogs from first paint. Retrying assertions could miss a brief stale error.
+    // Dialogs are recorded from first paint. A retrying assertion could miss a brief stale
+    // error.
     await page.addInitScript(() => {
       window.__dialogs = [];
       document.addEventListener("DOMContentLoaded", () => {
@@ -461,7 +461,7 @@ test.describe("Demo mode consent visibility", () => {
     await waitForPending(0, owner);
   });
 
-  // Older URL handlers submit unowned requests, which any browser may answer.
+  // Any browser may answer an unowned request.
   test("a client that names no page leaves its request reachable", async ({
     browser,
   }) => {
@@ -486,7 +486,7 @@ test.describe("Demo mode consent visibility", () => {
     await page.goto(req.walletURL);
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/);
     await expect(page.locator("#pending-banner")).toBeHidden();
-    // Remove the request ID from the URL because it grants access to consent.
+    // The request ID grants access to consent, so it must leave the URL.
     await expect(page).not.toHaveURL(/request=/);
   });
 
@@ -509,7 +509,7 @@ test.describe("Demo mode consent visibility", () => {
     const starter = await browser.newPage();
     const bystander = await browser.newPage();
     await bystander.goto(BASE);
-    // Wait for configuration before submitting so the page has established demo mode.
+    // The page must load its configuration and enter demo mode before submission.
     await expect(bystander.locator("#demo-note")).toBeVisible();
 
     const req = await createVerificationRequest();
@@ -694,7 +694,7 @@ test.describe("Verifier request types", () => {
 });
 
 test.describe("Protected baseline credentials", () => {
-  // Remove earlier test credentials so the four protected PIDs fit on the first page.
+  // Earlier test credentials are removed, so the four protected PIDs fit on the first page.
   test.beforeEach(async () => {
     await fetch(`${BASE}/api/credentials`, { method: "DELETE" });
   });
@@ -1042,6 +1042,22 @@ test.describe("Consent credential selection", () => {
     expect(result.claims.ticket[0].event).toBe("EUDI Interop Fest");
   });
 
+  // ADR-0015: the pages lay out at phone width. A multiple result lists several claim
+  // sets, which must wrap inside the card.
+  test("the verifier page and a multiple result fit at phone width", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    const req = await openPreparedConsent(page, { type: "pid", format: "sd-jwt", multiple: true });
+    await page.locator("#consent-approve").click();
+    await expect(page).toHaveURL(/\/verifier\/\?result=/, { timeout: 15_000 });
+    await expect(page.locator("#claims")).toBeVisible();
+    expect((await verifierResult(req.id)).claims.pid.length).toBeGreaterThanOrEqual(2);
+
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    await page.locator('#credential-toggle [data-credential="pid-ticket"]').click();
+    expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+
   test("the verifier page asks for the ticket next to the PID and for multiple", async ({ page }) => {
     await page.goto(`${BASE}/verifier/`);
     await page.locator('#credential-toggle [data-credential="pid-ticket"]').click();
@@ -1099,7 +1115,7 @@ test.describe("Multi-tab dialogs", () => {
     }
   });
 
-  // Keep the submitting tab open until it receives the result. Other tabs should close
+  // The submitting tab stays open until it receives the result. Other tabs close
   // their stale dialogs.
   test("approving in one tab completes while the other tab's dialog closes", async ({
     browser,
@@ -1154,7 +1170,7 @@ test.describe("Verifier polling", () => {
     await createVerifierRequest(page, "pid");
     await expect(page.locator("#status")).toHaveText(/Waiting/);
 
-    // Chromium cannot background a page on command, so simulate document visibility.
+    // Chromium cannot background a page on command, so the test fakes document visibility.
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", { get: () => true });
       document.dispatchEvent(new Event("visibilitychange"));
@@ -1193,8 +1209,7 @@ test.describe("Conformance", () => {
     await expect(page.locator("#conformance-overlay")).not.toHaveClass(/active/);
   });
 
-  // Go tests cover debug mode acceptance of HAIP violations without requiring a full
-  // browser presentation.
+  // Go tests cover debug mode acceptance of HAIP violations.
 });
 
 test.describe("Demo mode hardening", () => {
@@ -1246,8 +1261,8 @@ test.describe("Demo mode hardening", () => {
 
 test.describe("Custom verifier request builder", () => {
   test.beforeEach(async () => {
-    // Earlier tests leave substantial wallet state. Allow enough time for presentation and
-    // redirect on loaded CI runners.
+    // Earlier tests leave a lot of wallet state. Presentation and redirect are slow on
+    // loaded CI runners.
     test.setTimeout(180_000);
     await clearPending();
   });
@@ -1281,8 +1296,7 @@ test.describe("Custom verifier request builder", () => {
   async function present(page, schemeURI) {
     const owner = await openAsSchemeHandler(page);
     submitAsSchemeHandler("/api/presentations", schemeURI, owner);
-    // Confirm that the pending submission reached the wallet before waiting for its
-    // dialog.
+    // The pending submission must reach the wallet before its dialog can open.
     await waitForPending(1, owner);
     await expect(page.locator("#consent-overlay")).toHaveClass(/active/, { timeout: 45_000 });
   }

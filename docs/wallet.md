@@ -1,13 +1,13 @@
 # Wallet
 
-The wallet stores test credentials and presents them through OID4VP. It accepts OID4VCI offers from the CLI, QR codes and links. By default, credentials and keys persist in `~/.eudi-dev/wallet/`. Use `--wallet-dir` to choose another directory, or select [memory or Postgres storage](#storage-backends).
+The wallet stores test credentials and presents them through OID4VP. It accepts OID4VCI offers from the CLI, QR codes and links. Credentials and keys are stored in `~/.eudi-dev/wallet/` by default. `--wallet-dir` selects another directory. [Memory and Postgres storage](#storage-backends) are also available.
 
-The wallet has two validation modes. Both run the same checks. The mode controls how violations are handled:
+The wallet has two validation modes. Both run the same checks. They differ in how they handle violations:
 
-- `debug` (default) reports each finding and keeps processing the request. During DCQL evaluation it warns and keeps a credential match when some required claim paths are missing but other requested claims still match
-- `strict` treats those violations as errors and refuses the request
+- `debug` (default) reports each finding and continues processing the request. In DCQL evaluation it keeps a credential match with a warning when some required claim paths are missing but other requested claims match
+- `strict` treats violations as errors and rejects the request
 
-Advisory findings remain warnings in either mode. `--haip` is a separate switch. See [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement).
+Advisory findings are warnings in both modes. `--haip` is a separate flag that adds HAIP 1.0 checks. See [HAIP 1.0 enforcement](wallet/presenting.md#haip-10-enforcement).
 
 For OpenID Foundation conformance work, see [docs/conformance.md](./conformance.md).
 For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/diagrams](./diagrams/README.md).
@@ -25,7 +25,7 @@ For interaction diagrams of the implemented OID4VP and OID4VCI flows, see [docs/
 | `accept`       | Accept an OID4VP presentation request or OID4VCI credential offer (auto-detects) |
 | `scan`         | Scan a QR code and auto-dispatch to accept/import               |
 | `refresh`      | Ask a credential's issuer for a fresh copy over the refresh token grant |
-| `deferred`     | Manage credentials an issuer deferred that the wallet has not received yet (`check`, `abandon`) |
+| `deferred`     | Manage deferred credentials the wallet has not received yet (`check`, `abandon`) |
 | `logs`         | Show persisted wallet OID4VP/OID4VCI interaction logs      |
 | `trust-list`   | Print the trust list JWT (`--list` for the profiles, `--url` for the URL) |
 | `ca-cert`      | Print or export the shared wallet CA certificate                |
@@ -92,28 +92,28 @@ eudi wallet import credential.txt
 eudi wallet register
 ```
 
-On Linux and Windows, `wallet register` and `wallet unregister` are no-ops, so shared scripts stay portable. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
+On Linux and Windows, `wallet register` and `wallet unregister` are no-ops. Shared scripts stay portable. Open copied protocol links with `eudi wallet accept '<uri>'`. Credential offers support `openid-credential-offer://`, `haip-vci://` and EUDI `eu-eaa-offer://`.
 
-While a remote target is set with `wallet use <url>`, the macOS URL handler sends clicked links to that instance (useful when the wallet runs in a Docker container). It then opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
+While `wallet use <url>` sets a remote target, the macOS URL handler sends clicked links to that instance (useful when the wallet runs in a Docker container). It opens the remote consent UI in the browser. `wallet use local` routes links back to the local wallet server.
 
 ## Credential type inheritance
 
 A domestic PID extends the country-independent type, as required by ARF Annex 2 (v3.0.0), PID_14. For example, `urn:eudi:pid:de:1` includes the attributes defined by `urn:eudi:pid:1` and adds German attributes.
 
-The wallet matches a DCQL `vct_values` entry against the credential's own type and every type it extends. Any PID matches a request for `urn:eudi:pid:1`. A German PID matches a request for `urn:eudi:pid:de:1`. The `[DCQL]` server log records the requested type when a credential matches through a type it extends.
+The wallet matches a DCQL `vct_values` entry against the credential's own type and every type it extends. Any PID matches a request for `urn:eudi:pid:1`. A German PID matches a request for `urn:eudi:pid:de:1`. When a credential matches through an extended type, the `[DCQL]` server log records the requested type.
 
 The wallet derives these relationships from two sources:
 
-- the PID type itself. A segment after `urn:eudi:pid:` that is a country or region code (`urn:eudi:pid:de:1`, `urn:eudi:pid:fr:1`) marks a domestic type, which extends `urn:eudi:pid:1`. A segment that is a version number (`urn:eudi:pid:1`, `urn:eudi:pid:2`) marks the country-independent type
-- the `aka_vcts` claim ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2), which lists additional types of the credential. It applies to every credential type, and the German PID this tool issues carries it
+- the PID type itself. A country or region code after `urn:eudi:pid:` (`urn:eudi:pid:de:1`, `urn:eudi:pid:fr:1`) marks a domestic type. A domestic type extends `urn:eudi:pid:1`. A version number after `urn:eudi:pid:` (`urn:eudi:pid:1`, `urn:eudi:pid:2`) marks the country-independent type
+- the `aka_vcts` claim ([SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) §2.2.2.2). It lists additional types of the credential and applies to every credential type. The German PID issued by eudi-dev carries it
 
-Inheritance only describes the credential type. The signature and trust list checks determine whether the issuer is authorized (§6.6: "Verifiers and Holders MUST NOT assume that any issuer who issues a credential extending a known type is authorized to do so").
+Inheritance describes the credential type only. Signature and trust list checks decide whether the issuer is authorized (§6.6: "Verifiers and Holders MUST NOT assume that any issuer who issues a credential extending a known type is authorized to do so").
 
-In mdoc every PID carries the doctype `eu.europa.ec.eudi.pid.1` (PID_05), and national elements are in a domestic namespace built by appending the country or region code to it (`eu.europa.ec.eudi.pid.de.1`, PID_06). A `doctype_value` request therefore matches every PID, and a claim query addresses a national element by its namespace: `"path": ["eu.europa.ec.eudi.pid.de.1", "birth_name"]`.
+In mdoc every PID has the doctype `eu.europa.ec.eudi.pid.1` (PID_05). National elements are in a domestic namespace. Its name is the doctype with the country or region code appended (`eu.europa.ec.eudi.pid.de.1`, PID_06). A `doctype_value` request therefore matches every PID. A claim query selects a national element by its namespace: `"path": ["eu.europa.ec.eudi.pid.de.1", "birth_name"]`.
 
 ## Storage
 
-The wallet stores all data unencrypted, including private keys and any access or refresh tokens an issuer returns. This is a development and test wallet. Point it at test issuers only and treat the wallet directory as disposable.
+The wallet stores all data unencrypted. This includes private keys and any access or refresh tokens from issuers. Use it with test issuers only and treat the wallet directory as disposable.
 
 All wallet state is stored in `~/.eudi-dev/wallet/` by default:
 
@@ -138,15 +138,15 @@ All wallet state is stored in `~/.eudi-dev/wallet/` by default:
     └── templates/          # User credential templates (see templates.md)
 ```
 
-Display images are stored once under content-based names in `assets/`. Credentials refer to them as `asset:<hash>.<ext>` to keep wallet state small. Embedded `data:` URIs remain readable and move into asset storage on the next save.
+Display images are stored once in `assets/`, named by a hash of their content. Credentials refer to them as `asset:<hash>.<ext>`. This keeps wallet state small. Embedded `data:` URIs are readable and move into asset storage on the next save.
 
-On the file backend the activity log is the top-level `log` field of `wallet.json`. The other backends store each entry separately (see [Storage backends](#storage-backends)). `wallet logs clean` clears those entries and writes `wallet-log-cleaned-at`. A running wallet server drops in-memory entries older than that marker when it saves. With `--wallet-dir`, both are in that directory.
+On the file backend the activity log is the top-level `log` field of `wallet.json`. The other backends store each entry separately (see [Storage backends](#storage-backends)). `wallet logs clean` clears the entries and writes `wallet-log-cleaned-at`. When a running wallet server saves, it drops in-memory entries older than that marker. With `--wallet-dir`, both files are in that directory.
 
 Keys are P-256 EC keys, generated on first use and reused across invocations. Wallets under the same parent directory share a persisted root CA. The generated root permits one intermediate CA. Credential and wallet provider certificates use provider intermediates for their role and country. A configured root with a path length of zero signs those leaves directly.
 
 Generated credentials use the wallet's issuer key. SD-JWT credentials carry a deterministic `kid` and a certificate chain in `x5c`, with the self-signed root omitted. The wallet's trust lists publish the corresponding signing certificates and provider CAs. JWT VC issuer metadata also exposes the credential signing key.
 
-Wallet attestations, access signatures, registrar responses, status lists and trust lists use separate keys and certificates. File and Postgres storage retain signing certificates across restarts. Published certificate URLs remain available after renewal. See [test certificates](test-certificates.md) for the signing roles, EUDI specification versions and ISO certificate profile difference.
+Wallet attestations, access signatures, registrar responses, status lists and trust lists use separate keys and certificates. File and Postgres storage keep signing certificates across restarts. Published certificate URLs stay available after renewal. See [test certificates](test-certificates.md) for the signing roles, EUDI specification versions and ISO certificate profile difference.
 
 Generated credentials expire in **30 days** by default. Use `--exp` to override (e.g. `--exp 720h` for 30 days, `--exp 24h` for 1 day). Use `--nbf` to set a not-before time (RFC3339 or duration, e.g. `--nbf 2025-01-15T00:00:00Z` or `--nbf -1h`).
 
@@ -154,9 +154,9 @@ Generated credentials expire in **30 days** by default. Use `--exp` to override 
 
 ## `wallet show <id>`
 
-Shows a stored credential by its ID (as printed by `wallet list`). An unambiguous ID prefix also works. By default it prints only the raw credential string, so it can be piped. `--decoded` prints human-readable output (the `--json` and `-v` global flags apply). Decoded output begins with a validity line, since the payload contains the expiry only as a Unix timestamp.
+Shows a stored credential by its ID (as printed by `wallet list`). An unambiguous ID prefix also works. By default it prints only the raw credential string, for piping. `--decoded` prints human-readable output (the `--json` and `-v` global flags apply). Decoded output starts with a validity line because the payload has the expiry only as a Unix timestamp.
 
-`wallet list` shows the same in its `VALID` column: the time left (`29d`, `5h`, `expired`) or `-` for a credential without an expiry.
+The `VALID` column of `wallet list` shows the same information. It is the time left (`29d`, `5h`, `expired`), or `-` for a credential without an expiry.
 
 ```bash
 eudi wallet show <id>                  # Raw credential string
@@ -172,9 +172,9 @@ eudi wallet show --decoded --json <id> # JSON output
 
 Shows saved OID4VP and OID4VCI activity, including requests, responses, credential imports, deferred issuance and notifications.
 
-Each entry prints on one line with the event, direction, endpoint, status and other available request details. Use `-v` / `--verbose` to expand the payloads, including DCQL queries, credential requests, presented claims and issuer or verifier responses.
+Each entry is one line with the event, direction, endpoint, status and other available request details. `-v` / `--verbose` expands the payloads, including DCQL queries, credential requests, presented claims and issuer or verifier responses.
 
-Use `-f` / `--follow` to print new entries as they are saved, like `kubectl logs -f`.
+`-f` / `--follow` prints new entries as they are saved, like `kubectl logs -f`.
 
 ```bash
 eudi wallet logs              # One line per persisted wallet interaction
@@ -192,9 +192,9 @@ eudi wallet logs --json       # JSON array of log entries
 
 ## Serving the wallet
 
-`wallet serve` runs the web UI, protocol endpoints, trust lists and management API. It loads credentials from the selected storage backend and handles consent for interactive requests. On macOS it can also register URL scheme handlers.
+`wallet serve` runs the web UI, protocol endpoints, trust lists and management API. It loads credentials from the selected storage backend and asks for consent on interactive requests. On macOS it can also register URL scheme handlers.
 
-The activity view shows each protocol request and response, with its endpoint and status. Encrypted exchanges show an **Encrypted** label and the plaintext. Expand the details to see the encrypted value. Credential summaries list the selected disclosure paths. See the [activity log API](wallet/http-api.md#activity-log) for this view's JSON format.
+The activity view shows each protocol request and response, with its endpoint and status. Encrypted exchanges show an **Encrypted** label and the plaintext. The details show the encrypted value. Credential summaries list the selected disclosure paths. The [activity log API](wallet/http-api.md#activity-log) describes the JSON format of this view.
 
 ```bash
 eudi wallet serve                      # web UI on http://localhost:8085
@@ -205,7 +205,7 @@ See [serving the wallet](wallet/serve.md) for the endpoints, trust list profiles
 
 ## Presenting from the wallet
 
-`wallet accept` answers an OID4VP presentation request and starts issuance for a credential offer. `wallet scan` does the same from a QR code. The same flows are also available at the wallet's `/authorize` and `/credential-offer` URLs without a custom scheme.
+`wallet accept` answers an OID4VP presentation request or starts issuance for a credential offer. `wallet scan` does the same from a QR code. The wallet's `/authorize` and `/credential-offer` URLs run the same flows without a custom scheme.
 
 ```bash
 eudi wallet accept 'openid4vp://authorize?...'   # evaluate DCQL, consent, submit
@@ -216,7 +216,7 @@ See [presenting from the wallet](wallet/presenting.md) for the full `wallet acce
 
 ## Issuing into the wallet
 
-A credential offer is accepted with `wallet accept` (or the UI, a scanned QR, or the `/credential-offer` URL). The wallet handles sign-in at the issuer, deferred issuance, later renewal, and interactive (presentation-during-issuance) authorization.
+`wallet accept` accepts a credential offer. The UI, a scanned QR code and the `/credential-offer` URL do the same. The wallet handles sign-in at the issuer, deferred issuance, renewal, and interactive authorization (presentation during issuance).
 
 ```bash
 eudi wallet accept 'openid-credential-offer://...'   # accept an offer
@@ -228,7 +228,7 @@ See [issuing into the wallet](wallet/issuing.md) for sign-in, renewal, deferred 
 
 ## HTTP API
 
-A running `wallet serve` exposes credential and template management, issuance, status changes, certificate exports and instance controls over HTTP. The API has no authentication by default and is intended for local development and isolated test networks.
+A running `wallet serve` exposes credential and template management, issuance, status changes, certificate exports and instance controls over HTTP. The API has no authentication by default. Use it for local development and isolated test networks only.
 
 ```bash
 curl http://localhost:8085/api/credentials
@@ -249,7 +249,7 @@ eudi wallet serve --storage memory
 
 ## Storage backends
 
-Choose where to store credentials, keys, certificates, assets, templates and the activity log with `--storage` or `EUDI_DEV_STORAGE`:
+`--storage` or `EUDI_DEV_STORAGE` selects where credentials, keys, certificates, assets, templates and the activity log are stored:
 
 | Value | State lives in |
 |-------|----------------|
@@ -260,12 +260,12 @@ Choose where to store credentials, keys, certificates, assets, templates and the
 
 The file backend stores wallet state in `wallet.json`. Memory and Postgres store entities separately. Postgres uses one table, `eudi_dev_state`, for entities, keys, certificates and revision markers, plus a sequence for write versions. See [the storage design](adr/0016-state-goes-through-one-storage-layer.md) for the schema and concurrency limits.
 
-The CLI finds running wallets by their wallet directory on every backend. `GET /api/config` reports the backend as `storage`. The default wallet uses the database prefix `wallet`, so host processes and containers using the same database share its persisted state. Browser flows and demo requests remain local to each server.
+On every backend the CLI finds running wallets by their wallet directory. `GET /api/config` reports the backend as `storage`. The default wallet uses the database prefix `wallet`. Host processes and containers on the same database share its persisted state. Browser flows and demo requests stay local to each server.
 
 The flag and environment variable also apply to `issue --wallet` and `templates`. [ADR-0018](adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md) explains why Postgres uses keyed blobs, with example keys and performance tradeoffs.
 
 ## Seeded keys
 
-`--seed <string>` or `EUDI_DEV_SEED` derives holder, issuer, CA, TLS and role-specific signing keys from a string. With memory storage, this keeps the keys stable across restarts. Existing stored keys take precedence. A fresh memory store creates new certificates with unique serial numbers.
+`--seed <string>` or `EUDI_DEV_SEED` derives holder, issuer, CA, TLS and role-specific signing keys from a string. With memory storage, the keys stay the same across restarts. Existing stored keys take precedence. A fresh memory store creates new certificates with unique serial numbers.
 
 The [Docker image](docker.md#stateless-container) uses the public seed `eudi-dev`. The value `auto` uses that seed for memory storage and random keys for other backends. An empty value generates random keys. `GET /api/config` reports `seeded_keys`.

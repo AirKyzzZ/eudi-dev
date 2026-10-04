@@ -37,12 +37,11 @@ func (b memoryBlob) stamp() Stamp {
 	return Stamp{Version: strconv.FormatUint(b.version, 10), Size: int64(len(b.data))}
 }
 
-// processMemory is the one memory store of the process, shared by every
-// opener.
+// processMemory is the memory store that every opener in the process shares.
 var processMemory = NewMemory()
 
-// NewMemory returns an empty memory store of its own, for tests that need
-// isolation from the process-wide one.
+// NewMemory returns a new empty memory store. Tests use it for isolation from
+// the process-wide store.
 func NewMemory() Store {
 	return &memoryStore{blobs: make(map[string]memoryBlob)}
 }

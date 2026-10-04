@@ -25,24 +25,22 @@ import (
 	"github.com/fatih/color"
 )
 
-// Subprocess manages a child process whose stdout/stderr is scanned for
+// Subprocess manages a child process. Its stdout and stderr are scanned for
 // encryption keys and credentials.
 type Subprocess struct {
 	cmd     *exec.Cmd
 	scanner *OutputScanner
-	// Write the exit error before closing done. Every waiter can then read it safely,
-	// without consuming a result another waiter needs.
+	// The exit error is written before done closes, so every waiter can read it.
 	done chan struct{}
 	err  error
-	// outputMu serializes the two stream-scanning goroutines: they share the
-	// OutputScanner and the terminal, so a line's prefix and body stay
-	// together.
+	// outputMu serializes the two stream-scanning goroutines. They share the
+	// OutputScanner and the terminal, and a line's prefix and body stay together.
 	outputMu sync.Mutex
 }
 
-// StartSubprocess launches args[0] with args[1:] as a child process.
-// Stdout and stderr are merged, scanned line-by-line, and forwarded to
-// the terminal with a [service] prefix.
+// StartSubprocess launches args[0] with args[1:] as a child process. It scans
+// stdout and stderr line by line and forwards them to the terminal with a
+// [service] prefix.
 func StartSubprocess(args []string, scanner *OutputScanner) (*Subprocess, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("no command specified")
@@ -71,9 +69,8 @@ func StartSubprocess(args []string, scanner *OutputScanner) (*Subprocess, error)
 		done:    make(chan struct{}),
 	}
 
-	// Scan stdout and stderr concurrently. io.MultiReader would read stderr
-	// only after stdout hit EOF, so a service that logs heavily to stderr
-	// while keeping stdout open could fill the stderr pipe and block on write.
+	// Both streams are read at once. A service that logs heavily to stderr
+	// while stdout stays open must never block on a full stderr pipe.
 	go sub.scanStream(stdout)
 	go sub.scanStream(stderr)
 
@@ -99,8 +96,8 @@ func (s *Subprocess) scanStream(r io.Reader) {
 	}
 }
 
-// Wait blocks until the subprocess exits and returns its error. It is safe to
-// call from more than one goroutine.
+// Wait blocks until the subprocess exits and returns its error. It is safe for
+// concurrent use.
 func (s *Subprocess) Wait() error {
 	<-s.done
 	return s.err

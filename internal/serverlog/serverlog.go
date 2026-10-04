@@ -59,8 +59,8 @@ func NewWriter(out io.Writer) *Writer {
 	return &Writer{logger: slog.New(slog.NewJSONHandler(out, nil))}
 }
 
-// Components tag their lines with a capitalized name such as [VCI] or [Demo issuer].
-// Lowercase brackets are content, such as the credential format in [mso_mdoc].
+// Components tag their lines with a capitalized name such as [VCI]. Lowercase
+// brackets are content, such as the credential format in [mso_mdoc].
 var componentTag = regexp.MustCompile(`^\[([A-Z][A-Za-z0-9 ]*)\]\s*`)
 
 func (w *Writer) Write(p []byte) (int, error) {
@@ -96,10 +96,9 @@ func (w *Writer) record(text string) {
 }
 
 // RedirectProcessOutput sends the log package, color output, os.Stdout and
-// os.Stderr through one JSON writer on out. Lines printed with fmt
-// become one record each. The returned function restores the original output and
-// waits until every pending line is written, so an error printed after it returns
-// reaches the console.
+// os.Stderr through one JSON writer on out. Each line printed with fmt is one
+// record. The returned function restores the original output. It waits for
+// every pending line first, so an error printed afterwards reaches the console.
 func RedirectProcessOutput(out io.Writer) (restore func(), err error) {
 	origStdout, origStderr := os.Stdout, os.Stderr
 	origColorOutput, origNoColor := color.Output, color.NoColor
@@ -113,8 +112,8 @@ func RedirectProcessOutput(out io.Writer) (restore func(), err error) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		// ReadString has no line length limit. A reader that stopped would block every
-		// later print once the pipe buffer is full.
+		// ReadString has no line length limit. A reader that stops on a long line
+		// blocks every later print once the pipe buffer is full.
 		lines := bufio.NewReader(reader)
 		for {
 			line, err := lines.ReadString('\n')

@@ -26,8 +26,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// Set an expiry so a cached status list stops being accepted even though the provider
-// regenerates it on each request.
+// The provider regenerates the list on each request. The expiry ends a cached copy.
 const tokenLifetime = 24 * time.Hour
 
 // defaultTTL is the RECOMMENDED caching hint from Section 5.1, in seconds.
@@ -43,11 +42,10 @@ type StatusListConfig struct {
 	// Bits is the number of bits per entry. Section 4.1 allows 1, 2, 4 and 8.
 	// Zero means 1.
 	Bits int
-	// TTL is the time-to-live in seconds for caching (RECOMMENDED per spec).
+	// TTL is the caching time-to-live in seconds (RECOMMENDED by Section 5.1).
 	// Defaults to 43200 (12h).
 	TTL int
-	// CertChain, if provided, is included as x5c (JWT) or x5chain (CWT) for
-	// certificate chain validation.
+	// CertChain is included as x5c (JWT) or x5chain (CWT) when set.
 	CertChain []*x509.Certificate
 	// IssuedAt overrides the iat claim. The zero value means time.Now().
 	IssuedAt time.Time
@@ -74,8 +72,8 @@ func (c StatusListConfig) issuedAt() time.Time {
 	return c.IssuedAt
 }
 
-// normalizeBits maps the configured width onto one of the four Section 4.1
-// allows.
+// normalizeBits maps the configured width to one of the four widths of
+// Section 4.1.
 func normalizeBits(bits int) (int, error) {
 	switch bits {
 	case 0, 1:
@@ -117,15 +115,12 @@ func GenerateStatusListJWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg S
 		"typ": TypJWT,
 	}
 
-	// The public half of the signing key, so a relying party that resolves
-	// keys from the token itself can verify without a certificate path.
-	// Token Status List leaves key resolution to the deployment (§11.3) and
-	// requires only `typ` in the header (§5.1). Deriving the key from the
-	// signing key keeps it consistent with the x5c leaf below.
+	// The public signing key lets a relying party verify without a certificate
+	// path. Token Status List leaves key resolution to the deployment (§11.3)
+	// and requires only `typ` in the header (§5.1).
 	header["jwk"] = mock.PublicKeyJWKMap(&signingKey.PublicKey)
 
-	// HAIP 6.1 excludes the trust anchor from x5c. Relying parties obtain it
-	// separately.
+	// HAIP 6.1 excludes the trust anchor from x5c.
 	if chain := mock.WithoutSelfSignedTrustAnchor(cfg.CertChain); len(chain) > 0 {
 		x5c := make([]string, 0, len(chain))
 		for _, cert := range chain {

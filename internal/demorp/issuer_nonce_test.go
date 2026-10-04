@@ -275,7 +275,7 @@ func TestVerifyProofJWTAcceptsANonceFromTheNonceEndpoint(t *testing.T) {
 
 // The Nonce Endpoint is this issuer's only source of a challenge, per §8.2:
 // "The c_nonce value is retrieved from the Nonce Endpoint as defined in
-// Section 7." A nonce it issued with a token response is not one of its own.
+// Section 7." Any other nonce is refused.
 func TestVerifyProofJWTRejectsANonceItNeverHandedOut(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 
@@ -283,8 +283,8 @@ func TestVerifyProofJWTRejectsANonceItNeverHandedOut(t *testing.T) {
 	if err == nil {
 		t.Fatal("a nonce this issuer never handed out was accepted")
 	}
-	// §8.3.1.2: invalid_nonce is what tells a wallet to fetch a fresh challenge
-	// and try again. invalid_proof tells it to give up.
+	// §8.3.1.2: invalid_nonce tells a wallet to fetch a fresh challenge and try
+	// again.
 	if err.code != "invalid_nonce" {
 		t.Errorf("error code = %q, want invalid_nonce", err.code)
 	}
@@ -309,8 +309,8 @@ func TestVerifyProofJWTRejectsAProofWithNoNonce(t *testing.T) {
 
 // Appendix F.1 makes aud "REQUIRED (string). The value of this claim MUST be
 // the Credential Issuer Identifier", and F.4 makes checking it the issuer's
-// job. Without the check, a proof the holder created for another issuer, and
-// which that issuer may have logged or leaked, is accepted here.
+// job. The check stops a proof created for another issuer from being
+// replayed here.
 func TestVerifyProofJWTRejectsAProofMintedForAnotherIssuer(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	nonce := issuedNonce(t, d)

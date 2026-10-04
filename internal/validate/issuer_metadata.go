@@ -73,8 +73,8 @@ func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInf
 	// SD-JWT VC §3.2 makes the issuer member REQUIRED, and §3.3 says "The
 	// issuer value returned MUST be identical to the iss value of the
 	// Issuer-signed JWT. If these values are not identical, the data
-	// contained in the response MUST NOT be used." Identical leaves no room
-	// for a difference in trailing slashes.
+	// contained in the response MUST NOT be used." A trailing slash counts
+	// as a difference.
 	issuer, ok := doc["issuer"].(string)
 	if !ok {
 		return nil, "", fmt.Errorf("issuer metadata does not contain issuer")
@@ -105,15 +105,14 @@ func ResolveJWTIssuerMetadataKey(token *sdjwt.Token, tlCerts []trustlist.CertInf
 	return key, "issuer metadata", nil
 }
 
-// SourceX5CLeaf denotes an embedded leaf check that establishes integrity but not issuer
-// trust. A trust list is needed to validate the chain.
+// SourceX5CLeaf marks a check against the embedded leaf. It proves integrity only.
+// Issuer trust needs a trust list to validate the chain.
 const SourceX5CLeaf = "x5c certificate, chain not validated"
 
-// VerifyJWTSignature verifies the token signature using, in order:
-// x5c + trust list, explicitly provided keys, the embedded x5c leaf
-// certificate (only when no trust list is given), then kid-based issuer
-// metadata. The leaf step keeps validation offline for credentials that
-// carry their issuer certificate.
+// VerifyJWTSignature verifies the token signature. It tries in order x5c with
+// the trust list, the given keys, the embedded x5c leaf (only without a trust
+// list) and kid-based issuer metadata. The leaf step keeps validation offline
+// for credentials that carry their issuer certificate.
 func VerifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, clients ...*http.Client) (*sdjwt.VerifyResult, string, error) {
 	return verifyJWTSignature(token, pubKeys, tlCerts, true, clients...)
 }
@@ -142,9 +141,8 @@ func verifyJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts 
 		}
 	}
 
-	// Without trust anchors, the embedded leaf certificate still proves the
-	// signature is intact. Prefer it over a network metadata lookup, which
-	// fails whenever the issuer is not currently reachable.
+	// Without trust anchors the embedded leaf still proves the signature is intact.
+	// A metadata lookup fails whenever the issuer is unreachable.
 	if len(tlCerts) == 0 {
 		if leafKey, err := ExtractX5CLeafKey(token.Header); err == nil && leafKey != nil {
 			if result := sdjwt.Verify(token, leafKey); result.SignatureValid {
@@ -211,10 +209,9 @@ const wellKnownJWTVCIssuer = "/.well-known/jwt-vc-issuer"
 // JWTVCIssuerMetadataURL builds the location of an issuer's JWT VC Issuer
 // Metadata configuration. SD-JWT VC §3 forms it "by inserting the well-known
 // string /.well-known/jwt-vc-issuer between the host component and the path
-// component (if any) of the iss claim value", so iss
+// component (if any) of the iss claim value". So iss
 // https://example.com/tenant/1234 is queried at
-// https://example.com/.well-known/jwt-vc-issuer/tenant/1234. Appending instead
-// would miss every tenant-scoped issuer.
+// https://example.com/.well-known/jwt-vc-issuer/tenant/1234.
 func JWTVCIssuerMetadataURL(iss string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(iss))
 	if err != nil {

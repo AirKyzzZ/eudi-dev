@@ -79,7 +79,7 @@ func Verify(token *Token, pubKey crypto.PublicKey) *VerifyResult {
 	return result
 }
 
-// Report unsupported algorithms before attempting signature verification.
+// isSupportedAlgorithm lets callers report an unsupported algorithm before verification.
 func isSupportedAlgorithm(alg string) bool {
 	for _, supported := range jws.SupportedAlgorithms {
 		if string(supported) == alg {

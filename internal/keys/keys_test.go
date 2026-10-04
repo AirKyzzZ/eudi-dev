@@ -397,8 +397,8 @@ func TestParseJWK_EC_P521(t *testing.T) {
 	jwk := map[string]any{
 		"kty": "EC",
 		"crv": "P-521",
-		// Full-width coordinates, which RFC 7518 requires. P-521 coordinates
-		// routinely have a zero leading byte, so a full-width encoding matters.
+		// RFC 7518 requires full-width coordinates. P-521 coordinates often
+		// have a zero leading byte.
 		"x": format.EncodeBase64URL(x),
 		"y": format.EncodeBase64URL(y),
 	}

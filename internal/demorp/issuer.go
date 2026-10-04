@@ -42,16 +42,15 @@ const (
 	ticketConfigurationID = "demo-ticket"
 	preAuthGrant          = "urn:ietf:params:oauth:grant-type:pre-authorized_code"
 
-	// Limit the copies signed per request and advertise that limit under OpenID4VCI
-	// 1.0 §8.3. Each copy uses a separate proof key for EUDI ARF method C.
+	// demoBatchSize is the batch_size advertised under OpenID4VCI 1.0 §8.3.
+	// Each copy is bound to its own proof key, as ARF method C requires.
 	demoBatchSize        = 8
 	demoDefaultBatchSize = 3
 )
 
-// parseBatchSize reads the batch query parameter: "true" asks for the default
-// batch, a number asks for that many copies (clamped to what this issuer signs),
-// and anything else (including "false" and an empty value) means a single
-// credential.
+// parseBatchSize reads the batch query parameter. "true" asks for the default
+// batch and a number asks for that many copies, up to demoBatchSize. Any other
+// value means a single credential.
 func parseBatchSize(value string) int {
 	value = strings.TrimSpace(value)
 	if value == "true" {
@@ -67,8 +66,8 @@ func parseBatchSize(value string) int {
 	return n
 }
 
-// Record the attester and its trust status on each ticket. This demo accepts
-// attestations from unknown CAs, so the credential must make that visible.
+// ticketClaims records the wallet attester and its trust status on the ticket.
+// The demo accepts attestations from unknown CAs, so the ticket shows it.
 func ticketClaims(subject string, holder map[string]any, auth *clientAuthentication) map[string]any {
 	claims := map[string]any{
 		"event":       "EUDI Interop Fest",
@@ -81,9 +80,8 @@ func ticketClaims(subject string, holder map[string]any, auth *clientAuthenticat
 		claims["given_name"] = demoAccountGivenName
 		claims["family_name"] = demoAccountFamily
 	}
-	// Interactive authorization identifies the holder by the credential they
-	// presented rather than by an account they signed in to, so the ticket
-	// names that holder.
+	// Interactive authorization identifies the holder by the presented
+	// credential. The ticket carries that holder's name.
 	for _, name := range []string{"given_name", "family_name"} {
 		if value, ok := holder[name].(string); ok && value != "" {
 			claims[name] = value
@@ -95,55 +93,50 @@ func ticketClaims(subject string, holder map[string]any, auth *clientAuthenticat
 	return claims
 }
 
-// offerState tracks one credential offer from creation through the token
-// exchange to the collected credential. A pre-authorized offer carries a
-// pre-authorized code, an issuer-initiated authorization code offer carries
-// the issuer_state that ties it to a browser login.
+// offerState tracks one credential offer until the credential is collected.
+// A pre-authorized offer has a pre-authorized code. An authorization code
+// offer has the issuer_state that links it to a browser login.
 type offerState struct {
 	id          string
 	preAuthCode string
-	// preAuthCodeUsed marks the code spent by its exchange, which is the one
-	// that binds the offer to the redeeming client.
+	// preAuthCodeUsed is set by the first token exchange. That exchange binds
+	// the offer to the redeeming client.
 	preAuthCodeUsed bool
 	issuerState     string
 	subject         string
 	// holderClaims are the claims of the credential presented to authorize
-	// this issuance (OpenID4VCI 1.1 §6), empty for every other flow.
+	// this issuance (OpenID4VCI 1.1 §6). Other flows leave it empty.
 	holderClaims map[string]any
-	// authorization is what an authorization code offer asks of the user:
-	// authorizationPresentation or authorizationBrowser.
+	// authorization is authorizationPresentation or authorizationBrowser.
 	authorization string
 	accessToken   string
-	// configIDs are the credential configurations the offer names; nil
-	// means the ticket.
+	// configIDs are the credential configurations in the offer. Nil means
+	// the ticket.
 	configIDs []string
-	// jkt is the DPoP key thumbprint the access token is bound to. Empty
-	// for a bearer token.
+	// jkt is the DPoP key thumbprint the access token is bound to. It is
+	// empty for a bearer token.
 	jkt string
-	// withStatus issues the ticket with a reference to the wallet's own status
-	// list, so it can be revoked.
+	// withStatus adds a reference to the wallet status list so the
+	// credential can be revoked.
 	withStatus bool
-	// deferred defers issuance: the credential endpoint returns a
-	// transaction_id, and the credential is handed over at the deferred
-	// credential endpoint once it is ready (OpenID4VCI 1.0 §9).
+	// deferred selects deferred issuance (OpenID4VCI 1.0 §9).
 	deferred bool
-	// batchSize is how many distinct-key copies to sign (§8.3), so the wallet
-	// holds a batch and presents one at a time. 0 or 1 issues a single
-	// credential even though this issuer advertises batch support.
+	// batchSize is the number of copies to sign (§8.3), each for its own key.
+	// 0 or 1 issues a single credential.
 	batchSize int
-	// clientAuth is how the wallet authenticated when it exchanged the code
-	// for this access token. Nil until a token exchange has run.
+	// clientAuth is how the wallet authenticated at the token exchange. It is
+	// nil before the exchange.
 	clientAuth *clientAuthentication
 	expires    time.Time
 }
 
-// IssuerHandler returns the demo issuer, meant to be mounted with the
-// /issuer prefix stripped.
+// IssuerHandler returns the demo issuer. Mount it with the /issuer prefix
+// stripped.
 func (d *DemoRP) IssuerHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", d.serveStatic("static/issuer.html"))
-	// Served as a file rather than inline, so the page needs no
-	// script-src 'unsafe-inline' in the wallet's Content-Security-Policy.
+	// The script is a separate file because the wallet Content-Security-Policy
+	// has no script-src 'unsafe-inline'.
 	mux.HandleFunc("GET /issuer.js", d.serveStatic("static/issuer.js"))
 	mux.HandleFunc("POST /api/offers", d.handleCreateOffer)
 	mux.HandleFunc("GET /offer/{id}", d.handleOfferByReference)
@@ -153,24 +146,22 @@ func (d *DemoRP) IssuerHandler() http.Handler {
 	mux.HandleFunc("GET /.well-known/openid-credential-issuer", d.handleIssuerMetadata)
 	mux.HandleFunc("GET /logo.svg", d.handleLogo)
 
-	// Authorization code flow, with this issuer as its own authorization
-	// server. The user signs in at /authorize, during redemption, not before
-	// the offer is created.
+	// The issuer is its own authorization server. The user signs in at
+	// /authorize while the wallet redeems the offer.
 	mux.HandleFunc("POST /nonce", d.handleNonce)
 	mux.HandleFunc("POST /par", d.handlePushedAuthorizationRequest)
 	mux.HandleFunc("GET /authorize", d.handleAuthorize)
 	mux.HandleFunc("POST /authorize-challenge", d.handleAuthorizationChallenge)
 	mux.HandleFunc("POST /authorize", d.handleAuthorizeSubmit)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", d.AuthorizationServerMetadataHandler())
-	// Only /api/ is guarded, which is what the page itself calls. The
-	// protocol endpoints above it are for wallets on other origins.
+	// GuardAPI covers only /api/, which the page calls. Wallets on other
+	// origins call the protocol endpoints.
 	return httpsec.GuardAPI(mux, d.baseURL())
 }
 
-// IssuerMetadataHandler serves the issuer metadata. It must additionally be
-// registered at the server root under
-// /.well-known/openid-credential-issuer/issuer, because OID4VCI inserts the
-// well-known segment before the issuer path.
+// IssuerMetadataHandler serves the issuer metadata. Also register it at
+// /.well-known/openid-credential-issuer/issuer on the server root, because
+// OpenID4VCI puts the well-known segment before the issuer path.
 func (d *DemoRP) IssuerMetadataHandler() http.HandlerFunc {
 	return d.handleIssuerMetadata
 }
@@ -208,16 +199,14 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 		"credential_issuer":            issuer,
 		"credential_endpoint":          issuer + "/credential",
 		"deferred_credential_endpoint": issuer + "/deferred_credential",
-		// Advertise this issuer as its own authorization server so wallets can find
-		// client authentication, PAR and DPoP metadata without the §12.2.4 fallback.
+		// Wallets read client authentication, PAR and DPoP metadata from the
+		// authorization server, so the issuer lists itself.
 		"authorization_servers": []string{issuer},
-		// No token_endpoint here: §12.2.4 defines none among the Credential
-		// Issuer Metadata parameters.
-		// The Nonce Endpoint of §7 is the only place a 1.0 wallet looks for the
-		// challenge its key proof must carry.
+		// §12.2.4 defines no token_endpoint parameter in Credential Issuer
+		// Metadata. A 1.0 wallet gets its key proof challenge from the Nonce
+		// Endpoint of §7.
 		"nonce_endpoint": issuer + "/nonce",
-		// The issuer signs a copy of the credential per key proof, up to this
-		// many, so a wallet can request a batch (OpenID4VCI 1.0 §8.3).
+		// OpenID4VCI 1.0 §8.3: one credential copy per key proof, up to batch_size.
 		"batch_credential_issuance": map[string]any{"batch_size": demoBatchSize},
 		"display": []map[string]any{
 			{
@@ -236,7 +225,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 					"jwt": map[string]any{"proof_signing_alg_values_supported": []string{"ES256"}},
 				},
 				// OpenID4VCI 1.0 §12.2.4 puts display and claims inside
-				// credential_metadata. Wallets use them for the offer consent dialog.
+				// credential_metadata.
 				"credential_metadata": map[string]any{
 					"display": []map[string]any{
 						{
@@ -254,8 +243,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 						{"path": []string{"seat"}},
 						{"path": []string{"given_name"}},
 						{"path": []string{"family_name"}},
-						// Optional metadata claims need not appear on every issued
-						// ticket.
+						// Only tickets issued after wallet attestation have this claim.
 						{"path": []string{"wallet_attestation"}},
 					},
 				},
@@ -266,7 +254,7 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	for _, cfg := range d.templateConfigurations() {
 		specs = append(specs, wallet.IssuedAttestationSpec{Format: cfg.format, VCT: cfg.vct, DocType: cfg.docType})
 	}
-	// The registrar API belongs to the wallet base URL.
+	// The registrar API lives under the wallet base URL.
 	info, err := wallet.IssuerInfo(d.wallet, d.baseURL(), specs)
 	if err != nil {
 		http.Error(w, "building issuer metadata: "+err.Error(), http.StatusInternalServerError)
@@ -286,17 +274,16 @@ func (d *DemoRP) handleIssuerMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, metadata)
 }
 
-// handleCreateOffer creates a credential offer. ?grant=authorization_code
-// makes one redeemed through the authorization code flow. Anything else makes a
-// pre-authorized code offer. ?status=true issues the ticket with a status list
-// reference so it can be revoked. ?credential=<configuration id> (repeatable)
-// names the credential configurations the offer covers: the ticket by default,
-// or any template the issuer metadata lists.
+// handleCreateOffer creates a credential offer. Query parameters:
 //
-// ?authorization decides what the authorization code flow asks of the user:
-// "presentation" requires a PID at the Authorization Challenge Endpoint
-// (OpenID4VCI 1.1 §6), anything else the browser sign-in. A wallet that does
-// not use interactive authorization gets the sign-in either way.
+//   - grant=authorization_code makes an authorization code offer. Otherwise
+//     the offer is pre-authorized.
+//   - status=true adds a status list reference so the credential can be revoked.
+//   - credential (repeatable) is a configuration id from the issuer metadata.
+//     The default is the ticket.
+//   - authorization=presentation asks for a PID at the Authorization Challenge
+//     Endpoint (OpenID4VCI 1.1 §6). Any other value uses the browser sign-in.
+//     A wallet without interactive authorization always gets the sign-in.
 func (d *DemoRP) handleCreateOffer(w http.ResponseWriter, r *http.Request) {
 	authCode := r.URL.Query().Get("grant") == authCodeGrant
 	withStatus := r.URL.Query().Get("status") == "true"
@@ -392,10 +379,10 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// HAIP 1.0 §4.4.1 requires client authentication at the token endpoint,
-	// and the metadata advertises attestation-based methods only, so the
-	// pre-authorized code grant authenticates like the authorization code
-	// grant. A DPoP proof binds the token where the wallet sends one.
+	// HAIP 1.0 §4.4.1 requires client authentication at the token endpoint.
+	// The metadata lists only attestation-based methods, so both grants
+	// authenticate the same way. A DPoP proof binds the token if the wallet
+	// sends one.
 	var jkt string
 	if strings.TrimSpace(r.Header.Get("DPoP")) != "" {
 		var err error
@@ -427,8 +414,8 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Consume the code at token exchange, when it becomes bound to the client (RFC
-	// 6749 §4.1.2).
+	// The token exchange binds the code to the client, so it is consumed here
+	// (RFC 6749 §4.1.2).
 	offer.preAuthCodeUsed = true
 	offer.accessToken = randToken()
 	offer.jkt = jkt
@@ -438,8 +425,8 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 	if jkt != "" {
 		tokenType = "DPoP"
 	}
-	// OpenID4VCI 1.0 §6.2 defines no c_nonce in the token response. The wallet gets it
-	// from the Nonce Endpoint (§7).
+	// OpenID4VCI 1.0 §6.2 defines no c_nonce in the token response. The wallet
+	// gets it from the Nonce Endpoint (§7).
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token": offer.accessToken,
 		"token_type":   tokenType,
@@ -448,9 +435,9 @@ func (d *DemoRP) handleToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // credentialRequest is a Credential Request as defined in OpenID4VCI 1.0 §8.2.
-// The key proofs arrive under proofs, "exactly one parameter named as the proof
-// type in Appendix F, the value set for this parameter is a non-empty array".
-// There is no singular proof member in 1.0.
+// The key proofs are under proofs, which holds "exactly one parameter named as
+// the proof type in Appendix F, the value set for this parameter is a
+// non-empty array".
 type credentialRequest struct {
 	CredentialConfigurationID string `json:"credential_configuration_id"`
 	CredentialIdentifier      string `json:"credential_identifier"`
@@ -473,7 +460,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		delete(d.tokens, token)
 		known = false
 	}
-	// Copied under the lock: the token endpoint writes to the same struct.
+	// Copy under the lock because the token endpoint writes to the same struct.
 	var granted ticketGrant
 	if known {
 		granted = ticketGrant{
@@ -492,8 +479,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return
 	}
-	// A DPoP-bound token requires the credential request to prove possession
-	// of the same key again.
+	// A DPoP-bound token needs a DPoP proof with the same key here too.
 	if granted.jkt != "" {
 		presented, err := d.verifyDPoPProof(r, d.issuerID()+"/credential", token)
 		if err != nil {
@@ -536,8 +522,7 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 		holderKeys = append(holderKeys, holderKey)
 	}
 
-	// A deferred offer hands over a transaction id here and the credential at
-	// the deferred credential endpoint once it is ready (§9).
+	// A deferred offer returns a transaction id here (§9).
 	if granted.deferred {
 		writeJSON(w, http.StatusOK, map[string]any{"transaction_id": d.deferIssuance(holderKeys, granted, token)})
 		return
@@ -545,17 +530,16 @@ func (d *DemoRP) handleCredential(w http.ResponseWriter, r *http.Request) {
 
 	credentials, signErr := d.signBatch(holderKeys, granted)
 	if signErr != nil {
-		// Signing failures are issuer errors. OpenID4VCI 1.0 §8.3.1.2 errors describe
-		// invalid requests, and credential_request_denied tells the wallet to stop
-		// retrying.
+		// A signing failure is a server error. The OpenID4VCI 1.0 §8.3.1.2 codes
+		// are for invalid requests, and credential_request_denied stops retries.
 		writeJSON(w, http.StatusInternalServerError, oauthError("server_error", signErr.Error()))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"credentials": credentials})
 }
 
-// Sign one credential per proof key for a batch. A single-credential offer uses the
-// first proof, which is the wallet holder key, even if more proofs were supplied.
+// signBatch signs one credential per proof key, up to the granted batch size.
+// A single-credential offer uses only the first proof key.
 func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) ([]map[string]any, error) {
 	want := granted.batchSize
 	if want < 1 {
@@ -575,14 +559,13 @@ func (d *DemoRP) signBatch(holderKeys []*ecdsa.PublicKey, granted ticketGrant) (
 	return credentials, nil
 }
 
-// checkRequestedCredential holds the request to §8.2, where
-// credential_identifier is "REQUIRED when an Authorization Details of type
-// openid_credential was returned from the Token Response [...] MUST NOT be
-// used otherwise" and excludes credential_configuration_id.
+// checkRequestedCredential applies §8.2, where credential_identifier is
+// "REQUIRED when an Authorization Details of type openid_credential was
+// returned from the Token Response [...] MUST NOT be used otherwise" and
+// excludes credential_configuration_id.
 //
-// This issuer returns no authorization_details and knows one configuration, so
-// the configuration id is the only way to ask it for anything. The error codes
-// are those of §8.3.1.2.
+// This issuer returns no authorization_details, so a request must use
+// credential_configuration_id. The error codes are those of §8.3.1.2.
 func (d *DemoRP) checkRequestedCredential(req credentialRequest, offered []string) (int, map[string]string) {
 	if len(offered) == 0 {
 		offered = []string{ticketConfigurationID}
@@ -604,9 +587,8 @@ func (d *DemoRP) checkRequestedCredential(req credentialRequest, offered []strin
 	return 0, nil
 }
 
-// handleNonce is the Nonce Endpoint of OpenID4VCI 1.0 §7, the only source of
-// the key proof challenge for a 1.0 wallet: a c_nonce in the token response
-// belongs to the earlier drafts.
+// handleNonce is the Nonce Endpoint of OpenID4VCI 1.0 §7. A 1.0 wallet gets
+// its key proof challenge only from here.
 func (d *DemoRP) handleNonce(w http.ResponseWriter, r *http.Request) {
 	nonce := randToken()
 
@@ -620,14 +602,13 @@ func (d *DemoRP) handleNonce(w http.ResponseWriter, r *http.Request) {
 	d.nonces[nonce] = time.Now().Add(entryTTL)
 	d.mu.Unlock()
 
-	// Disable caching so another client cannot receive the same challenge from a
-	// cache.
+	// A cached response would hand the same challenge to another client.
 	w.Header().Set("Cache-Control", "no-store")
-	// c_nonce alone: §7.2 defines it as the one parameter of a Nonce Response.
+	// §7.2 defines c_nonce as the only parameter of a Nonce Response.
 	writeJSON(w, http.StatusOK, map[string]any{"c_nonce": nonce})
 }
 
-// Keep a nonce until expiry so all proofs in a batch can use the same challenge.
+// A nonce stays valid until it expires, so all proofs in a batch can use it.
 func (d *DemoRP) nonceIssued(nonce string) bool {
 	if nonce == "" {
 		return false
@@ -645,9 +626,9 @@ func (d *DemoRP) nonceIssued(nonce string) bool {
 	return true
 }
 
-// proofError is a rejected key proof, carrying the §8.3.1.2 error code that
-// tells the wallet what to do about it. The distinction matters: invalid_nonce
-// asks for a fresh challenge and another attempt, invalid_proof does not.
+// proofError is a rejected key proof with its §8.3.1.2 error code. A wallet
+// retries with a fresh challenge after invalid_nonce. It does not retry after
+// invalid_proof.
 type proofError struct {
 	code        string
 	description string
@@ -659,15 +640,15 @@ func invalidProof(format string, args ...any) *proofError {
 	return &proofError{code: "invalid_proof", description: fmt.Sprintf(format, args...)}
 }
 
-// proofClockSkew is the window a key proof's iat may fall in. Appendix F.4
-// requires "the creation time of the JWT [...] is within an acceptable window
-// (see Section 13.8)" without naming one, so this is the round trip plus a
-// clock difference between two machines.
+// proofClockSkew is the accepted window for the iat of a key proof. Appendix
+// F.4 requires "the creation time of the JWT [...] is within an acceptable
+// window (see Section 13.8)" and sets no value. This covers the round trip
+// plus clock drift between two machines.
 const proofClockSkew = 5 * time.Minute
 
-// Verify key proofs under OpenID4VCI 1.0 Appendix F.4. Checking aud against the
-// Credential Issuer Identifier (F.1) prevents a proof created for another issuer from
-// being reused here.
+// Key proofs are checked under OpenID4VCI 1.0 Appendix F.4. The aud check
+// against the Credential Issuer Identifier (F.1) stops reuse of a proof made
+// for another issuer.
 func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	proof, err := parseCompactJWT(raw)
 	if err != nil {
@@ -699,9 +680,8 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 		return nil, invalidProof("proof JWT iat is %s away from now, outside the %s window this issuer accepts", age.Round(time.Second), proofClockSkew)
 	}
 
-	// This issuer has a Nonce Endpoint, so that endpoint is the only source of a
-	// valid challenge: §8.2 says "The c_nonce value is retrieved from the Nonce
-	// Endpoint as defined in Section 7".
+	// §8.2: "The c_nonce value is retrieved from the Nonce Endpoint as defined
+	// in Section 7".
 	nonce, _ := proof.payload["nonce"].(string)
 	if nonce == "" {
 		// §8.3.1.2 puts a missing challenge under invalid_proof: "(3) if at
@@ -711,17 +691,15 @@ func (d *DemoRP) verifyProofJWT(raw string) (*ecdsa.PublicKey, *proofError) {
 	if !d.nonceIssued(nonce) {
 		// §8.3.1.2 invalid_nonce: "at least one of the key proofs contains an
 		// invalid c_nonce value. The wallet should retrieve a new c_nonce value
-		// (refer to Section 7)." Answering invalid_proof instead tells a
-		// conformant wallet the request is beyond saving, so it never retries.
+		// (refer to Section 7)."
 		return nil, &proofError{code: "invalid_nonce", description: "proof JWT nonce is not one this issuer handed out"}
 	}
 	return holderKey, nil
 }
 
 // proofKeyMaterial reads the key a proof is bound to. Appendix F.1 allows
-// exactly one of jwk, kid and x5c. kid names a key this issuer would have to
-// resolve (F.1 points at a DID URL), so it is refused with a reason rather
-// than treated as malformed.
+// exactly one of jwk, kid and x5c. A kid is a DID URL this issuer cannot
+// resolve, so the error says that kid is unsupported.
 func proofKeyMaterial(header map[string]any) (*ecdsa.PublicKey, *proofError) {
 	jwk, hasJWK := header["jwk"].(map[string]any)
 	x5c, hasX5C := header["x5c"]
@@ -788,23 +766,23 @@ func proofKeyFromX5C(raw any) (*ecdsa.PublicKey, error) {
 	return key, nil
 }
 
-// Use the wallet status list so its UI can revoke tickets and the demo verifier can
-// check them.
+// The demo issuer uses the wallet status list. The wallet UI can then revoke
+// credentials and the demo verifier can check them.
 func (d *DemoRP) statusListURI() string {
 	return strings.TrimSpace(d.wallet.StatusListURL())
 }
 
 type ticketGrant struct {
-	// configIDs are the configurations the offer covers and configID the one
-	// the credential request named (the ticket when empty).
+	// configIDs are the configurations in the offer. configID is the one in
+	// the credential request. Empty means the ticket.
 	configIDs []string
 	configID  string
 	subject   string
 	// holderClaims are the claims of a credential presented to authorize this
-	// issuance, empty for a flow that authorized an account instead.
+	// issuance. Account sign-in leaves it empty.
 	holderClaims map[string]any
-	// jkt is the DPoP key the access token is bound to, empty for a bearer
-	// token.
+	// jkt is the DPoP key thumbprint of the access token. It is empty for a
+	// bearer token.
 	jkt        string
 	withStatus bool
 	deferred   bool
@@ -812,8 +790,8 @@ type ticketGrant struct {
 	clientAuth *clientAuthentication
 }
 
-// signGranted issues the configuration the grant names: a template when one
-// has that name, the ticket otherwise.
+// signGranted issues the template with the granted configuration id. If no
+// template has that id it issues the ticket.
 func (d *DemoRP) signGranted(holderKey *ecdsa.PublicKey, granted ticketGrant) (string, error) {
 	if cfg, ok := d.templateConfiguration(granted.configID); ok {
 		return d.signTemplate(cfg, holderKey, granted)
@@ -821,8 +799,8 @@ func (d *DemoRP) signGranted(holderKey *ecdsa.PublicKey, granted ticketGrant) (s
 	return d.signTicket(holderKey, granted)
 }
 
-// configurationIDs are the configurations the offer names, the ticket when
-// it names none.
+// configurationIDs returns the offer configurations. An empty offer means
+// the ticket.
 func (o *offerState) configurationIDs() []string {
 	if len(o.configIDs) == 0 {
 		return []string{ticketConfigurationID}
@@ -830,8 +808,8 @@ func (o *offerState) configurationIDs() []string {
 	return append([]string(nil), o.configIDs...)
 }
 
-// Sign with a leaf certificate for the ticket's trust profile. The wallet trust list
-// publishes the CA and credential type for that profile.
+// signTicket signs with a leaf certificate of the ticket trust profile. The
+// wallet trust list publishes the CA and credential type for that profile.
 func (d *DemoRP) signTicket(holderKey *ecdsa.PublicKey, granted ticketGrant) (string, error) {
 	spec, err := wallet.NormalizeIssuedAttestationSpec(wallet.IssuedAttestationSpec{
 		Format: "dc+sd-jwt",
@@ -845,10 +823,8 @@ func (d *DemoRP) signTicket(holderKey *ecdsa.PublicKey, granted ticketGrant) (st
 	if err != nil {
 		return "", fmt.Errorf("building signing certificate chain: %w", err)
 	}
-	// The issuance instant is rounded to the hour, so the copies of a batch
-	// do not share the precise issuance second in iat and the exp derived
-	// from it, which would let colluding verifiers correlate them (RFC 9901
-	// §10.1).
+	// Round iat to the hour. A precise issuance second in iat and exp would let
+	// colluding verifiers correlate the copies of a batch (RFC 9901 §10.1).
 	issuedAt := time.Now().Truncate(time.Hour)
 	config := mock.SDJWTConfig{
 		Issuer:    d.issuerID(),
@@ -866,8 +842,8 @@ func (d *DemoRP) signTicket(holderKey *ecdsa.PublicKey, granted ticketGrant) (st
 			return "", fmt.Errorf("this wallet has no status list URL")
 		}
 		config.StatusListURI = uri
-		// Persist the reserved index before a request reloads the wallet. Reusing an
-		// index would make revoking one credential revoke another.
+		// Persist the reserved index before a request reloads the wallet. A reused
+		// index would revoke two credentials at once.
 		idx, err := d.wallet.NextStatusIndex()
 		if err != nil {
 			return "", err
@@ -883,9 +859,8 @@ func decodeJSONBody(r *http.Request, target any) error {
 	return dec.Decode(target)
 }
 
-// accessToken reads the access token from the Authorization header. A
-// DPoP-bound token arrives under the DPoP scheme, a bearer token under
-// Bearer.
+// accessToken reads the access token from the Authorization header. It
+// accepts the DPoP and Bearer schemes.
 func accessToken(r *http.Request) (string, bool) {
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	for _, scheme := range []string{"Bearer ", "DPoP "} {

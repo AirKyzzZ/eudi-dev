@@ -86,8 +86,8 @@ func NewServer(cfg Config, writer EntryWriter) *Server {
 			if forwardedPort == "" {
 				forwardedPort = forwardedPortForProto(forwardedProto)
 			}
-			// SetXForwarded adds X-Forwarded-For, then the values a caller ahead
-			// of this proxy already declared take the host, proto and port.
+			// SetXForwarded adds X-Forwarded-For. Values from a proxy in front of
+			// this one then set the host, proto and port.
 			pr.SetXForwarded()
 			out.URL.Scheme = cfg.TargetURL.Scheme
 			out.URL.Host = cfg.TargetURL.Host
@@ -117,9 +117,7 @@ func (s *Server) Store() *Store {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	// Capture original URL before the Director rewrites it to the target.
-	// Reconstruct from the incoming request or honour existing forwarding headers
-	// (e.g. when behind another reverse proxy).
+	// The Director rewrites the URL to the target.
 	origURL := originalURL(r)
 
 	var reqBody string
@@ -131,7 +129,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Capture and strip debug JWE key header before forwarding.
+	// The debug JWE key header is removed before forwarding.
 	debugJWEKey := r.Header.Get("X-Debug-JWE-CEK")
 	r.Header.Del("X-Debug-JWE-CEK")
 
@@ -145,10 +143,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.proxy.ServeHTTP(w, r)
 }
 
-// originalURL reconstructs the URL the client originally requested.
-// It honours X-Forwarded-Host / X-Forwarded-Proto if present (i.e. when
-// the proxy itself sits behind another reverse proxy), otherwise it falls
-// back to the incoming Host header and request URI.
+// originalURL reconstructs the URL the client requested. Behind another
+// reverse proxy it uses X-Forwarded-Host and X-Forwarded-Proto. Otherwise it
+// uses the Host header and request URI.
 func originalURL(r *http.Request) string {
 	scheme := r.Header.Get("X-Forwarded-Proto")
 	if scheme == "" {
@@ -203,8 +200,7 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 		bodyBytes, err := io.ReadAll(reader)
 		reader.Close()
 		if err != nil {
-			// Body was consumed/closed. Provide an empty replacement so the
-			// ReverseProxy does not try to copy from the closed original.
+			// The original body is closed. ReverseProxy needs a body to copy.
 			resp.Body = io.NopCloser(strings.NewReader(""))
 			resp.ContentLength = 0
 		} else {

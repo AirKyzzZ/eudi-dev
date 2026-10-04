@@ -22,12 +22,13 @@ type Token struct {
 	Signature     []byte
 	Disclosures   []Disclosure
 	KeyBindingJWT *JWT
-	// ResolvedClaims is the Processed SD-JWT Payload of RFC 9901 §7.1: the
-	// payload with every disclosed claim inserted, every undisclosed array
-	// element removed, and the _sd and _sd_alg keys gone.
+	// ResolvedClaims is the Processed SD-JWT Payload of RFC 9901 §7.1. Every
+	// disclosed claim is inserted and every undisclosed array element is removed.
+	// The _sd and _sd_alg keys are gone.
 	ResolvedClaims map[string]any
 	Warnings       []string
-	// Recoverable violations accepted by lenient parsing. Strict parsing rejects them.
+	// Deviations lists recoverable violations that lenient parsing accepted. Strict
+	// parsing rejects them.
 	Deviations []string
 }
 

@@ -241,7 +241,7 @@ func TestExtractAndValidateX5C_ValidChain(t *testing.T) {
 	caCert, caKey, caDER := generateCACert(t)
 	_, _, leafDER := generateLeafCert(t, caCert, caKey)
 
-	// x5c uses standard base64 encoding of DER certs, leaf first
+	// RFC 7515 §4.1.6: x5c entries are base64 (not base64url) DER, leaf first.
 	leafB64 := base64.StdEncoding.EncodeToString(leafDER)
 	caB64 := base64.StdEncoding.EncodeToString(caDER)
 

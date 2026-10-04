@@ -32,9 +32,9 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
 
-// DIDReference identifies unsupported DID keys so callers can distinguish them from
-// missing keys. The toolkit resolves issuer keys through x5c (HAIP 1.0 §6.1.1) or HTTPS
-// issuer metadata (SD-JWT VC). See docs/adr/0013-only-the-eudi-stack-is-supported.md.
+// DIDReference detects DID key references so callers can tell them apart from
+// missing keys. The toolkit resolves issuer keys through x5c (HAIP 1.0 §6.1.1) or
+// HTTPS issuer metadata (SD-JWT VC). See docs/adr/0013-only-the-eudi-stack-is-supported.md.
 func DIDReference(identifiers ...string) string {
 	for _, identifier := range identifiers {
 		trimmed := strings.TrimSpace(identifier)
@@ -82,9 +82,9 @@ func parsePEMPrivateBlock(block *pem.Block) (crypto.PrivateKey, error) {
 	return nil, fmt.Errorf("unable to parse PEM private key (tried PKCS#8, EC, PKCS#1)")
 }
 
-// ParseJWKPrivate reads a private key from a JWK document. Short EC
-// coordinates are repaired because a private JWK is the operator's own key
-// file. ParseJWK holds public keys from peers to the spec.
+// ParseJWKPrivate reads a private key from a JWK document. It repairs short EC
+// coordinates because a private JWK is the operator's own key file. Public keys
+// from peers go through ParseJWK, which follows the spec strictly.
 func ParseJWKPrivate(data []byte) (crypto.PrivateKey, error) {
 	var jwk josev4.JSONWebKey
 	if err := jwk.UnmarshalJSON(padECCoordinates(data)); err != nil {
@@ -132,8 +132,8 @@ func parsePEMBlock(block *pem.Block) (crypto.PublicKey, error) {
 }
 
 // ParseJWKLenient reads a public key from a JWK whose EC coordinates may be
-// shorter than RFC 7518 §6.2.1.2 requires, and reports whether it repaired
-// one. Debug path only. Strict mode must call ParseJWK instead.
+// shorter than RFC 7518 §6.2.1.2 requires. It reports whether it repaired one.
+// Only debug mode uses it. Strict mode calls ParseJWK.
 func ParseJWKLenient(data []byte) (crypto.PublicKey, bool, error) {
 	key, err := ParseJWK(data)
 	if err == nil {
@@ -152,10 +152,9 @@ func ParseJWKLenient(data []byte) (crypto.PublicKey, bool, error) {
 
 var ecCurveSizes = map[string]int{"P-256": 32, "P-384": 48, "P-521": 66}
 
-// padECCoordinates left pads short EC coordinates to the curve width. A
-// coordinate whose leading byte is zero encodes one byte short from anything
-// writing big.Int.Bytes() directly, which RFC 7518 §6.2.1.2 disallows and
-// go-jose enforces. Whether to repair is the caller's decision.
+// padECCoordinates left pads short EC coordinates to the curve width. Code that
+// writes big.Int.Bytes() directly drops a zero leading byte. RFC 7518 §6.2.1.2
+// disallows that and go-jose enforces it. The caller decides whether to repair.
 func padECCoordinates(data []byte) []byte {
 	var doc map[string]any
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -194,9 +193,8 @@ func padECCoordinates(data []byte) []byte {
 	return repaired
 }
 
-// ParseJWK reads a public key from a JWK document. The type switch limits the
-// result to EC and RSA keys (go-jose also decodes OKP and symmetric keys that
-// no caller handles).
+// ParseJWK reads a public key from a JWK document. It returns only EC and RSA
+// keys. go-jose also decodes OKP and symmetric keys, and no caller handles them.
 func ParseJWK(data []byte) (crypto.PublicKey, error) {
 	var jwk josev4.JSONWebKey
 	if err := jwk.UnmarshalJSON(data); err != nil {

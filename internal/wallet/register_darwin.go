@@ -69,9 +69,8 @@ func RegisterURLSchemes(opts RegisterOptions) error {
 	if err != nil {
 		return fmt.Errorf("finding executable path: %w", err)
 	}
-	// Keep a package manager's stable symlink (Homebrew's /opt/homebrew/bin/eudi)
-	// rather than the versioned file it points at, so a `brew upgrade` does not
-	// leave the handler pointing at a deleted binary.
+	// Keep a package manager's stable symlink such as /opt/homebrew/bin/eudi.
+	// A `brew upgrade` deletes the versioned file it points at.
 	binaryPath = stableBinaryPath(binaryPath)
 
 	handlerPath := handlerScriptPath()
@@ -149,7 +148,7 @@ end open location
 		}
 	}
 
-	// Re-sign the bundle (osacompile signs it, but PlistBuddy modifications invalidate the signature)
+	// PlistBuddy edits invalidate the signature from osacompile, so sign the bundle again.
 	cmd = exec.Command("codesign", "--force", "--sign", "-", bundlePath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("codesign failed: %s: %w", string(out), err)

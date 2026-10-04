@@ -100,8 +100,8 @@ func TestClaimValueAtPath(t *testing.T) {
 	}
 }
 
-// A wildcard that matches nothing must report no match rather than an empty
-// list, or a credential without the claim would look like it has it.
+// A wildcard that matches nothing reports no match. An empty list would make
+// a credential without the claim look like it has it.
 func TestClaimValueAtPathWildcardWithNoMatches(t *testing.T) {
 	value := map[string]any{"degrees": []any{map[string]any{"other": 1}}}
 
@@ -118,8 +118,8 @@ func TestClaimValueBySelector(t *testing.T) {
 			"address":    map[string]any{"locality": "Berlin"},
 		},
 	}
-	// An mdoc selector names the element directly: the namespace split has
-	// already happened by the time claims are stored.
+	// Stored mdoc claims are already split from their namespace, so the
+	// selector is the bare element identifier.
 	mdocCred := StoredCredential{
 		Format: "mso_mdoc",
 		Claims: map[string]any{"given_name": "Ada"},

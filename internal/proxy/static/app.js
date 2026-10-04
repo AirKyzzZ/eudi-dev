@@ -322,8 +322,8 @@
     entriesEl.insertBefore(renderEntry(entry), entriesEl.firstChild);
   }
 
-  // Fetch existing entries on every connection. SSE does not replay traffic missed before
-  // subscription or during disconnects.
+  // SSE does not replay traffic from before the subscription or during a disconnect, so
+  // every connection fetches the existing entries.
   function syncEntries() {
     return fetch("api/entries")
       .then(function (r) { return r.json(); })
@@ -342,8 +342,7 @@
           }
         }
         if (!added) return;
-        // Store entries oldest first for the timeline. The list reverses them when
-        // rendering.
+        // The timeline stores entries oldest first. The list renders them reversed.
         entries.sort(function (a, b) { return a.id - b.id; });
         renderEntries();
       })

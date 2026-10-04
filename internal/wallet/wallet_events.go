@@ -27,7 +27,7 @@ func (w *Wallet) CreateConsentRequest(req *ConsentRequest) {
 	rt := w.runtimeState()
 	rt.mu.Lock()
 	now := time.Now()
-	// Use the registry's timestamp for retention.
+	// Retention needs a creation time, so a request without one gets the registry clock.
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = now
 	}
@@ -80,9 +80,9 @@ func (w *Wallet) ResolveRequest(id, status string) (*ConsentRequest, bool) {
 	return req, true
 }
 
-// PendingRequestDocsFor includes owned and unowned requests and the redirect request ID
-// for browsers without cookies. Marshal under the registry lock because resolution changes
-// Status under that same lock.
+// PendingRequestDocsFor returns owned and unowned requests plus the redirect request
+// ID for browsers without cookies. It marshals under the registry lock because
+// resolution changes Status under that lock.
 func (w *Wallet) PendingRequestDocsFor(owners []string, named string) []map[string]any {
 	rt := w.runtimeState()
 	rt.mu.RLock()
@@ -96,7 +96,7 @@ func (w *Wallet) PendingRequestDocsFor(owners []string, named string) []map[stri
 	return docs
 }
 
-// RequestDocFor marshals under the registry lock to avoid racing status changes.
+// RequestDocFor marshals under the registry lock because resolution changes Status.
 func (w *Wallet) RequestDocFor(r *ConsentRequest, owners []string) map[string]any {
 	rt := w.runtimeState()
 	rt.mu.RLock()
@@ -275,9 +275,8 @@ func (w *Wallet) PeekLastError(owners []string) *WalletError {
 	return nil
 }
 
-// ClearLastError clears owned and unowned errors visible to the caller. This lets users
-// dismiss every error they see and prevents a previous unowned failure from appearing
-// during a new flow.
+// ClearLastError clears the caller's own error and the unowned error. A new flow
+// then starts without an old failure on screen.
 func (w *Wallet) ClearLastError(owners []string) {
 	rt := w.runtimeState()
 	rt.mu.Lock()
@@ -309,8 +308,7 @@ func (w *Wallet) ConsumeNextError() *NextErrorOverride {
 	return e
 }
 
-// SubscribeState sends signals without a payload. Subscribers reload the changed wallet
-// data.
+// SubscribeState signals carry no payload. Subscribers reload the wallet data.
 func (w *Wallet) SubscribeState() (<-chan struct{}, func()) {
 	ch := make(chan struct{}, 1)
 	rt := w.runtimeState()

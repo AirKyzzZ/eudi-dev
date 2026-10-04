@@ -32,10 +32,10 @@ type MuxOptions struct {
 	Version     string // release version reported by GET /api/meta
 	ImprintHTML []byte // pre-rendered legal notice served at GET /imprint
 	Demo        bool   // public demo deployment, the UI shows a data disclaimer
-	// Resolve ?id= links without putting the full credential in the URL. A decoder
-	// without a wallet returns 404.
+	// CredentialByID resolves ?id= links, so the URL never holds the full
+	// credential. A decoder without a wallet returns 404.
 	CredentialByID func(id string) (string, bool)
-	// Use the mounted wallet's CA and issuer key for local verification. Nil selects
+	// WalletStore provides the CA and issuer key for local verification. Nil selects
 	// the default wallet.
 	WalletStore *wallet.WalletStore
 }
@@ -80,13 +80,13 @@ func NewMuxWithOptions(opts MuxOptions) http.Handler {
 		w.Write(opts.ImprintHTML)
 	})
 
-	// Embedded files have no modification time for cache validation. Require
-	// revalidation so browsers do not mix assets from different releases.
+	// Embedded files have no modification time for cache validation. Browsers must
+	// revalidate, so they never mix assets from different releases.
 	sub, _ := fs.Sub(staticFiles, "static")
 	mux.Handle("/", noStaleCache(http.FileServer(http.FS(sub))))
 
-	// Decoder links can contain attacker-selected credentials. Apply the guard inside
-	// the handler so mounted routes are checked after their prefix is stripped.
+	// Decoder links can carry attacker-selected credentials. The guard sits inside the
+	// handler, so mounted routes are checked after their prefix is stripped.
 	return httpsec.Headers(httpsec.GuardAPI(mux))
 }
 

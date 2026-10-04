@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package credtemplate stores reusable claim sets and issuance defaults. Built-in
-// templates cover EU and German PIDs. A user template with the same name overrides the
-// built-in version.
+// templates cover EU and German PIDs. A user template overrides the built-in
+// template with the same name.
 package credtemplate
 
 import (
@@ -34,15 +34,15 @@ import (
 )
 
 // Template describes a reusable credential template. All fields except Claims
-// are optional: an empty Format means the template works with any format, and
-// empty VCT/DocType/Namespace/Exp fall back to the issuance defaults.
+// are optional. An empty Format means any format. Empty VCT, DocType, Namespace
+// and Exp fall back to the issuance defaults.
 type Template struct {
 	// Name identifies the template. For file-based templates it defaults to
 	// the file name without extension.
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
-	// Format is "sdjwt", "jwt", or "mdoc" (aliases "dc+sd-jwt", "jwt_vc_json",
-	// and "mso_mdoc" are accepted). Empty means any format.
+	// Format is "sdjwt", "jwt" or "mdoc". The aliases "dc+sd-jwt", "jwt_vc_json"
+	// and "mso_mdoc" are accepted. Empty means any format.
 	Format    string `json:"format,omitempty"`
 	VCT       string `json:"vct,omitempty"`
 	DocType   string `json:"doctype,omitempty"`
@@ -52,14 +52,12 @@ type Template struct {
 	// Claims is the default claim set. Callers may override individual
 	// top-level claims at issuance time.
 	Claims map[string]any `json:"claims"`
-	// AlwaysDisclosed lists claims (dotted paths for nested claims, e.g.
-	// "address.country") that are embedded plainly in an SD-JWT payload
-	// instead of becoming selective disclosures.
+	// AlwaysDisclosed lists claims that appear in plain text in an SD-JWT payload.
+	// Nested claims use dotted paths such as "address.country".
 	AlwaysDisclosed []string `json:"always_disclosed,omitempty"`
-	// Display sets the §12.2.4 appearance a credential issued from this template
-	// carries. Its image fields are references the wallet resolves: an
-	// "embedded:<file>" name for a template compiled into the binary, or a data
-	// URI or https URL for a user template.
+	// Display sets the OpenID4VCI §12.2.4 appearance of credentials issued from
+	// this template. Image fields of a built-in template use "embedded:<file>".
+	// A user template uses a data URI or an https URL.
 	Display *TemplateDisplay `json:"display,omitempty"`
 	// Predefined is true for pre-defined templates compiled into the binary. It is set by
 	// this package and ignored in template files.
@@ -78,7 +76,7 @@ type TemplateDisplay struct {
 
 var templateExtensions = []string{".json", ".template"}
 
-// Location is where user templates live: a prefix inside a store. The zero
+// Location is a prefix inside a store that holds user templates. The zero
 // Location is the default wallet's template directory.
 type Location struct {
 	Store  storage.Store
@@ -122,8 +120,8 @@ func NormalizeFormat(format string) (string, error) {
 	}
 }
 
-// PredefinedTemplates copies claims and recalculates dates for each issuance. Otherwise a
-// long-running server would keep issuing PIDs dated at startup.
+// PredefinedTemplates copies claims and recalculates dates for each issuance, so a
+// long-running server issues PIDs with the current date.
 func PredefinedTemplates() []Template {
 	pidDisplay := func(name, description string) *TemplateDisplay {
 		return &TemplateDisplay{
@@ -191,10 +189,9 @@ func PredefinedTemplates() []Template {
 	}
 }
 
-// PIDTemplateNames returns the SD-JWT and mdoc template names that hold the
-// claim set of the PID type vct, and whether that type has pre-defined
-// templates at all. Callers that generate a PID for an unknown type fall back
-// to the country-independent claim set under the type they were given.
+// PIDTemplateNames returns the SD-JWT and mdoc template names for the claim set
+// of the PID type vct. ok reports whether that type has pre-defined templates.
+// For an unknown type callers use the country-independent claim set.
 func PIDTemplateNames(vct string) (sdjwt, mdoc string, ok bool) {
 	switch vct {
 	case "", mock.DefaultPIDVCT:
@@ -333,7 +330,7 @@ func hasTemplateExtension(name string) bool {
 }
 
 // IsBareName restricts untrusted input to template names. Load also accepts file paths,
-// which could read outside template storage.
+// and a path can read outside template storage.
 func IsBareName(s string) bool {
 	return s != "" &&
 		!strings.ContainsRune(s, os.PathSeparator) &&

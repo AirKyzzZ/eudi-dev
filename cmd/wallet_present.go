@@ -49,11 +49,11 @@ type dispatchOID4Opts struct {
 	// Wallet.KeyAttestationLevel).
 	keyAttestationLevel string
 	// docker serves the presentation trust and status lists under
-	// host.docker.internal, so a verifier in a container reaches them and the
-	// status list token subject matches the URI the credential carries.
+	// host.docker.internal. A verifier in a container can reach them there, and
+	// the status list token subject matches the URI in the credential.
 	docker bool
-	// resolvedOffer is the offer a transaction-code prompt already read from
-	// the URI, which the issuance falls back to when reading it again fails.
+	// resolvedOffer is the offer a transaction code prompt already read from the
+	// URI. Issuance falls back to it when reading the URI again fails.
 	resolvedOffer *oid4vc.CredentialOffer
 }
 

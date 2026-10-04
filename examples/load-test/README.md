@@ -72,7 +72,7 @@ A listing started after successful issuance must include the credential. A missi
 
 ## Scale
 
-Add a `wallet-3` service using the existing compose anchor and include it in both nginx upstreams. Servers reload changed sections and save changed rows. Updates to different entities are preserved. Updates to the same entity can overwrite each other. Browser flows must keep reaching the same server. See [the storage design](../../docs/adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md).
+Add a `wallet-3` service using the existing compose anchor and include it in both nginx upstreams. Servers reload changed sections and save changed rows. Updates to different entities are preserved. Updates to the same entity can overwrite each other. Each browser flow must stay on one server. See [the storage design](../../docs/adr/0018-postgres-stores-wallet-entities-as-keyed-blobs.md).
 
 ## Clean up
 

@@ -5,7 +5,7 @@ const http = require("http");
 
 const DOCKER_IMAGE = "oid4vc-dev-e2e";
 const CONTAINER_NAME = "oid4vc-dev-e2e-test";
-// Keep this port clear of the parallel wallet and decoder tests (18923 through 18926).
+// The parallel wallet and decoder tests use ports 18923 through 18926.
 const HOST_PORT = 18935;
 const WALLET_URL = `http://localhost:${HOST_PORT}`;
 

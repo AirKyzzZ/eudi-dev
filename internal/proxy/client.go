@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Remote readers use the dashboard's traffic history and event stream endpoints.
+// DashboardClient reads the dashboard's traffic history and event stream.
 
 package proxy
 
@@ -28,20 +28,19 @@ import (
 	"time"
 )
 
-// History reads need a timeout even though streaming has no deadline.
+// Streaming has no deadline, so history reads need their own timeout.
 var entriesTimeout = 30 * time.Second
 
 type DashboardClient struct {
 	// BaseURL is the dashboard origin, without a trailing slash.
 	BaseURL string
-	// HTTPClient sends the requests. A nil client uses a default one with
-	// no timeout, because following a stream has no deadline.
+	// HTTPClient sends the requests. A nil client uses a default client
+	// without a timeout because a stream has no deadline.
 	HTTPClient *http.Client
 }
 
 // NewDashboardClient returns a client for the dashboard at rawURL. A bare
-// host or host:port is read as http, so `eudi proxy logs localhost:9091`
-// works.
+// host or host:port gets the http scheme, as in `eudi proxy logs localhost:9091`.
 func NewDashboardClient(rawURL string) (*DashboardClient, error) {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
@@ -109,9 +108,9 @@ type EntryStream struct {
 	reader *bufio.Reader
 }
 
-// Stream subscribes to the dashboard's event stream. The subscription is in
-// place when this returns, so entries recorded from here on are delivered
-// even while the caller is still reading the list of earlier ones.
+// Stream subscribes to the dashboard's event stream. The subscription is
+// active on return, so the caller gets every later entry while it reads the
+// earlier ones.
 func (c *DashboardClient) Stream(ctx context.Context) (*EntryStream, error) {
 	resp, err := c.get(ctx, "/api/stream")
 	if err != nil {
@@ -132,23 +131,21 @@ func (s *EntryStream) Next() (*TrafficEntry, error) {
 		line = strings.TrimRight(line, "\r\n")
 		switch {
 		case line == "":
-			// The blank line ends an event. An event carrying no data is a
-			// keepalive comment and nothing to report.
+			// A blank line ends an event. An event without data is a keepalive.
 			if len(data) == 0 {
 				continue
 			}
-			// Data fields of one event are joined with newlines, as the
-			// event stream format defines them.
+			// The event stream format joins the data fields of one event with newlines.
 			payload := strings.Join(data, "\n")
 			data = nil
 			var entry *TrafficEntry
 			if err := json.Unmarshal([]byte(payload), &entry); err != nil || entry == nil {
-				// Skip malformed events so one bad entry does not end the stream.
+				// One malformed event must not end the stream.
 				continue
 			}
 			return entry, nil
 		case strings.HasPrefix(line, ":"):
-			// Comment, which is what the keepalive is.
+			// The keepalive is a comment line.
 			continue
 		case strings.HasPrefix(line, "data:"):
 			data = append(data, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))

@@ -43,7 +43,7 @@ An issuer that cannot issue the credential immediately responds to the credentia
 
 While the credential is not ready, the issuer responds with the `issuance_pending` error and an `interval` to wait ([OID4VCI 1.0 §9.3](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)). The wallet waits that interval. Some issuers instead return the `transaction_id` in a success response. The wallet accepts this too.
 
-The wallet records the transaction and returns immediately. `wallet serve` collects the credential in the background at the issuer's interval, so neither the consent dialog nor a CLI command blocks on it.
+The wallet records the transaction and returns immediately. `wallet serve` collects the credential in the background at the issuer's interval. The consent dialog and the CLI command do not wait for it.
 
 Accepting such an offer returns `HTTP 202` with the outcome:
 
@@ -107,7 +107,7 @@ Advertising the method is a SHOULD, so an issuer may require an attestation with
 eudi wallet serve --client-attestation --auto-accept
 ```
 
-Use it for issuers that require an attestation but omit it from their metadata. Reusing the attestation allows those issuers to correlate the wallet. `GET /api/config` reports the setting as `force_client_attestation`. An authorization server that advertises `private_key_jwt` still receives the client assertion.
+Reusing the attestation lets those issuers correlate the wallet. `GET /api/config` reports the setting as `force_client_attestation`. An authorization server that advertises `private_key_jwt` still receives the client assertion.
 
 ## OpenID4VCI feature level
 
@@ -121,13 +121,13 @@ eudi wallet serve --vci-version 1.1
 
 Every 1.1 feature is negotiated through issuer metadata. Against an issuer that advertises none of them, 1.1 behaves like 1.0.
 
-Like the other conformance settings, the level can be changed at runtime on a local wallet (see [changing the conformance settings](serve.md#changing-the-conformance-settings)) and reported as `vci_version` by `GET /api/config`.
+Like the other conformance settings, the level can be changed at runtime on a local wallet (see [changing the conformance settings](serve.md#changing-the-conformance-settings)). `GET /api/config` reports it as `vci_version`.
 
 Features enabled by 1.1:
 
 | Feature | 1.0 | 1.1 |
 |---------|-----|-----|
-| Interactive Authorization (1.1 §6), where the issuer publishes `authorization_challenge_endpoint` | Not used. The activity log names the flag that enables it, and the §5 redirect flow runs | Used. See [interactive authorization](#interactive-authorization) |
+| Interactive Authorization (1.1 §6), where the issuer publishes `authorization_challenge_endpoint` | Not used. The §5 redirect flow runs and the activity log shows the flag that enables Interactive Authorization | Used. See [interactive authorization](#interactive-authorization) |
 
 ### Interactive authorization
 
@@ -155,7 +155,7 @@ Challenge requests carry the same wallet attestation headers as token requests. 
 
 The presentation interaction works without `--vci-redirect-uri`. An issuer that sets `require_interactive_authorization` requires this flow.
 
-The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT uses `ia:<endpoint>` as `aud`. An mdoc uses the `OpenID4VCIIAEHandover` session transcript. If the request contains `expected_origins`, it must name the challenge endpoint's own origin. This prevents one authorization server from forwarding another's request.
+The presentation is bound to the challenge endpoint. An SD-JWT key binding JWT uses `ia:<endpoint>` as `aud`. An mdoc uses the `OpenID4VCIIAEHandover` session transcript. If the request contains `expected_origins`, it must contain the origin of the challenge endpoint. This stops one authorization server from forwarding another server's request.
 
 The wallet supports two interaction types and advertises only those it can complete (§6.2.1):
 

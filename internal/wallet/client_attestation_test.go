@@ -23,10 +23,10 @@ import (
 	"testing"
 )
 
-// TestAttestsClient covers the decision to authenticate with the wallet
-// attestation. The authorization server metadata is the signal the
-// specification defines, and the override exists because advertising it is
-// only a SHOULD (draft-ietf-oauth-attestation-based-client-auth §8, §10.1).
+// TestAttestsClient covers when the wallet authenticates with its wallet
+// attestation. The spec uses authorization server metadata as the signal.
+// Advertising the method is only a SHOULD, so an override exists
+// (draft-ietf-oauth-attestation-based-client-auth §8, §10.1).
 func TestAttestsClient(t *testing.T) {
 	advertised := map[string]any{
 		"token_endpoint_auth_methods_supported": []any{"attest_jwt_client_auth"},
@@ -55,11 +55,11 @@ func TestAttestsClient(t *testing.T) {
 		{"another method", otherMethod, false, false, ValidationModeDebug, false},
 		{"another method, override on", otherMethod, false, true, ValidationModeDebug, true},
 		{"no metadata at all", nil, false, false, ValidationModeDebug, false},
-		// HAIP 1.0 §4.4.1 requires client authentication. In strict the wallet
-		// always attests (and fails at the token endpoint if refused). In debug
-		// it attests a silent issuer (which may require it without advertising
-		// it, §10.1) but takes an issuer that named an unauthenticated method at
-		// its word so a non-HAIP issuer stays reachable.
+		// HAIP 1.0 §4.4.1 requires client authentication. In strict mode the
+		// wallet always attests. In debug mode it attests when the metadata is
+		// silent, since §10.1 lets an issuer require it without advertising it.
+		// An issuer that lists an unauthenticated method gets no attestation,
+		// so a non-HAIP issuer stays reachable.
 		{"haip strict, silent metadata", silent, true, false, ValidationModeStrict, true},
 		{"haip debug, silent metadata attests", silent, true, false, ValidationModeDebug, true},
 		{"haip strict, no metadata", nil, true, false, ValidationModeStrict, true},
@@ -78,10 +78,9 @@ func TestAttestsClient(t *testing.T) {
 	}
 }
 
-// silentAttestationIssuer serves an issuer that requires client attestation on
-// its token endpoint while advertising nothing about it. A wallet that reads
-// only the metadata is right to send none, so this issuer is unreachable
-// without the override.
+// silentAttestationIssuer requires client attestation at its token endpoint
+// and advertises nothing about it. A wallet that follows the metadata sends no
+// attestation, so only the override reaches this issuer.
 func silentAttestationIssuer(t *testing.T, w *Wallet) (*httptest.Server, string, *int) {
 	t.Helper()
 
@@ -103,8 +102,8 @@ func silentAttestationIssuer(t *testing.T, w *Wallet) (*httptest.Server, string,
 			})
 
 		case strings.HasSuffix(r.URL.Path, "/.well-known/oauth-authorization-server"):
-			// No token_endpoint_auth_methods_supported, and it even claims the
-			// pre-authorized grant takes anonymous access.
+			// There is no token_endpoint_auth_methods_supported. The metadata
+			// even claims the pre-authorized grant allows anonymous access.
 			json.NewEncoder(rw).Encode(map[string]any{
 				"issuer":         serverURL,
 				"token_endpoint": serverURL + "/token",
@@ -158,8 +157,8 @@ func silentAttestationIssuer(t *testing.T, w *Wallet) (*httptest.Server, string,
 	return srv, "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON)), &attestedRequests
 }
 
-// The issuer rejects requests without an attestation. --client-attestation must let
-// the same offer complete.
+// The issuer rejects requests without an attestation. With --client-attestation
+// the same offer completes.
 func TestForceClientAttestation_ReachesSilentIssuer(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -199,12 +198,10 @@ func TestForceClientAttestation_ReachesSilentIssuer(t *testing.T) {
 	}
 }
 
-// TestHAIPDebugAttestsSilentIssuer covers a HAIP wallet in debug mode (the
-// public demo) against an issuer that requires client attestation without
-// advertising the method (§10.1 makes advertising a SHOULD). The wallet
-// attests anyway, so the credential is issued, and warns about the missing
-// advertisement. A non-HAIP wallet needs --client-attestation to reach the
-// same issuer.
+// TestHAIPDebugAttestsSilentIssuer covers a HAIP wallet in debug mode against
+// an issuer that requires client attestation without advertising it. §10.1
+// makes advertising a SHOULD. The wallet attests anyway and warns about the
+// missing advertisement. A non-HAIP wallet needs --client-attestation here.
 func TestHAIPDebugAttestsSilentIssuer(t *testing.T) {
 	w := generateTestWallet(t)
 	w.RequireHAIP = true
@@ -234,8 +231,8 @@ func TestHAIPDebugAttestsSilentIssuer(t *testing.T) {
 	}
 }
 
-// private_key_jwt already authenticates the client. The override must not add an
-// unnecessary attestation.
+// private_key_jwt already authenticates the client. The override adds no
+// attestation on top.
 func TestForceClientAttestation_DoesNotDisplacePrivateKeyJWT(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ForceClientAttestation = true
@@ -245,14 +242,14 @@ func TestForceClientAttestation_DoesNotDisplacePrivateKeyJWT(t *testing.T) {
 	if method := detectTokenEndpointAuthMethod(meta); method != "private_key_jwt" {
 		t.Fatalf("detected %q, want private_key_jwt", method)
 	}
-	// attestsClient is true under the override, so the authorization code path
-	// guards on the detected method as well.
+	// attestsClient is true under the override. The authorization code path
+	// therefore also checks the detected method.
 	if !w.attestsClient(meta) {
 		t.Error("override should make attestsClient true even for private_key_jwt metadata")
 	}
 }
 
-// Prefer an advertised attestation method over unauthenticated access. The issuer
+// An advertised attestation method wins over unauthenticated access. The issuer
 // decides whether it trusts the attester.
 func TestDetectTokenEndpointAuthMethod(t *testing.T) {
 	for _, tc := range []struct {

@@ -20,9 +20,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/validate"
 )
 
-// Holder binding states a credential summary reports. A credential is
-// presentable only in the this_wallet state: the other two name a key this
-// wallet does not have.
+// Holder binding states in a credential summary. Only this_wallet is
+// presentable. The wallet holds no key for the other two.
 const (
 	holderBindingThisWallet = "this_wallet"
 	holderBindingOtherKey   = "other_key"
@@ -37,7 +36,7 @@ func credentialIssuerIdentity(c StoredCredential) map[string]any {
 	} else if iss := jwtIssuerClaim(c.Raw); iss != "" {
 		return map[string]any{"kind": "iss", "value": iss}
 	}
-	// A DID is the last resort: nothing here resolves it.
+	// The wallet does not resolve DIDs, so a DID is the last resort.
 	if did := credentialIssuerDID(c.Raw); did != "" {
 		return map[string]any{"kind": "did", "value": did}
 	}
@@ -53,7 +52,8 @@ func jwtIssuerClaim(raw string) string {
 	return iss
 }
 
-// Use the document signer's CommonName for display, falling back to its full subject.
+// mdocIssuerCertIdentity shows the document signer's CommonName, or its full
+// subject when the CommonName is empty.
 func mdocIssuerCertIdentity(raw string) map[string]any {
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
@@ -73,9 +73,9 @@ func mdocIssuerCertIdentity(raw string) map[string]any {
 	return map[string]any{"kind": "cert", "value": value}
 }
 
-// self_consistent means the signature verifies against embedded key material. It does
-// not establish issuer trust (ADR-0009). Return nil if the algorithm cannot be
-// determined.
+// credentialSignatureState reports self_consistent when the signature
+// verifies against the embedded key. That is no issuer trust (ADR-0009). It
+// returns nil when the algorithm is unknown.
 func credentialSignatureState(c StoredCredential) map[string]any {
 	if c.Format == "mso_mdoc" {
 		return mdocSignatureState(c.Raw)
@@ -83,8 +83,8 @@ func credentialSignatureState(c StoredCredential) map[string]any {
 	return jwtSignatureState(c.Raw)
 }
 
-// Verify only embedded key material here. Credential summaries must not fetch issuer
-// metadata.
+// jwtSignatureState uses only the embedded key, because a credential summary
+// must not fetch issuer metadata.
 func jwtSignatureState(raw string) map[string]any {
 	token, err := sdjwt.ParseLenient(raw)
 	if err != nil || token == nil {
@@ -100,10 +100,8 @@ func jwtSignatureState(raw string) map[string]any {
 	}
 }
 
-// mdocSignatureState verifies an mdoc against its document signer leaf. When
-// the mdoc carries no x5chain the algorithm is still read from the COSE header,
-// so the summary reports what signed it even where self-consistency cannot be
-// established.
+// mdocSignatureState verifies an mdoc against its document signer leaf.
+// Without an x5chain it still reports the algorithm from the COSE header.
 func mdocSignatureState(raw string) map[string]any {
 	doc, err := mdoc.Parse(raw)
 	if err != nil {
@@ -120,8 +118,8 @@ func mdocSignatureState(raw string) map[string]any {
 			"self_consistent": res.SignatureValid,
 		}
 	}
-	// Verify sets the algorithm from the protected header before it needs the
-	// key, so a nil key still yields the algorithm with self_consistent false.
+	// Verify reads the algorithm from the protected header before it needs
+	// the key, so a nil key still yields the algorithm.
 	res := mdoc.Verify(doc, nil)
 	if res.Algorithm == "" {
 		return nil
@@ -132,16 +130,14 @@ func mdocSignatureState(raw string) map[string]any {
 	}
 }
 
-// credentialHolderBindingState reports which key a credential is bound to,
-// relative to this wallet's holder key. Only this_wallet is presentable: the
-// other two name a key the wallet cannot sign with.
+// credentialHolderBindingState reports whether this wallet holds the key a
+// credential is bound to.
 func (w *Wallet) credentialHolderBindingState(c StoredCredential) string {
 	binding := credentialHolderBinding(c.Raw)
 	if !binding.Bound {
 		return holderBindingNone
 	}
-	// A batch copy is bound to its own key, which the wallet holds alongside the
-	// holder key, so the copy's key is what its binding is checked against.
+	// A batch copy is bound to its own key, which the wallet also holds.
 	signingKey, err := w.batchSigningKey(c)
 	if err != nil || signingKey == nil {
 		return holderBindingOtherKey

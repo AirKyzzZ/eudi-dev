@@ -20,10 +20,9 @@ import (
 	"testing"
 )
 
-// A PID from a real issuer repeats the SD structure into a credentialSubject
-// object and carries a second _sd_alg there. RFC 9901 §4.1.1 forbids the nested
-// copy, but it names the same hash the top level already fixed, so parsing
-// tolerates it: the claims still resolve and the rule break is a deviation.
+// Some issuers repeat the SD structure in a credentialSubject object with a
+// second _sd_alg. RFC 9901 §4.1.1 forbids the nested copy. It repeats the
+// top-level hash, so lenient parsing resolves the claims and records a deviation.
 func TestParse_NestedSDAlgIsTolerated(t *testing.T) {
 	raw, err := os.ReadFile("testdata/nested_sd_alg.txt")
 	if err != nil {
@@ -41,8 +40,8 @@ func TestParse_NestedSDAlgIsTolerated(t *testing.T) {
 		t.Fatalf("ParseLenient rejected a credential with a nested _sd_alg: %v", err)
 	}
 
-	// The credentialSubject copy triggers two tolerated rule breaks: the nested
-	// _sd_alg and, because it repeats the top-level digests, a duplicate digest.
+	// The credentialSubject copy breaks two rules. It has a nested _sd_alg and it
+	// repeats the top-level digests.
 	joined := strings.Join(token.Deviations, "\n")
 	if !strings.Contains(joined, "_sd_alg is inside a nested object") {
 		t.Fatalf("missing nested-_sd_alg deviation, got %v", token.Deviations)

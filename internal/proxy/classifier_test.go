@@ -332,17 +332,14 @@ func TestParseFormOrJSONForm(t *testing.T) {
 }
 
 func TestParseFormOrJSONAmbiguousInput(t *testing.T) {
-	// url.ParseQuery succeeds on most strings, so form parsing takes priority.
-	// For JSON input, form parsing produces a single key holding the entire JSON.
+	// url.ParseQuery reads JSON input as a single key holding the entire JSON.
 	result := parseFormOrJSON(`{"format":"jwt"}`)
-	// url.ParseQuery will parse this as a form with key `{"format":"jwt"}` and empty value
 	if len(result) == 0 {
 		t.Error("expected non-empty result")
 	}
 }
 
 func TestParseFormOrJSONInvalidInput(t *testing.T) {
-	// A body that fails both form and JSON parsing
 	result := parseFormOrJSON("")
 	if len(result) != 0 {
 		t.Errorf("expected empty map for empty body, got %v", result)
@@ -1222,7 +1219,7 @@ func TestExtractJARMCredentialsMapVPToken(t *testing.T) {
 	if len(creds) != 4 {
 		t.Fatalf("expected 4 credentials, got %d: %v", len(creds), labels)
 	}
-	// Credential order can vary because extraction iterates over maps.
+	// Extraction iterates over maps, so the credential order varies.
 	credSet := make(map[string]bool)
 	for _, c := range creds {
 		credSet[c] = true

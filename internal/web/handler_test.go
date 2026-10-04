@@ -608,7 +608,7 @@ func TestHandleDecode_JWTWithTimestamps(t *testing.T) {
 	result := decodeResponse(t, w)
 	p := result["payload"].(map[string]any)
 
-	// Keep timestamps numeric so the UI can format hover text.
+	// Timestamps must stay numeric so the UI can format hover text.
 	if _, ok := p["iat"]; !ok {
 		t.Error("payload should contain iat")
 	}
@@ -742,7 +742,7 @@ func TestHandleMetaAndImprint(t *testing.T) {
 	}
 }
 
-// ID links avoid putting large credentials in URLs.
+// An ID link serves a large credential without putting it in the URL.
 func TestCredentialByID(t *testing.T) {
 	mux := NewMuxWithOptions(MuxOptions{
 		CredentialByID: func(id string) (string, bool) {

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Deferred issuance (OpenID4VCI 1.0 §9): the credential endpoint accepts the
-// request and returns a transaction id, and the credential is handed over at
-// the deferred credential endpoint once it is ready.
+// Deferred issuance (OpenID4VCI 1.0 §9). The credential endpoint accepts the
+// request and returns a transaction id. The deferred credential endpoint
+// returns the credential once it is ready.
 
 package demorp
 
@@ -25,14 +25,14 @@ import (
 )
 
 const (
-	// Delay long enough to show the pending state without making the demo slow.
+	// deferredReadyDelay is long enough to show the pending state in the UI and
+	// short enough to keep the demo quick.
 	deferredReadyDelay  = 5 * time.Second
 	deferredPollSeconds = 2
 )
 
-// deferredTicket is an issuance the credential endpoint accepted but has not
-// handed over yet. The proof keys and the grant are held so the same credential
-// batch can be signed once it is ready.
+// deferredTicket keeps the proof keys and the grant of an accepted issuance.
+// The batch is signed from them once it is ready.
 type deferredTicket struct {
 	holderKeys []*ecdsa.PublicKey
 	granted    ticketGrant
@@ -57,8 +57,8 @@ func (d *DemoRP) deferIssuance(holderKeys []*ecdsa.PublicKey, granted ticketGran
 }
 
 // handleDeferredCredential is the Deferred Credential Endpoint of §9.2. It
-// answers with a transaction_id and an interval while the credential is not
-// ready, and with the credentials array once it is.
+// returns a transaction_id and an interval until the credential is ready.
+// Then it returns the credentials array.
 func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 
@@ -86,8 +86,7 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_transaction_id", "unknown or expired transaction id"))
 		return
 	}
-	// The deferred request carries the same access token as the one that
-	// started the issuance, so a different token cannot collect the credential.
+	// Only the access token that started the issuance can collect the credential.
 	if pending.token != token {
 		writeJSON(w, http.StatusUnauthorized, oauthError("invalid_token", "the access token does not match this transaction"))
 		return
@@ -105,7 +104,8 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 	}
 
 	if time.Now().Before(pending.readyAt) {
-		// §9.2: still working, a 202 with the transaction id and an interval.
+		// §9.2: the credential is not ready, so answer 202 with the transaction
+		// id and an interval.
 		writeJSON(w, http.StatusAccepted, map[string]any{
 			"transaction_id": req.TransactionID,
 			"interval":       deferredPollSeconds,
@@ -113,8 +113,8 @@ func (d *DemoRP) handleDeferredCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Claim the transaction before signing, so two polls that arrive at once
-	// issue the batch once, not twice.
+	// Claim the transaction before signing. Two polls that arrive at the same
+	// time then issue the batch only once.
 	d.mu.Lock()
 	_, stillPending := d.deferred[req.TransactionID]
 	delete(d.deferred, req.TransactionID)

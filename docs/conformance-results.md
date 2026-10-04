@@ -2,6 +2,34 @@
 
 Reproduce these runs with [Running OIDF Wallet Conformance](./conformance-run.md).
 
+## Run of 2026-10-04 (2.6.0)
+
+The release was checked against suite `release-v5.2.4` (revision `ab35a8d`) in strict mode. The full wallet matrix ran with file storage. Memory and Postgres each ran the 10 HAIP plans. The demo issuer and verifier ran all nine plans.
+
+| Target | Configurations | Modules | `PASSED` | `REVIEW` | `WARNING` | `FAILED` |
+|---|---:|---:|---:|---:|---:|---:|
+| Wallet, file | 78 | 736 | 530 | 178 | 26 | 2 |
+| Wallet, memory, HAIP | 10 | 228 | 166 | 34 | 26 | 2 |
+| Wallet, Postgres, HAIP | 10 | 228 | 166 | 34 | 26 | 2 |
+| Demo issuer and verifier | 9 | 101 | 61 | 36 | 4 | 0 |
+
+The two failures in each wallet run come from the suite. It fails to construct the multisigned presentation (see [the baseline](#baseline)). The 26 warnings are the IACA path length advisory described for 2.5.0. All 36 demo verifier outcomes matched expectations.
+
+Earlier runs had 32 mdoc pre-authorized issuance failures. The suite caused them. In a pre-authorized flow the suite decides which credential the token covers. Its `simple` variant always picks the scope `eudi.pid.1`, so an mdoc offer got a token for an SD-JWT. The harness now runs the mdoc pre-authorized plans with the `rar` variant. In that variant the suite uses the offered configuration. All 8 plans passed with 40 modules. The wallet now also requests the identifier of the offered configuration. It warns when a token covers only a different one.
+
+The suite stopped the first file run after three of those failures in a row. The remaining plans ran one at a time. Two modules stopped on suite alias conflicts. Both passed when their plans were rerun.
+
+The full Go race suite and all 187 browser tests passed on each of file, memory and Postgres storage. Vet, lint, the installation check, all 31 Python tests and the benchmark smoke check also passed.
+
+Two load tests ran against two wallet servers built from the release tree and sharing one Postgres database:
+
+| Run | Issuances | Presentations and callbacks | Duration | Issuance p95 | Presentation p95 |
+|---|---:|---:|---:|---:|---:|
+| Default | 160 | 240 | 4.694 s | 402 ms | 332 ms |
+| Stress | 640 | 960 | 31.588 s | 1.168 s | 973 ms |
+
+Both runs passed every correctness check.
+
 ## Check of 2026-10-02 (2.5.1 activity display and deferred exchanges)
 
 The full Go race suite, all 159 browser tests and all 31 Python tests passed. Lint reported no issues. Integration tests checked deferred requests and responses, pending replies, errors, encrypted wire values and plaintext. Immediate and deferred batch import entries were checked against the credentials actually stored. Browser tests opened every returned and imported credential in a batch through its decoder button. CLI tests confirmed unchanged text, verbose and JSON output.

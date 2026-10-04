@@ -285,8 +285,8 @@ func printLeafSourceNote(source string, opts output.Options) {
 }
 
 // verifyWithBestKey verifies with x5cKey when the credential carries one,
-// since the embedded certificate is what the issuer bound the token to.
-// Otherwise it tries pubKeys and returns the first valid result, or the last.
+// because the issuer bound the token to its embedded certificate. Otherwise
+// it tries pubKeys and returns the first valid result, or the last one.
 func verifyWithBestKey[T any](pubKeys []crypto.PublicKey, x5cKey crypto.PublicKey, verify func(crypto.PublicKey) (T, bool)) T {
 	if x5cKey != nil {
 		result, _ := verify(x5cKey)
@@ -319,8 +319,8 @@ func checkStatus(claims map[string]any, tlCerts []trustlist.CertInfo, opts outpu
 		}
 	}
 
-	// Any failure of the section 8.3 steps comes back as an error, so there
-	// is no path here that prints a status the signature did not cover.
+	// Every failed section 8.3 step returns an error, so a printed status is
+	// always covered by the verified signature.
 	result, err := statuslist.CheckWithOptions(ref, checkOpts)
 	if err != nil {
 		return fmt.Errorf("status check: %w", err)

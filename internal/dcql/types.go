@@ -21,8 +21,8 @@ type Query struct {
 
 // CredentialQuery defines a single credential request. OID4VP 1.0 §6.1 makes
 // id, format and meta REQUIRED, so meta is written even when empty ("If empty,
-// no specific constraints are placed on the metadata"). claims is optional but
-// "a non-empty array" when present, so an empty one is left out.
+// no specific constraints are placed on the metadata"). claims is optional. When
+// present it must be "a non-empty array", so an empty one is omitted.
 type CredentialQuery struct {
 	ID     string         `json:"id"`
 	Format string         `json:"format"`
@@ -35,8 +35,8 @@ type CredentialMeta struct {
 	DoctypeValue string   `json:"doctype_value,omitempty"`
 }
 
-// ClaimQuery defines a single claim request.
-// Path elements are strings (object keys) or nil (array wildcard).
+// ClaimQuery defines a single claim request. Path elements are strings for
+// object keys or nil for an array wildcard.
 type ClaimQuery struct {
 	Path []any `json:"path"`
 }

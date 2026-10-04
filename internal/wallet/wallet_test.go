@@ -685,8 +685,7 @@ func TestMarshalConsentRequest_MinimalFields(t *testing.T) {
 	}
 }
 
-// The signing certificate's SAN matches client_id. This verifies signature consistency
-// without trusting the signer.
+// The signing certificate's SAN matches client_id.
 func signedRequestParams(t *testing.T, dnsName, clientName string) *AuthorizationRequestParams {
 	t.Helper()
 	key, certB64, _ := testCertWithKeyDER([]string{dnsName})
@@ -1127,7 +1126,7 @@ func TestGenerateProtectedDefaults_KeepsVisitorCredentialOfBaselineType(t *testi
 		t.Fatalf("first GenerateProtectedDefaults: %v", err)
 	}
 
-	// Use the current template type to ensure a real collision.
+	// The visitor credential uses the current template type so the types collide.
 	var baselineVCT string
 	for _, c := range w.GetCredentials() {
 		if c.Format == "dc+sd-jwt" {

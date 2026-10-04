@@ -16,7 +16,7 @@ package wallet
 
 import "testing"
 
-// Accept an ID prefix only when it identifies one credential.
+// An ID prefix resolves only when it matches exactly one credential.
 func TestGetCredential_ResolvesByPrefix(t *testing.T) {
 	w := generateTestWallet(t)
 	w.RestoreCredential(StoredCredential{ID: "abcd1234ef567890", VCT: "urn:example:one"})

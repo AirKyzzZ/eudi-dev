@@ -26,34 +26,31 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
 )
 
-// Interactive Authorization (OpenID4VCI 1.1 §6): this issuer asks for a PID
-// before it issues a ticket, and does it at the Authorization Challenge
-// Endpoint rather than by sending the user to a browser. It acts as the
-// Verifier of that presentation itself.
+// Interactive Authorization (OpenID4VCI 1.1 §6). The issuer asks for a PID at
+// the Authorization Challenge Endpoint before it issues. It verifies that
+// presentation itself.
 const (
 	interactionTypePresentation = "urn:openid:dcp:ia:openid4vp_presentation"
 
-	// interactionTypeAuthViaWeb is the browser interaction of §6.2.1.2: the
-	// issuer hands the wallet a request_uri, and the sign-in happens at the
-	// authorization endpoint like any redirect flow.
+	// interactionTypeAuthViaWeb is the browser interaction of §6.2.1.2. The
+	// wallet gets a request_uri and the user signs in at the authorization
+	// endpoint.
 	interactionTypeAuthViaWeb = "urn:openid:dcp:ia:auth_via_web"
 
 	challengePath = "/authorize-challenge"
 )
 
-// Keep authorization mode on the offer so one demo can serve both presentation and
-// browser flows.
+// Each offer has its own authorization mode.
 const (
 	// authorizationPresentation requires a PID at the Authorization Challenge
 	// Endpoint (OpenID4VCI 1.1 §6).
 	authorizationPresentation = "presentation"
-	// authorizationBrowser sends the user to the sign-in page, which a wallet
-	// using interactive authorization is told about with redirect_to_web.
+	// authorizationBrowser sends the user to the sign-in page. A wallet using
+	// interactive authorization learns about it from redirect_to_web.
 	authorizationBrowser = "browser"
 )
 
-// Default to browser sign-in because it works with wallets that lack interactive
-// authorization.
+// Browser sign-in is the default because every wallet supports it.
 func normalizeAuthorizationMode(value string) string {
 	if strings.TrimSpace(value) == authorizationPresentation {
 		return authorizationPresentation
@@ -62,8 +59,8 @@ func normalizeAuthorizationMode(value string) string {
 }
 
 // interactiveSession is one Authorization Challenge conversation. A
-// presentation session carries the request to verify. A browser session
-// carries what a repeated auth_via_web answer needs instead.
+// presentation session holds the request to verify. A browser session holds
+// the data needed to repeat the auth_via_web answer.
 type interactiveSession struct {
 	id            string
 	clientID      string
@@ -74,27 +71,26 @@ type interactiveSession struct {
 	expires       time.Time
 
 	// browser marks an auth_via_web session (§6.2.1.2). The sign-in finishes
-	// at the authorization endpoint, so a wallet returning here with this
-	// auth_session wants the interaction again.
+	// at the authorization endpoint. A wallet that comes back here with this
+	// auth_session gets the interaction again.
 	browser     bool
 	redirectURI string
 	state       string
 }
 
-// challengeEndpoint is the URL wallets are told to use, and the value every
-// presentation made through it is bound to.
+// challengeEndpoint is the advertised URL. Every presentation made through it
+// is bound to this value.
 func (d *DemoRP) challengeEndpoint() string {
 	return d.issuerID() + challengePath
 }
 
 // handleAuthorizationChallenge is the Authorization Challenge Endpoint of
-// §6.1. The first request is answered with the presentation this issuer
-// requires (§6.2.1.1), and the request carrying that presentation is answered
-// with an authorization code.
+// §6.1. The first answer is the presentation request (§6.2.1.1). The request
+// that carries the presentation gets an authorization code.
 func (d *DemoRP) handleAuthorizationChallenge(w http.ResponseWriter, r *http.Request) {
-	// The endpoint is DPoP-bound and client-authenticated like the token
-	// endpoint: §6.1 notes a Wallet Attestation "has to be included in this
-	// request" where the server requires one.
+	// DPoP and client authentication work as at the token endpoint. §6.1 says
+	// a Wallet Attestation "has to be included in this request" if the server
+	// requires one.
 	jkt, err := d.verifyDPoPProof(r, d.challengeEndpoint(), "")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_dpop_proof", err.Error()))
@@ -130,9 +126,9 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Use auth_via_web when advertised (OpenID4VCI 1.1 §6.2.1.2). Other wallets use
-	// redirect_to_web from first-party-apps §5.2.2.1.1, which requires no advertised
-	// interaction support.
+	// Use auth_via_web if the wallet supports it (OpenID4VCI 1.1 §6.2.1.2).
+	// Other wallets get redirect_to_web from first-party-apps §5.2.2.1.1,
+	// which needs no advertised interaction type.
 	issuerState := r.PostFormValue("issuer_state")
 	offered := r.PostFormValue("interaction_types_supported")
 	if d.offerAuthorization(issuerState) == authorizationBrowser {
@@ -144,8 +140,8 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// §6.2.2: the wallet offered no interaction type this server can finish
-	// the authorization with.
+	// §6.2.2: the wallet supports none of the interaction types this server
+	// offers.
 	if !offersInteractionType(offered, interactionTypePresentation) {
 		writeJSON(w, http.StatusBadRequest, oauthError("missing_interaction_type",
 			"interaction_types_supported in the request is missing the required interaction type '"+interactionTypePresentation+"'"))
@@ -183,9 +179,8 @@ func (d *DemoRP) startInteractiveAuthorization(w http.ResponseWriter, r *http.Re
 	})
 }
 
-// continueInteractiveAuthorization reads the presentation out of an
-// Intermediate Request (§6.1.2), verifies it, and issues the authorization
-// code that the token endpoint then exchanges.
+// continueInteractiveAuthorization verifies the presentation in an
+// Intermediate Request (§6.1.2) and issues an authorization code.
 func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http.Request, sessionID, clientID string) {
 	d.mu.Lock()
 	session, known := d.interactive[sessionID]
@@ -214,9 +209,8 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, oauthError("invalid_request", "openid4vp_response is not a JSON object: "+err.Error()))
 		return
 	}
-	// §6.2.1.1 lets the wallet answer with the Authorization Error Response
-	// instead of a presentation, which is how it says it cannot satisfy the
-	// request.
+	// §6.2.1.1: a wallet that cannot satisfy the request answers with an
+	// Authorization Error Response.
 	if refusal, _ := response["error"].(string); refusal != "" {
 		detail, _ := response["error_description"].(string)
 		d.finishRequest(session.request, nil, nil, fmt.Errorf("the wallet refused: %s", strings.TrimSpace(refusal+" "+detail)))
@@ -230,9 +224,8 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 		return
 	}
 
-	// The same verification an OpenID4VP response gets, which includes the
-	// nonce this session handed out: §6.2.1.4 requires the presentation to be
-	// bound to the authorization session, and the nonce is what binds it.
+	// §6.2.1.4 requires the presentation to be bound to the authorization
+	// session. The session nonce provides that binding.
 	claims, checks, verifyErr := d.verifyPresentation(session.request, string(vpToken))
 	d.finishRequest(session.request, claims, checks, verifyErr)
 	if verifyErr != nil {
@@ -261,8 +254,7 @@ func (d *DemoRP) continueInteractiveAuthorization(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{"authorization_code": code})
 }
 
-// Unknown issuer_state values default to browser sign-in for compatibility with
-// wallets without interactive authorization.
+// An unknown issuer_state gets browser sign-in, which every wallet supports.
 func (d *DemoRP) offerAuthorization(issuerState string) string {
 	if issuerState == "" {
 		return authorizationBrowser
@@ -277,8 +269,8 @@ func (d *DemoRP) offerAuthorization(issuerState string) string {
 	return authorizationBrowser
 }
 
-// Build PAR state from the challenge request for browser sign-in. Apply the same state
-// limit as the PAR endpoint.
+// pushChallengeAuthRequest stores a pushed authorization request for browser
+// sign-in. It uses the same entry limit as the PAR endpoint.
 func (d *DemoRP) pushChallengeAuthRequest(clientID, codeChallenge, issuerState, redirectURI, state, scope string) (*authRequestState, bool) {
 	request := &authRequestState{
 		requestURI:    requestURIPrefix + randToken(),
@@ -301,11 +293,9 @@ func (d *DemoRP) pushChallengeAuthRequest(clientID, codeChallenge, issuerState, 
 }
 
 // startAuthViaWebInteraction answers with the browser interaction of
-// §6.2.1.2: an Interaction Required Response whose request_uri the wallet
-// turns into an authorization request (RFC 9126 §4). The sign-in happens at
-// the authorization endpoint and the redirect back to the wallet carries the
-// authorization code, so this conversation never returns to the challenge
-// endpoint.
+// §6.2.1.2. The wallet uses the request_uri for an authorization request
+// (RFC 9126 §4). The authorization code arrives with the redirect from the
+// authorization endpoint.
 func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, r *http.Request, clientID, codeChallenge, issuerState string) {
 	redirectURI := r.PostFormValue("redirect_uri")
 	if redirectURI == "" {
@@ -314,9 +304,9 @@ func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// The session is stored because §6.2.1 has the wallet send auth_session
-	// on every further challenge request. A wallet that comes back with it
-	// (after an abandoned sign-in) gets the interaction again.
+	// §6.2.1 has the wallet send auth_session on every later challenge
+	// request. A wallet that abandoned the sign-in and comes back gets the
+	// interaction again.
 	session := &interactiveSession{
 		id:            randToken(),
 		clientID:      clientID,
@@ -343,8 +333,7 @@ func (d *DemoRP) startAuthViaWebInteraction(w http.ResponseWriter, r *http.Reque
 }
 
 // answerAuthViaWeb answers a browser session with the Interaction Required
-// Response of §6.2.1.2, pushing a fresh authorization request for the wallet
-// to take to the authorization endpoint.
+// Response of §6.2.1.2. Each answer pushes a fresh authorization request.
 func (d *DemoRP) answerAuthViaWeb(w http.ResponseWriter, session *interactiveSession) {
 	request, ok := d.pushChallengeAuthRequest(session.clientID, session.codeChallenge, session.issuerState, session.redirectURI, session.state, session.scope)
 	if !ok {
@@ -360,10 +349,9 @@ func (d *DemoRP) answerAuthViaWeb(w http.ResponseWriter, session *interactiveSes
 	})
 }
 
-// redirectChallengeToWeb answers with redirect_to_web and the pushed
-// authorization request the wallet is to continue with, for a wallet that did
-// not offer the auth_via_web interaction. The sign-in happens in a browser
-// and the flow finishes at the authorization endpoint.
+// redirectChallengeToWeb answers a wallet without auth_via_web support. It
+// returns redirect_to_web with a pushed authorization request for the
+// browser sign-in.
 func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, clientID, codeChallenge, issuerState string) {
 	redirectURI := r.PostFormValue("redirect_uri")
 	if redirectURI == "" {
@@ -385,8 +373,8 @@ func (d *DemoRP) redirectChallengeToWeb(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-// newInteractivePIDRequest builds the presentation this issuer asks for: a PID
-// in either format, bound to the Authorization Challenge Endpoint.
+// newInteractivePIDRequest asks for a PID in either format, bound to the
+// Authorization Challenge Endpoint.
 func (d *DemoRP) newInteractivePIDRequest() *requestState {
 	return &requestState{
 		id:                  randToken(),
@@ -404,10 +392,9 @@ func (d *DemoRP) newInteractivePIDRequest() *requestState {
 	}
 }
 
-// OpenID4VCI 1.1 §6.2.1.1 uses a Digital Credentials API request form. Sign it with an
-// x509_hash client ID so the wallet can check the certificate binding. This verifies
-// the signature without establishing trust in the signer. If signing material is
-// unavailable, use the draft's unsigned form.
+// OpenID4VCI 1.1 §6.2.1.1 uses the Digital Credentials API request form. The
+// request is signed with an x509_hash client ID. Without signing material it
+// is sent unsigned.
 func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]any {
 	sdjwtCred := map[string]any{
 		"id":     req.queryID,
@@ -421,9 +408,8 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 		"meta":   map[string]any{"doctype_value": req.docType},
 		"claims": namespacedClaimPaths(req.docType, req.wantMDOC),
 	}
-	// verifyPresentation accepts only a credential chaining to this issuer's own
-	// CA, so the query pins that CA as a trusted authority by its key identifier.
-	// A wallet then offers only a credential that would pass.
+	// verifyPresentation accepts only credentials under the issuer CA. Listing
+	// that CA in trusted_authorities lets the wallet pick a matching credential.
 	if aki := d.trustAnchorAKI(); aki != "" {
 		authorities := []map[string]any{{"type": "aki", "values": []string{aki}}}
 		sdjwtCred["trusted_authorities"] = authorities
@@ -437,8 +423,7 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 		"expected_origins": []string{originOf(d.challengeEndpoint())},
 		"dcql_query": map[string]any{
 			"credentials": []map[string]any{sdjwtCred, mdocCred},
-			// Either format satisfies the request, so a wallet holding one of
-			// them is not asked for both.
+			// Either format satisfies the request.
 			"credential_sets": []map[string]any{{
 				"options": [][]string{{req.queryID}, {req.mdocQueryID}},
 			}},
@@ -450,10 +435,9 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 		return claims
 	}
 
-	// The purpose of the request, carried in a registration certificate
-	// (rc-wrp+jwt) in verifier_info (OpenID4VP 1.0 §5.1) like the demo
-	// verifier's requests. It registers the same credential queries the request
-	// asks for, so the wallet's over-asking check (ARF RPRC_21) passes.
+	// The registration certificate (rc-wrp+jwt) goes in verifier_info
+	// (OpenID4VP 1.0 §5.1). It registers the same credential queries as the
+	// request, so the wallet over-asking check of ARF RPRC_21 passes.
 	registrarKey, registrarChain, err := d.wallet.RegistrarSigningMaterial()
 	if err != nil {
 		return claims
@@ -470,8 +454,7 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 		}}
 	}
 
-	// The x509_hash client ID binds the request to its signing certificate. It does
-	// not establish trust in that certificate.
+	// The x509_hash client ID binds the request to its signing certificate.
 	claims["client_id"] = wallet.X509HashClientID(chain[0])
 	jar, jerr := wallet.SignRequestObjectJWT(claims, signingKey, chain)
 	if jerr != nil {
@@ -481,9 +464,9 @@ func (d *DemoRP) interactivePresentationRequest(req *requestState) map[string]an
 	return map[string]any{"request": jar}
 }
 
-// trustAnchorAKI is this issuer's CA key identifier, base64url-encoded, as a
-// wallet reads it from the AuthorityKeyIdentifier of a credential's leaf
-// certificate. Empty when no CA is available.
+// trustAnchorAKI is the base64url key identifier of the issuer CA. Wallets
+// match it against the AuthorityKeyIdentifier of a leaf certificate. It is
+// empty without a CA.
 func (d *DemoRP) trustAnchorAKI() string {
 	ca := d.wallet.TrustAnchorCertificate()
 	if ca == nil || len(ca.SubjectKeyId) == 0 {
@@ -508,8 +491,8 @@ func namespacedClaimPaths(namespace string, names []string) []map[string]any {
 	return paths
 }
 
-// offersInteractionType reports whether a comma-separated
-// interaction_types_supported names the given type (§6.1.1).
+// offersInteractionType reports whether the comma-separated
+// interaction_types_supported list contains want (§6.1.1).
 func offersInteractionType(list, want string) bool {
 	for _, entry := range strings.Split(list, ",") {
 		if strings.TrimSpace(entry) == want {
@@ -519,8 +502,8 @@ func offersInteractionType(list, want string) bool {
 	return false
 }
 
-// Issue to the person identified by the presented PID. This flow does not use the demo
-// login account.
+// presentedHolder is the name from the presented PID. The credential is
+// issued to that person.
 func presentedHolder(claims map[string]any) string {
 	given, _ := claims["given_name"].(string)
 	family, _ := claims["family_name"].(string)

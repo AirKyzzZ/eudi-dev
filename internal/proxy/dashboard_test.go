@@ -128,7 +128,6 @@ func TestHandleEntriesEmpty(t *testing.T) {
 
 	var entries []map[string]any
 	json.NewDecoder(w.Result().Body).Decode(&entries)
-	// json.Decode on `null` returns nil for slices
 	if len(entries) != 0 {
 		t.Errorf("expected empty entries, got %d", len(entries))
 	}
@@ -173,8 +172,7 @@ func TestHandleStream(t *testing.T) {
 		t.Errorf("expected Content-Type text/event-stream, got %s", ct)
 	}
 
-	// Wait for subscription before adding an entry, or the notification may be lost
-	// and the test may time out.
+	// An entry added before the subscription exists is never delivered.
 	deadline := time.Now().Add(2 * time.Second)
 	for store.SubscriberCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
@@ -206,7 +204,7 @@ func TestHandleStream(t *testing.T) {
 		t.Error("no SSE data line found")
 	}
 
-	// Close response body first, then server. Avoids hanging on unsub drain
+	// The body closes before the server, so unsubscribe does not hang.
 	resp.Body.Close()
 	srv.Close()
 }

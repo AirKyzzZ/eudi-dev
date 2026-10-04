@@ -28,9 +28,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// A self-signed leaf is what HAIP §6.1.1 forbids for the credential's signer.
-// CheckSignatureFrom rejects a non-CA certificate on CA constraints before it
-// verifies the signature, so the check cannot rely on it.
+// HAIP §6.1.1 forbids a self-signed certificate for the credential's signer.
+// A self-signed end-entity leaf must be detected.
 func TestSelfSignedCertificate(t *testing.T) {
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -49,7 +48,6 @@ func TestSelfSignedCertificate(t *testing.T) {
 		t.Fatalf("generating CA-signed leaf: %v", err)
 	}
 
-	// A self-signed end-entity certificate: its own issuer, IsCA false.
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "self-signed leaf"},
@@ -84,8 +82,7 @@ func TestSelfSignedCertificate(t *testing.T) {
 }
 
 // HAIP 1.0 §6.1 requires a status claim to contain status_list. A W3C
-// StatusList2021Entry does not and is a finding, a proper status_list or no
-// status at all is not.
+// StatusList2021Entry is a finding. A status_list or a missing status is fine.
 func TestHAIPCredentialFindings_StatusList(t *testing.T) {
 	w3c := map[string]any{"status": map[string]any{"type": "StatusList2021Entry", "statusListIndex": "0"}}
 	if findings := HAIPCredentialFindings(map[string]any{}, w3c); !containsSubstr(findings, "not a Token Status List") {

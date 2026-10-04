@@ -523,7 +523,7 @@ func TestCreateVPToken_PlainJWT(t *testing.T) {
 		t.Fatalf("CreateVPToken error: %v", err)
 	}
 
-	// A plain JWT is presented as-is: no ~ separator, no KB-JWT.
+	// A plain JWT is presented as is, without a ~ separator or a KB-JWT.
 	if result.Token != jwt {
 		t.Errorf("expected raw JWT to be returned as-is")
 	}
@@ -1338,18 +1338,18 @@ func TestEncryptJWE_A128CBCHS256(t *testing.T) {
 		t.Errorf("expected 32-byte CEK, got %d bytes", len(cek))
 	}
 
-	// Encrypted key part should be empty (ECDH-ES direct key agreement)
+	// ECDH-ES uses direct key agreement, so the encrypted key part is empty.
 	if parts[1] != "" {
 		t.Errorf("expected empty encrypted key for ECDH-ES, got %q", parts[1])
 	}
 
-	// IV should be 16 bytes (128-bit for AES-CBC)
+	// AES-CBC uses a 128-bit IV.
 	ivBytes, _ := format.DecodeBase64URL(parts[2])
 	if len(ivBytes) != 16 {
 		t.Errorf("expected 16-byte IV, got %d bytes", len(ivBytes))
 	}
 
-	// Tag should be 16 bytes (128-bit truncated HMAC)
+	// A128CBC-HS256 truncates the HMAC tag to 128 bits.
 	tagBytes, _ := format.DecodeBase64URL(parts[4])
 	if len(tagBytes) != 16 {
 		t.Errorf("expected 16-byte tag, got %d bytes", len(tagBytes))

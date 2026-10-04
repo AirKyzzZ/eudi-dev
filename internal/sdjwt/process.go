@@ -20,21 +20,20 @@ import "fmt"
 // Issuer-signed JWT payload and the Disclosure values reached from it.
 type processor struct {
 	byDigest map[string]*Disclosure
-	// seen records every embedded digest encountered anywhere in the
-	// credential, for step 4.
+	// seen records every embedded digest in the credential, for step 4.
 	seen map[string]bool
 	// used records the digests that resolved to a Disclosure, for step 5.
 	used map[string]bool
-	// Keep recoverable violations so lenient parsing can continue and strict parsing
-	// can reject them.
+	// deviations holds recoverable violations. Lenient parsing continues past them
+	// and strict parsing rejects them.
 	deviations []string
-	// Report repeated digests once, even when many claims are mirrored.
+	// A repeated digest is reported once, even when many claims are mirrored.
 	reportedDuplicateDigest bool
 }
 
-// Resolve claims under RFC 9901 §7.1 steps 3 to 5 and record recoverable violations.
-// Parse rejects every violation, while lenient callers can inspect the remaining
-// claims.
+// processPayload resolves claims under RFC 9901 §7.1 steps 3 to 5 and records
+// recoverable violations. Parse rejects every violation. Lenient callers inspect the
+// remaining claims.
 func processPayload(payload map[string]any, disclosures []Disclosure) (map[string]any, []string, error) {
 	p := &processor{
 		byDigest: make(map[string]*Disclosure, len(disclosures)),
@@ -69,10 +68,10 @@ func processPayload(payload map[string]any, disclosures []Disclosure) (map[strin
 	return resolved, p.deviations, nil
 }
 
-// object processes one JSON object of the payload: it keeps the claims that
-// are already there, inserts the claims disclosed by the digests in its "_sd"
-// array, and drops the "_sd" key itself (§7.1 steps 3.b.i, 3.c.ii and 3.e).
-// top marks the SD-JWT payload itself, the only object where _sd_alg belongs.
+// object processes one JSON object of the payload. It keeps the existing
+// claims, inserts the claims disclosed by the digests in its "_sd" array and
+// drops the "_sd" key (§7.1 steps 3.b.i, 3.c.ii and 3.e). top marks the
+// SD-JWT payload, the only object where _sd_alg belongs.
 func (p *processor) object(obj map[string]any, top bool) map[string]any {
 	result := make(map[string]any, len(obj))
 
@@ -84,7 +83,7 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 			continue
 		case "_sd_alg":
 			// RFC 9901 §7.1 step 3.f removes _sd_alg. Section 4.1.1 forbids nested
-			// copies, so remove them and record a deviation.
+			// copies, so a nested copy is a deviation.
 			if !top {
 				p.deviations = append(p.deviations, "_sd_alg is inside a nested object. RFC 9901 §4.1.1 allows it only at the top level.")
 			}
@@ -112,9 +111,8 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 			p.deviations = append(p.deviations, `an "_sd" array entry is not a string, which RFC 9901 §4.2.4.1 requires, so it is skipped`)
 			continue
 		}
-		// A digest repeated in one _sd array would insert the same claim twice,
-		// so the repeat is skipped. markSeen handles the same digest reached
-		// through different objects, which is the mirrored-claims pattern.
+		// A digest repeated in one _sd array would insert the same claim twice.
+		// markSeen handles a digest reached through different objects.
 		if localSeen[digest] {
 			p.deviations = append(p.deviations, fmt.Sprintf("digest %s appears more than once in one _sd array, so the repeat is skipped", shortDigest(digest)))
 			continue
@@ -140,7 +138,7 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 		}
 		if _, exists := result[disc.Name]; exists {
 			// Step 3.c.ii.3: a disclosure MUST NOT redefine a claim that already
-			// exists at this level (a signed vct, say). The existing value stays.
+			// exists at this level, such as a signed vct. The existing value stays.
 			p.deviations = append(p.deviations, fmt.Sprintf("disclosure %s discloses claim %q, which already exists at this level (RFC 9901 §7.1 does not let a disclosure redefine an existing claim), so the existing value stays", shortDigest(digest), disc.Name))
 			continue
 		}
@@ -153,9 +151,9 @@ func (p *processor) object(obj map[string]any, top bool) map[string]any {
 	return result
 }
 
-// array processes one JSON array: each {"...": digest} placeholder is
-// replaced by its disclosed value, and a placeholder with no Disclosure is
-// dropped (§7.1 steps 3.c.iii and 3.d).
+// array processes one JSON array. Each {"...": digest} placeholder becomes its
+// disclosed value. A placeholder with no Disclosure is dropped (§7.1 steps
+// 3.c.iii and 3.d).
 func (p *processor) array(arr []any) []any {
 	result := make([]any, 0, len(arr))
 
@@ -174,9 +172,7 @@ func (p *processor) array(arr []any) []any {
 		disc, found := p.byDigest[digest]
 		if !found {
 			// Step 3.d: "Remove all array elements for which the digest was
-			// not found in the previous step." Leaving the placeholder in
-			// place would present a digest to the application as if it were
-			// the element's value.
+			// not found in the previous step."
 			continue
 		}
 		if !disc.IsArrayEntry {
@@ -209,8 +205,8 @@ func (p *processor) value(v any) any {
 // payload (directly or recursively via other Disclosures), the SD-JWT MUST be
 // rejected." §4.1 states the same rule for the Issuer: "The same digest value
 // MUST NOT appear more than once in the SD-JWT."
-// A digest reached through two objects (a mirrored credentialSubject copy)
-// hits this rule but resolves the same disclosure into both. Lenient parsing
+// A digest reached through two objects, such as a mirrored credentialSubject,
+// breaks this rule and resolves the same disclosure into both. Lenient parsing
 // records the break once as a deviation.
 func (p *processor) markSeen(digest string) {
 	if p.seen[digest] {
@@ -223,8 +219,8 @@ func (p *processor) markSeen(digest string) {
 	p.seen[digest] = true
 }
 
-// arrayElementDigest reports the digest an array element hides, if it is a
-// digest placeholder at all. RFC 9901 §4.2.4.2: "For each digest, an object
+// arrayElementDigest returns the digest of an array element that is a digest
+// placeholder. RFC 9901 §4.2.4.2: "For each digest, an object
 // of the form {"...": "<digest>"} is added to the array. The key MUST always
 // be the string ... (three dots). The value MUST be the digest of the
 // Disclosure created as described in Section 4.2.3. There MUST NOT be any
@@ -248,7 +244,7 @@ func arrayElementDigest(item any) (digest string, isPlaceholder bool, err error)
 	return value, true, nil
 }
 
-// Shorten digest labels while retaining enough to locate them in the payload.
+// shortDigest keeps enough of a digest to find it in the payload.
 func shortDigest(digest string) string {
 	const shown = 12
 	if len(digest) <= shown {

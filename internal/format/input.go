@@ -26,17 +26,16 @@ import (
 	"time"
 )
 
-// DefaultRemoteTimeout keeps unresponsive issuers and verifiers from delaying flows
-// indefinitely.
+// DefaultRemoteTimeout stops an unresponsive issuer or verifier from stalling a flow.
 const DefaultRemoteTimeout = 15 * time.Second
 
-// Allow longer waits for slow counterparties, such as a conformance suite sharing the
-// host.
+// remoteTimeoutEnv allows longer waits for a slow peer, such as a conformance suite
+// on the same host.
 const remoteTimeoutEnv = "EUDI_REMOTE_TIMEOUT"
 
 var remoteTimeout = resolveRemoteTimeout(os.Getenv(remoteTimeoutEnv))
 
-// Invalid or nonpositive durations keep the default. They must not disable timeouts.
+// An invalid or nonpositive duration keeps the default, so a timeout always applies.
 func resolveRemoteTimeout(raw string) time.Duration {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -65,8 +64,8 @@ func newPolicyTransport() *http.Transport {
 func newLocalPolicyTransport() *http.Transport {
 	transport := newPolicyTransport()
 	transport.Proxy = nil
-	// On the host, host.docker.internal may not resolve. Fall back to localhost so
-	// URLs issued for Docker clients also work locally.
+	// host.docker.internal may not resolve on the host. Localhost serves the same
+	// endpoint, so URLs issued for Docker clients also work locally.
 	dialer := &net.Dialer{Timeout: 10 * time.Second, Control: dialControl}
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		conn, err := dialer.DialContext(ctx, network, addr)
@@ -123,7 +122,7 @@ func readFile(path string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
-// ReadInput reads credential input from: URL, file path, "-" for stdin, or raw string.
+// ReadInput reads credential input from a URL, a file path, "-" for stdin or a raw string.
 func ReadInput(input string) (string, error) {
 	input = strings.TrimSpace(input)
 
@@ -135,9 +134,8 @@ func ReadInput(input string) (string, error) {
 		return FetchURL(input)
 	}
 
-	// Try as file path. Inputs with a URI scheme (openid-credential-offer://,
-	// file://, ...) are never file paths. Without this guard they could name
-	// files on unusual filesystems.
+	// An input with a URI scheme such as openid-credential-offer:// is never a file
+	// path, even on a filesystem that allows such names.
 	if !strings.Contains(input, "://") {
 		if _, err := os.Stat(input); err == nil {
 			return readFile(input)
@@ -147,10 +145,9 @@ func ReadInput(input string) (string, error) {
 	return input, nil
 }
 
-// ReadRemoteInput reads credential input in server context: http(s) URLs are
-// fetched, everything else is returned verbatim. Unlike ReadInput it never
-// touches stdin or the local filesystem, so visitor-supplied values cannot
-// name files on the server.
+// ReadRemoteInput reads credential input in a server. It fetches http(s) URLs and
+// returns everything else verbatim. It never reads stdin or the local filesystem,
+// so a visitor cannot read files on the server.
 func ReadRemoteInput(input string) (string, error) {
 	input = strings.TrimSpace(input)
 	if strings.HasPrefix(input, "https://") || strings.HasPrefix(input, "http://") {
@@ -159,9 +156,8 @@ func ReadRemoteInput(input string) (string, error) {
 	return input, nil
 }
 
-// ReadInputRaw reads input from stdin, a file, or returns the raw string.
-// Unlike ReadInput, it does NOT HTTP-fetch URLs. Useful when the caller
-// needs to detect the format before deciding whether to fetch.
+// ReadInputRaw reads input from stdin or a file, or returns the raw string. It
+// never fetches URLs, so the caller can detect the format before it fetches.
 func ReadInputRaw(input string) (string, error) {
 	input = strings.TrimSpace(input)
 
@@ -182,10 +178,10 @@ func ReadInputRaw(input string) (string, error) {
 	return input, nil
 }
 
-// MaxRemoteBytes limits credential, metadata and status list responses consistently.
+// MaxRemoteBytes limits credential, metadata and status list responses.
 const MaxRemoteBytes = maxFetchBytes
 
-// ReadRemoteBody limits response size so peers cannot exhaust process memory.
+// ReadRemoteBody limits the response size, so a peer cannot exhaust process memory.
 func ReadRemoteBody(r io.Reader, what string) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(r, MaxRemoteBytes+1))
 	if err != nil {
@@ -200,9 +196,8 @@ func ReadRemoteBody(r io.Reader, what string) ([]byte, error) {
 const maxFetchBytes = 10 << 20
 
 // fetchAttempts is how many times a remote read is tried when the server does
-// not answer at all. Only a request that got no response is repeated: OpenID4VP
-// 1.0 §5.10.2 says "If the Verifier responds with any HTTP error response, the
-// Wallet MUST terminate the process", and a timeout is not a response.
+// not answer. OpenID4VP 1.0 §5.10.2 says "If the Verifier responds with any HTTP
+// error response, the Wallet MUST terminate the process". A timeout is no response.
 const fetchAttempts = 3
 
 var fetchRetryDelay = 500 * time.Millisecond
@@ -214,7 +209,7 @@ func FetchURL(url string, clients ...*http.Client) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("fetching %s: %w", url, err)
 		}
-		// Go sends no Accept header by default. Some servers reject that.
+		// Go sends no Accept header by default, and some servers reject such requests.
 		req.Header.Set("Accept", "*/*")
 
 		var doErr error

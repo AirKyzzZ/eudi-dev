@@ -57,12 +57,12 @@ func TestWellKnownURLTrailingSlash(t *testing.T) {
 		wkType   string
 		expected string
 	}{
-		// RFC 8414: strip terminating "/" for OAuth AS metadata
+		// RFC 8414 §3.1 removes a terminating "/" before inserting the well-known path.
 		{"https://example.com/test/a/alias/", "oauth-authorization-server", "https://example.com/.well-known/oauth-authorization-server/test/a/alias"},
 		{"https://example.com/test/a/alias", "oauth-authorization-server", "https://example.com/.well-known/oauth-authorization-server/test/a/alias"},
 		{"https://example.com/", "oauth-authorization-server", "https://example.com/.well-known/oauth-authorization-server"},
 		{"https://example.com", "oauth-authorization-server", "https://example.com/.well-known/oauth-authorization-server"},
-		// OID4VCI 1.0 §12.2.2: preserve the credential issuer path verbatim
+		// OID4VCI 1.0 §12.2.2 keeps the credential issuer path as it is.
 		{"https://example.com/test/a/alias/", "openid-credential-issuer", "https://example.com/.well-known/openid-credential-issuer/test/a/alias/"},
 		{"https://example.com/test/a/alias", "openid-credential-issuer", "https://example.com/.well-known/openid-credential-issuer/test/a/alias"},
 	}
@@ -167,8 +167,9 @@ func TestSelectPrimaryCredentialSingle(t *testing.T) {
 	}
 }
 
-// OpenID4VCI 1.0 allows fewer returned credentials than proofs. Accept a single
-// credential bound to any supplied proof key, including an ephemeral key.
+// OpenID4VCI 1.0 allows fewer returned credentials than proofs. A single
+// credential bound to any supplied proof key is accepted, including an
+// ephemeral key.
 func TestSelectPrimaryCredentialSingleNotHolderBound(t *testing.T) {
 	holder := testKey(t)
 	ephemeral := testKey(t)
@@ -184,7 +185,7 @@ func TestSelectPrimaryCredentialSingleNotHolderBound(t *testing.T) {
 	}
 }
 
-// Keep an ephemeral binding key with a single returned credential so it remains
+// A single returned credential keeps its ephemeral binding key so it stays
 // presentable.
 func TestSingleCredentialBoundToEphemeralKeyIsPresentable(t *testing.T) {
 	w := generateTestWallet(t)
@@ -265,8 +266,8 @@ func TestFirstJWKSkipsUnusableKeys(t *testing.T) {
 	}
 }
 
-// A partial batch may omit the holder key. Match copies to distinct proof keys and use
-// the first as primary when no holder copy exists.
+// A partial batch may omit the holder key. Each copy matches a distinct proof
+// key. The first copy is primary when no copy is bound to the holder key.
 func TestSelectPrimaryCredentialFewerThanAdvertisedNoneHolderBound(t *testing.T) {
 	holder := testKey(t)
 	eph1, eph2 := testKey(t), testKey(t)
@@ -286,7 +287,7 @@ func TestSelectPrimaryCredentialFewerThanAdvertisedNoneHolderBound(t *testing.T)
 	}
 }
 
-// Store partial batch copies together with the keys matching their cnf claims.
+// Partial batch copies are stored with the keys that match their cnf claims.
 func TestPartialBatchNoneHolderBoundIsStoredAndPresentable(t *testing.T) {
 	w := generateTestWallet(t)
 	eph1, eph2 := testKey(t), testKey(t)
@@ -328,7 +329,7 @@ func TestPartialBatchNoneHolderBoundIsStoredAndPresentable(t *testing.T) {
 	}
 }
 
-// Reject two credentials bound to the same proof key.
+// Two credentials bound to the same proof key are rejected.
 func TestSelectPrimaryCredentialRejectsDuplicateKey(t *testing.T) {
 	holder := testKey(t)
 	eph := testKey(t)

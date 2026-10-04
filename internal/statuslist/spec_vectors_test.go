@@ -29,9 +29,8 @@ import (
 
 // specVector is one entry of Appendix C, "Test vectors for Status List
 // encoding", transcribed from the editor's copy of
-// draft-ietf-oauth-status-list. Section 11.1 asks for exactly this:
-// "Implementations SHOULD verify correctness using the test vectors given by
-// this specification."
+// draft-ietf-oauth-status-list. Section 11.1: "Implementations SHOULD verify
+// correctness using the test vectors given by this specification."
 type specVector struct {
 	Name string `json:"name"`
 	Bits int    `json:"bits"`
@@ -59,10 +58,10 @@ func loadSpecVectors(t *testing.T) []specVector {
 	return vectors
 }
 
-// TestSpecTestVectors_JSONEncoding reads every index the appendix names out
-// of the JSON encoding of each vector, and checks that indices the appendix
-// does not name read as VALID ("All values that are not mentioned for the
-// examples below can be assumed to be 0 (VALID)").
+// TestSpecTestVectors_JSONEncoding reads every index the appendix lists from
+// the JSON encoding of each vector. Other indices must read as VALID ("All
+// values that are not mentioned for the examples below can be assumed to be 0
+// (VALID)").
 func TestSpecTestVectors_JSONEncoding(t *testing.T) {
 	for _, vector := range loadSpecVectors(t) {
 		t.Run(vector.Name, func(t *testing.T) {
@@ -83,8 +82,7 @@ func TestSpecTestVectors_JSONEncoding(t *testing.T) {
 }
 
 // TestSpecTestVectors_CBOREncoding does the same through the CBOR encoding of
-// Section 4.3, where bits is a CBOR unsigned integer and lst a CBOR byte
-// string rather than a base64url string.
+// Section 4.3. There bits is a CBOR unsigned integer and lst a CBOR byte string.
 func TestSpecTestVectors_CBOREncoding(t *testing.T) {
 	for _, vector := range loadSpecVectors(t) {
 		t.Run(vector.Name, func(t *testing.T) {
@@ -143,8 +141,7 @@ func assertVectorStatuses(t *testing.T, vector specVector, bitstring []byte) {
 		t.Errorf("the list holds %d entries, want 2^20", entries)
 	}
 
-	// Every index the appendix does not name is VALID. Sampling is enough to
-	// catch an off-by-one in the packing without reading a million entries.
+	// Every other index is VALID. A sample catches an off-by-one in the packing.
 	for _, idx := range []int{1, 2, 100, 4095, 65536, 500000, 1<<20 - 1} {
 		if named[idx] {
 			continue
@@ -158,17 +155,16 @@ func assertVectorStatuses(t *testing.T, vector specVector, bitstring []byte) {
 		}
 	}
 
-	// One past the end supports no statement about a credential (Section
-	// 8.3: "If the provided index is out of bounds of the Status List ... the
-	// Referenced Token MUST be rejected").
+	// Section 8.3: "If the provided index is out of bounds of the Status List
+	// ... the Referenced Token MUST be rejected".
 	if _, err := extractStatus(bitstring, entries, vector.Bits); err == nil {
 		t.Error("an index one past the end was accepted")
 	}
 }
 
 // TestSpecTestVectors_ThroughTheChecker serves each appendix vector as a real
-// Status List Token and resolves it end to end, so the vectors cover the
-// fetch, verify and claim-check path and not only the bit packing.
+// Status List Token. The vectors then cover the fetch, verify and claim-check
+// path.
 func TestSpecTestVectors_ThroughTheChecker(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, vector := range loadSpecVectors(t) {

@@ -6,31 +6,31 @@
 
 ## `wallet serve`
 
-Starts the wallet HTTP server with a UI for managing credentials and handling OID4VP/OID4VCI flows. It loads credentials from the selected storage backend, saves changes and logs requests. Interactive requests show a consent dialog.
+Starts the wallet HTTP server with a UI for managing credentials and running OID4VP/OID4VCI flows. It loads credentials from the selected storage backend, saves changes and logs requests. Interactive requests show a consent dialog.
 
 The server exposes:
 
 - Web UI for credential management and consent (list, show, import, remove, and issue credentials, with credential templates and CA and TLS certificate downloads)
 - OID4VP authorization endpoint (`/authorize`)
-- OID4VCI credential offer endpoint (`/credential-offer`). Accepts `credential_offer` / `credential_offer_uri` query parameters, so offer links can target the wallet URL instead of a custom scheme (see [Invoking the wallet by URL](presenting.md#invoking-the-wallet-by-url))
+- OID4VCI credential offer endpoint (`/credential-offer`). Accepts `credential_offer` / `credential_offer_uri` query parameters. Offer links can use the wallet URL in place of a custom scheme (see [Invoking the wallet by URL](presenting.md#invoking-the-wallet-by-url))
 - Legacy ETSI trust list endpoint (`/api/trustlist`). Use this URL as `--trust-list` when validating PID credentials issued by the wallet
 - Trust list index endpoint (`/api/trustlists`) with one JWT endpoint per trust list profile
 - HTTPS wallet endpoints on the wallet's effective issuer URL, including `/.well-known/jwt-vc-issuer`, `/.well-known/openid-credential-issuer`, `/api/trustlist`, `/api/trustlists`, `/api/statuslist`, and `/api/registrar/wrp`
 - A management API mirroring the wallet CLI (list, show, import, and remove credentials, issue credentials, generate PIDs, export certificates). It has no authentication (see [HTTP API](http-api.md))
 
-The offer consent dialog shows the issuer, the issuance flow and any required transaction code. It also shows each credential's format, type, display name, description and claims when available from issuer metadata.
+The offer consent dialog shows the issuer, the issuance flow and any required transaction code. It also shows each credential's format, type, display name, description and claims if the issuer metadata has them.
 
-For `credential_offer_uri`, the wallet fetches the offer for the dialog and again on approval (OpenID4VCI 1.0 §4.1.3). If the issuer serves the offer only once, issuance uses the copy shown in the dialog and logs the failed second fetch. If the first fetch failed, the dialog shows the issuer from the URI and approval retries the fetch.
+For `credential_offer_uri`, the wallet fetches the offer for the dialog and again on approval (OpenID4VCI 1.0 §4.1.3). If the issuer serves the offer only once, issuance uses the copy shown in the dialog and logs the failed second fetch. If the first fetch fails, the dialog shows the issuer from the URI and approval retries the fetch.
 
-If the offer requires a transaction code, issuance rejects a missing code before using the pre-authorized code. This also applies to API callers and wallets using `--auto-accept`. The error gives the required code length and input mode.
+If the offer requires a transaction code and none is given, issuance fails before the wallet uses the pre-authorized code. This applies to API callers and to `--auto-accept` too. The error gives the required code length and input mode.
 
-Once a credential is stored, the wallet calls the issuer's Notification Endpoint where one is published. The endpoint is optional (OpenID4VCI 1.0 §11), so a rejected call produces a warning and the credential stays in the wallet. The warning quotes the response and compares it with §11.3 (an Authorization Error Response for a rejected token, a 400 for a bad `notification_id`).
+After storing a credential, the wallet calls the issuer's Notification Endpoint if the issuer publishes one. The endpoint is optional (OpenID4VCI 1.0 §11). A rejected call logs a warning and the credential stays in the wallet. The warning quotes the response and compares it with §11.3 (an Authorization Error Response for a rejected token, a 400 for a bad `notification_id`).
 
-The consent dialog for a presentation request also shows the purpose the verifier registered. The wallet reads it from the wallet-relying-party registration certificate (typ `rc-wrp+jwt`, in a `verifier_info` entry of format `registration_cert`) per OpenID4VP 1.0 §5.1. A certificate whose signature does not verify against its own x5c leaf is skipped with a warning in the activity log. The built-in demo verifier and demo issuer send such certificates with every request.
+The consent dialog for a presentation request also shows the purpose the verifier registered. The wallet reads it from the wallet-relying-party registration certificate (typ `rc-wrp+jwt`, in a `verifier_info` entry of format `registration_cert`) per OpenID4VP 1.0 §5.1. If the certificate signature does not verify against its own x5c leaf, the wallet skips the certificate and logs a warning in the activity log. The built-in demo verifier and demo issuer send a registration certificate with every request.
 
-The presentation dialog starts with the wallet's automatic credential selection. If alternatives are available, **Edit** lets the user choose a credential-set option and a credential for each query. Changes apply immediately. **Done** returns to the summary, and **reset to auto** restores the automatic selection. Claim checkboxes apply to the selected credential. **Deny** and **Approve** apply to the whole presentation. Auto-accept submits the automatic selection without a dialog.
+The presentation dialog starts with the wallet's automatic credential selection. If there are alternatives, **Edit** lets the user choose a credential-set option and a credential for each query. Changes apply immediately. **Done** returns to the summary, and **reset to auto** restores the automatic selection. Claim checkboxes apply to the selected credential. **Deny** and **Approve** apply to the whole presentation. Auto-accept submits the automatic selection without a dialog.
 
-If the verifier sets `multiple: true` on a query, all matching credentials are selected. You can deselect them under **Edit**, but at least one stays selected.
+If the verifier sets `multiple: true` on a query, all matching credentials are selected. **Edit** can deselect them. At least one stays selected.
 
 API clients receive the alternatives in `credential_options`. Send `picks` (query ID to credential ID, or to a list of credential IDs when the query has `"multiple": true`), `set_choices` (option index per set, or `-1` to skip an optional set) and `selected_claims` to `POST /api/requests/{id}/approve`. An invalid selection returns `400` and leaves the request pending.
 
@@ -38,13 +38,13 @@ API clients receive the alternatives in `credential_options`. Send `picks` (quer
 
 ![Consent credential selection](../assets/wallet-consent-edit-ui.png)
 
-A credential card uses the issuer's display name, logo, colors and background image. If no artwork is available, it shows a monogram or generic icon. **About** opens the description.
+A credential card uses the issuer's display name, logo, colors and background image. Without artwork, it shows a monogram or a generic icon. **About** opens the description.
 
 Display names distinguish credentials of the same type, such as `EUDI PID` and `German PID`. The technical type and short ID appear below the name.
 
-The Issue Credential dialog issues credentials from the web UI. It shows format-specific fields and offers a claim builder next to a raw JSON editor. Selecting a credential template (for example `german-pid-sdjwt`) fills all fields for review before issuing. A status list selector controls the embedded status reference (the wallet's own list when configured, none, or a custom URI and index).
+The Issue Credential dialog issues credentials from the web UI. It shows format-specific fields and has a claim builder next to a raw JSON editor. A credential template (for example `german-pid-sdjwt`) fills all fields for review before issuing. A status list selector controls the embedded status reference (the wallet's own list when configured, none, or a custom URI and index).
 
-Credential cards show the revocation status when a credential carries a status list reference. Credentials on the wallet's own status list show a live Active or Revoked badge plus a Revoke or Activate button. Credentials that reference an external status list show a Check status action that fetches the list and resolves the current value.
+Credential cards show the revocation status when a credential has a status list reference. Credentials on the wallet's own status list show a live Active or Revoked badge and a Revoke or Activate button. Credentials with an external status list show a Check status action. It fetches the list and shows the current value.
 
 UI controls have stable IDs and data attributes for browser automation. Credential cards expose `data-credential-id`, `data-format`, `data-vct`, `data-doctype` and `data-status`. For example, select a PID with `.credential-card[data-vct="urn:eudi:pid:1"]`.
 
@@ -71,25 +71,25 @@ Scope activity controls to their entry. Entries for a stored credential also hav
 
 The header links to GitHub and CLI installation instructions. Local wallets let users change **Auto-accept**. Demo wallets show the fixed setting.
 
-Open an activity entry to see its details and request or response with formatted JSON. A fetched request object and its receipt share one entry, with the HTTP status and response preserved. Deferred collection adds separate request and response entries, including pending replies and errors.
+An open activity entry shows its details and the request or response as formatted JSON. A fetched request object and its receipt share one entry, with the HTTP status and response. Deferred collection adds separate request and response entries, including pending replies and errors.
 
-**Open in decoder** opens request JWTs and imported credentials. A batch is shown as one credential with multiple copies, such as **Imported credential (8 copies)**. The import entry includes every stored copy's ID. Both import and credential response entries have **Open copy 1 in decoder** buttons for each copy. Sent presentations have buttons named for their query, such as **Open 'pid' in decoder**.
+**Open in decoder** opens request JWTs and imported credentials. A batch is shown as one credential with multiple copies, such as **Imported credential (8 copies)**. The import entry includes the ID of every stored copy. Import and credential response entries have an **Open copy 1 in decoder** button for each copy. Sent presentations have one button per query, such as **Open 'pid' in decoder**.
 
-Encrypted exchanges show the wire value first. **View decrypted** shows the plaintext, and **View encrypted** returns to the wire value. These buttons only change the log display.
+Encrypted exchanges show the wire value first. **View decrypted** shows the plaintext. **View encrypted** switches back to the wire value. These buttons change the log display only.
 
 **Trust & certificates** lists trust list URLs and offers CA, signing and HTTPS certificates. Verifiers use the CA for wallet-issued credentials. Issuers use it for wallet and key attestations.
 
-The default local issuer URL is `https://localhost:8086`, on `<port+1>` relative to the wallet's HTTP port. An HTTPS `--base-url`, such as `https://eudi-test.dev`, is used as the issuer URL, so issuer metadata, trust lists, and status lists are served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)). The [certificate examples](../test-certificates.md#retrieval-revocation-and-alternative-names) use the public demo origin and document localhost separately.
+The default local issuer URL is `https://localhost:8086`, on `<port+1>` relative to the wallet's HTTP port. An HTTPS `--base-url`, such as `https://eudi-test.dev`, becomes the issuer URL. Issuer metadata, trust lists and status lists are then served from the public origin behind an external TLS terminator (see [public demo hosting](../public-demo.md)). The [certificate examples](../test-certificates.md#retrieval-revocation-and-alternative-names) use the public demo origin and document localhost separately.
 
 To serve the wallet under a path prefix on a shared host, include the prefix in the base URL, such as `https://example.com/some/context`. See [behind a reverse proxy](../reverse-proxy.md) for the proxy setup.
 
-For a local https origin without an external TLS terminator, add `--serve-tls`. The wallet then listens on the base URL's port with its own TLS certificate, in addition to the plain HTTP port. It requires an https `--base-url` with an explicit port. The [demo issuer and verifier conformance run](../conformance-run-demorp.md) uses this because the OIDF suite requires https endpoints.
+For a local https origin without an external TLS terminator, add `--serve-tls`. The wallet then also listens on the base URL's port with its own TLS certificate. The plain HTTP port stays open. `--serve-tls` requires an https `--base-url` with an explicit port. The [demo issuer and verifier conformance run](../conformance-run-demorp.md) uses this because the OIDF suite requires https endpoints.
 
 The demo verifier accepts presented credentials whose issuer chains lead to the wallet's own CA. `--demo-verifier-trust-anchor <pem>` (repeatable) adds trust anchors for presentations issued outside this wallet (the OIDF conformance suite signs the credentials it presents under its own CAs).
 
 `wallet ca-cert` exports the shared wallet CA for verifier trust stores or CI fixtures. `wallet tls-cert` exports the per-wallet HTTPS leaf certificate.
 
-The wallet keeps an issued-attestation registry alongside its credentials. Each credential type can register:
+The wallet keeps an issued-attestation registry next to its credentials. Each credential type can register:
 
 - its attestation identifier (`vct` or `docType`)
 - its registrar entitlements
@@ -98,17 +98,17 @@ The wallet keeps an issued-attestation registry alongside its credentials. Each 
 Trust lists are created from that registry:
 
 - `wallet generate-pid` and `wallet serve --pid` register PID attestation types with the PID trust list profile
-- `issue ... --wallet` issues with the wallet issuer context, stores the credential, and registers one issued-attestation entry for its credential type
+- `issue ... --wallet` issues with the wallet issuer, stores the credential, and registers one issued-attestation entry for its credential type
 - `wallet import` registers a default issued-attestation entry for the imported credential type
-- credentials whose stored trust list profile fields are identical are grouped into the same trust list
+- credentials with identical trust list profile fields share one trust list
 
-Each trust list publishes its service's signing certificates, provider CAs and status signing certificates. A separate list operator key signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry advances the sequence number. Previous instances remain available at the list's `/history` endpoint.
+Each trust list publishes its service's signing certificates, provider CAs and status signing certificates. A separate list operator key signs the list. An unchanged list keeps its signed instance until it expires. Changed content or expiry increments the sequence number. Previous instances are available at the list's `/history` endpoint.
 
 Wallet and key attestations use a separate wallet provider key. Their `x5c` contains the leaf and any intermediate certificates, with the self-signed root omitted. Issuers can pin the root from `/api/certificates/ca` or use `/api/trustlists/wallet-provider`.
 
-`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` replaces them, so credentials generated earlier keep resolving against the same endpoints. Issuance commands (`issue ... --wallet`, `wallet generate-pid`) follow the same rule and print a note when no server serves the embedded URLs.
+`wallet serve` reuses persisted issuer and status list URLs unless `--base-url` or `--docker` overrides them. Credentials generated earlier then keep resolving against the same endpoints. Issuance commands (`issue ... --wallet`, `wallet generate-pid`) follow the same rule. They print a note when no server serves the embedded URLs.
 
-The startup banner warns about a persisted Docker hostname outside Docker and about stored credentials whose issuer or status list URLs this server does not serve. Those credentials fail validation and status checks until they are issued again.
+The startup banner warns about a persisted Docker hostname outside Docker. It also warns about stored credentials with issuer or status list URLs that this server does not serve. Those credentials fail validation and status checks until they are issued again.
 
 Each profile describes a role through its LoTE type, entity name and service types. It is served at `/api/trustlists/{id}` with a stable ID:
 
@@ -134,7 +134,7 @@ With `--json` it prints the `/api/trustlists` body unchanged.
 - `advertised_url` when the wallet has an issuer URL configured, for example `https://localhost:8086/api/trustlists/pid`
 - `url`, an alias for `advertised_url`
 
-Clients that call the wallet through Docker port mappings, reverse proxies, or Testcontainers should resolve `path` against the URL they used to reach `/api/trustlists`. `advertised_url` is the wallet's configured publication URL and may differ from the URL the caller used.
+Clients that call the wallet through Docker port mappings, reverse proxies, or Testcontainers should resolve `path` against the URL they used for `/api/trustlists`. `advertised_url` is the configured publication URL of the wallet. It can differ from the URL the caller used.
 
 `/api/trustlist` is the legacy endpoint. Its selection rules are:
 
@@ -187,7 +187,7 @@ When the wallet needs a local default profile, it uses:
 - `SvcType/Issuance`
 - `SvcType/Revocation`
 
-Use `--register` to also register OS URL scheme handlers so that `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links open the wallet on macOS. On Linux and Windows, `--register` is accepted as a no-op.
+`--register` also registers OS URL scheme handlers. `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links then open the wallet on macOS. On Linux and Windows, `--register` is a no-op.
 
 ```bash
 eudi wallet serve
@@ -239,15 +239,15 @@ eudi wallet serve -d                   # run in the background (stop with `eudi 
 
 ## Key attestation claims
 
-`--key-attestation-level` sets the test claims `key_storage` and `user_authentication` (OpenID4VCI Appendix D.2). The default follows the issuer's requirements. `none` omits both claims. A level such as `iso_18045_high` sets both explicitly. The Conformance panel can change this at runtime.
+`--key-attestation-level` sets the test claims `key_storage` and `user_authentication` (OpenID4VCI Appendix D.2). By default they match the issuer's requirements. `none` omits both claims. A level such as `iso_18045_high` sets both explicitly. The Conformance panel can change this at runtime.
 
 These claims describe simulated protection levels. Keys are stored unencrypted. See [SECURITY.md](../../SECURITY.md).
 
 ## Display images
 
-By default, the wallet fetches display images once and stores them. `--adhoc-display-images` keeps HTTPS logo and background URLs from issuer metadata and fetches them when rendering a card. Each render contacts the issuer. The wallet stores no image.
+By default, the wallet fetches display images once and stores them. `--adhoc-display-images` keeps HTTPS logo and background URLs from issuer metadata and fetches them on each card render. Each render contacts the issuer. The wallet stores no HTTPS image.
 
-Data URIs, template images and HTTP URLs still use stored images. Storing HTTP images avoids mixed content on an HTTPS page. `GET /api/config` reports the setting as `adhoc_display_images`.
+Data URIs, template images and HTTP URLs are stored in both modes. Storing HTTP images avoids mixed content on an HTTPS page. `GET /api/config` reports the setting as `adhoc_display_images`.
 
 ## `wallet trust-list`
 
@@ -255,9 +255,9 @@ Prints the ETSI trust list JWT containing the selected role's signing certificat
 
 `wallet trust-list` prints the same trust list as the legacy `/api/trustlist` endpoint: the PID trust list when the wallet has a PID trust list profile, otherwise the first available profile.
 
-Use `--id`, `--vct`, or `--doctype` to pick a specific trust list profile. Typical profile IDs are `pid` and `local`.
+`--id`, `--vct`, or `--doctype` selects a specific trust list profile. Typical profile IDs are `pid` and `local`.
 
-The output can be piped to a file or used directly with `--trust-list` in the `validate` command. `--url` prints only the URL for a running wallet server.
+Pipe the output to a file or pass it to `validate --trust-list`. `--url` prints only the URL for a running wallet server.
 
 ```bash
 eudi wallet trust-list                          # Print the trust list JWT
@@ -284,7 +284,7 @@ eudi wallet trust-list --url --docker           # http://host.docker.internal:80
 
 Loads or creates the shared root CA certificate and prints exactly one PEM certificate. Wallets under the same parent directory use this root for their signing and HTTPS certificate chains. New provider chains include an intermediate CA. Trust lists publish the relevant service certificates and provider CAs.
 
-`--jwks` exports the certificate as a JWKS document instead of PEM: the certificate's public key as a JWK with `kid`, `alg`, `use`, the certificate chain in `x5c`, and the leaf hash in `x5t#S256`. This is the format JWKS-based trust configuration expects.
+`--jwks` exports the certificate as a JWKS document. It contains the certificate's public key as a JWK with `kid`, `alg`, `use`, the certificate chain in `x5c`, and the leaf hash in `x5t#S256`. Use it for JWKS-based trust configuration.
 
 ```bash
 eudi wallet ca-cert
@@ -302,7 +302,7 @@ On a running wallet server the same export is available as `GET /api/certificate
 
 ## `wallet tls-cert`
 
-Loads or creates the HTTPS leaf certificate of the wallet's HTTPS endpoints and prints exactly one PEM certificate. `--out` writes it to a file for verifier trust stores in automated tests. `wallet ca-cert` exports the shared trust root instead of the leaf.
+Loads or creates the HTTPS leaf certificate of the wallet's HTTPS endpoints and prints exactly one PEM certificate. `--out` writes it to a file for verifier trust stores in automated tests. To export the shared trust root, use `wallet ca-cert`.
 
 ```bash
 eudi wallet tls-cert
@@ -312,7 +312,7 @@ eudi wallet tls-cert --base-url http://wallet:8085 --out wallet-tls-cert.pem
 eudi wallet tls-cert --jwks
 ```
 
-Use the same `--port`, `--docker`, and `--base-url` flags as `wallet serve` so the exported certificate matches the certificate the running wallet presents.
+Pass the same `--port`, `--docker`, and `--base-url` flags as to `wallet serve`. The exported certificate then matches the one the running wallet presents.
 
 On a running wallet server the same export is available as `GET /api/certificates/tls` (`?format=jwks` for JWKS). It always matches the running server's HTTPS wallet host. See [Certificate export](http-api.md#certificate-export).
 
@@ -327,11 +327,11 @@ On a running wallet server the same export is available as `GET /api/certificate
 
 ## `wallet register` / `wallet unregister`
 
-Registers (or removes) OS-level URL scheme handlers so that `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links open the wallet.
+Registers (or removes) OS-level URL scheme handlers for `openid4vp://`, `eudi-openid4vp://`, `haip-vp://`, `openid-credential-offer://`, `haip-vci://` and `eu-eaa-offer://` links. These links then open the wallet.
 
 The handler script starts a local `wallet serve` instance when none is running and forwards the incoming URI to it. If a UI tab is open, the wallet notifies it over the event stream. Otherwise it opens the UI with the request ID in the URL, and that tab handles the request.
 
-With `--auto-accept`, the handler processes URLs without opening the UI. It POSTs to a running `wallet serve` instance or falls back to `wallet accept`.
+With `--auto-accept`, the handler processes URLs without opening the UI. It POSTs to a running `wallet serve` instance or runs `wallet accept` if that fails.
 
 - **macOS**: Creates an AppleScript `.app` bundle in `~/Applications/` and registers via Launch Services
 - **Other platforms**: `register` / `unregister` are accepted as no-ops so scripts stay portable. Use `wallet accept <uri>` instead
@@ -352,7 +352,7 @@ eudi wallet unregister             # Remove URL handlers
 
 Strict mode verifies server certificates for all HTTPS requests the wallet sends. Debug mode skips verification by default. `--tls-verify=true` or `--tls-verify=false` overrides either default, including for local endpoints and redirects.
 
-Use `--tls-ca dev-ca.pem` to add CA certificates to system trust. Server certificates must still match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
+`--tls-ca dev-ca.pem` adds CA certificates to system trust. Server certificates must also match the hostname and be within their validity dates. Credential and request object signatures are checked separately.
 
 ```bash
 eudi wallet serve --mode strict --tls-ca dev-ca.pem
@@ -360,11 +360,11 @@ eudi wallet serve --mode strict --tls-verify=false
 eudi wallet serve --mode debug --tls-verify=true
 ```
 
-A running wallet uses its own TLS settings. Set its startup flags or change verification in the Conformance panel or through `PUT /api/config/conformance`.
+A running wallet uses its own TLS settings. Set them with its startup flags, in the Conformance panel, or through `PUT /api/config/conformance`.
 
 ## Outbound proxy
 
-If the wallet can only reach issuers and verifiers through a forward proxy (common in corporate networks), set the standard proxy environment variables or the matching flags:
+If issuers and verifiers are only accessible through a forward proxy (common in corporate networks), set the standard proxy environment variables or the matching flags:
 
 ```bash
 HTTPS_PROXY=http://proxy.corp:3128 NO_PROXY=.corp.example eudi wallet serve
@@ -381,27 +381,27 @@ A flag overrides the matching variable. Lowercase variable names work too. Proxy
 
 Requests to `localhost`, `127.0.0.1`, `::1` and `host.docker.internal` always bypass the proxy.
 
-The wallet still verifies the certificate of the issuer or verifier (see above). If your proxy intercepts TLS traffic, add its CA with `--tls-ca` or disable verification with `--tls-verify=false`.
+The wallet verifies the issuer or verifier certificate through the proxy too (see above). If your proxy intercepts TLS traffic, add its CA with `--tls-ca` or disable verification with `--tls-verify=false`.
 
 A running wallet uses the proxy settings it was started with. `wallet accept` and `wallet scan` therefore reject proxy flags when they forward a request to a running wallet. Set them on `wallet serve` instead.
 
 ## JSON logs
 
-Log collectors such as Loki or Elasticsearch read structured records. `--log-format json` (or `EUDI_DEV_LOG_FORMAT=json`) prints every line of console output as one JSON record on stdout. This includes the startup summary, the request log and warnings:
+`--log-format json` (or `EUDI_DEV_LOG_FORMAT=json`) prints every line of console output as one JSON record on stdout, for log collectors such as Loki or Elasticsearch. This includes the startup summary, the request log and warnings:
 
 ```json
 {"time":"2026-10-03T18:56:44.53+02:00","level":"WARN","msg":"OID4VP 1.0 §5.2: nonce is required"}
 {"time":"2026-10-03T18:56:44.61+02:00","level":"INFO","msg":"Encrypting response: response_mode=direct_post.jwt","component":"VP"}
 ```
 
-`level` is `WARN` or `ERROR` for warning and error lines and `INFO` otherwise. `component` names the part of the wallet that logged the line, such as `VCI`, `VP`, `DCQL` or `Demo issuer`. A multi-line entry, such as a token response, stays one record. The default `text` prints the colored console output.
+`level` is `WARN` or `ERROR` for warning and error lines and `INFO` otherwise. `component` identifies the part of the wallet that logged the line, such as `VCI`, `VP`, `DCQL` or `Demo issuer`. A multi-line entry, such as a token response, stays one record. The default `text` prints the colored console output.
 
 ## Changing the conformance settings
 
-The **Conformance** panel in the wallet header controls validation mode, HTTPS certificate verification, HAIP, encrypted requests, the [OpenID4VCI feature level](issuing.md#openid4vci-feature-level), and the key attestation's storage claims (see [SECURITY.md](../../SECURITY.md)). HTTPS verification can follow the mode default or be explicitly enabled or disabled.
+The **Conformance** panel in the wallet header controls validation mode, HTTPS certificate verification, HAIP, encrypted requests, the [OpenID4VCI feature level](issuing.md#openid4vci-feature-level), and the key attestation's storage claims (see [SECURITY.md](../../SECURITY.md)). HTTPS verification follows the mode default or is set to on or off.
 
 **Local wallets** can change these settings in the panel or through `PUT /api/config/conformance`. Changes apply to every flow until the process restarts. `DELETE /api/config/conformance` restores startup settings.
 
-**The public demo** shows read-only settings and runs HAIP in debug mode. Violations appear as warnings while the flow continues. `PUT` and `DELETE /api/config/conformance` return `403`. Run a local wallet to change the settings.
+**The public demo** shows read-only settings and runs HAIP in debug mode. Violations are warnings and the flow continues. `PUT` and `DELETE /api/config/conformance` return `403`. Run a local wallet to change the settings.
 
 `eudi wallet config` (alias of `wallet info`) reports the active fields for a local or remote wallet.

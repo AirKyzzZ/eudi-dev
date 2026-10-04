@@ -20,7 +20,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-// StripCBORTag removes a specific outer CBOR tag while preserving already-untagged values.
+// StripCBORTag removes the outer CBOR tag expected. An untagged value stays unchanged.
 func StripCBORTag(data []byte, expected uint64) ([]byte, error) {
 	var raw cbor.RawTag
 	if err := cbor.Unmarshal(data, &raw); err != nil {

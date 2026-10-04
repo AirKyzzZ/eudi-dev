@@ -37,8 +37,8 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, templates)
 }
 
-// Accept only a bare name. credtemplate.Load also accepts paths for CLI use, which
-// would allow arbitrary file reads through this endpoint.
+// Accept only a bare name. credtemplate.Load also accepts paths for the CLI. Through
+// this endpoint a path would allow arbitrary file reads.
 func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name != filepath.Base(name) || strings.HasPrefix(name, ".") {

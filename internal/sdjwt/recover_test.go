@@ -19,8 +19,7 @@ import (
 	"testing"
 )
 
-// Check each recoverable violation in both modes. Lenient parsing records it and
-// strict parsing rejects it.
+// Lenient parsing records each recoverable violation and strict parsing rejects it.
 func TestParse_RecoverableBreaks(t *testing.T) {
 	claim, claimDigest := disclosureOf(t, "salt", "given_name", "Erika")
 	arrayEntry, arrayEntryDigest := disclosureOf(t, "salt", "DE")

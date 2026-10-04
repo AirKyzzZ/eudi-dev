@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package jws signs credentials, presentations, trust lists, status lists, metadata
-// and attestations with one ES256 implementation. This keeps signature encoding
-// consistent.
+// Package jws signs credentials, presentations, trust lists, status lists,
+// metadata and attestations with one ES256 implementation.
 package jws
 
 import (
@@ -27,8 +26,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
 
-// SigningInput returns the base64url header and payload joined by a dot, the
-// bytes a JWS signature is computed over.
+// SigningInput returns the base64url header and payload joined by a dot. A JWS
+// signature is computed over these bytes.
 func SigningInput(header map[string]any, payload any) (string, error) {
 	headerJSON, err := json.Marshal(header)
 	if err != nil {
@@ -59,9 +58,9 @@ func Sign(header map[string]any, payload any, key *ecdsa.PrivateKey) (string, er
 	return signingInput + "." + format.EncodeBase64URL(sig), nil
 }
 
-// Signature signs a digest and returns r and s in the fixed width form JOSE
-// and COSE use (RFC 7518 §3.4). crypto/ecdsa hands back two integers whose
-// byte lengths vary with the value, so both are left padded to the curve size.
+// Signature signs a digest and returns r and s in the fixed width form of
+// JOSE and COSE (RFC 7518 §3.4). crypto/ecdsa returns integers of varying byte
+// length, so both are left padded to the curve size.
 func Signature(key *ecdsa.PrivateKey, digest []byte) ([]byte, error) {
 	if key == nil {
 		return nil, fmt.Errorf("signing requires a private key")

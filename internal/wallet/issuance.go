@@ -46,8 +46,8 @@ type HTTPClient interface {
 
 var defaultHTTPClient HTTPClient = http.DefaultClient
 
-// httpClient is the HTTP client used by the issuance functions. Override in
-// tests to inject mock servers.
+// httpClient sends the issuance requests. Tests replace it to reach mock
+// servers.
 var httpClient HTTPClient = defaultHTTPClient
 
 func doIssuanceRequest(req *http.Request, clients ...*http.Client) (*http.Response, error) {
@@ -102,38 +102,37 @@ type IssuanceResult struct {
 	Pending       bool   `json:"pending,omitempty"`
 	TransactionID string `json:"transaction_id,omitempty"`
 	RetryInterval string `json:"retry_interval,omitempty"`
-	// Keep the imported credential so the server can restore it if a concurrent reload
-	// drops it before saving. Browser sign-in leaves time for UI polling to trigger
-	// such reloads.
+	// The server restores this credential if a concurrent reload drops it before
+	// the save. A browser sign-in is slow enough for UI polling to trigger such a
+	// reload.
 	Imported *StoredCredential `json:"-"`
 }
 
 type OfferOptions struct {
-	// PresentationConsented says the caller has already consented on the
-	// user's behalf, so a presentation the issuer asks for mid-flow
-	// (OID4VCI 1.1 §6) is not put to the user again.
+	// PresentationConsented is true when the caller already consented for the
+	// user. A presentation the issuer requests during the flow (OID4VCI 1.1 §6)
+	// then skips the consent prompt.
 	PresentationConsented bool
-	// TxCode is the transaction code for a pre-authorized offer that
-	// requires one. It travels with the flow it belongs to, so concurrent
-	// offers on a shared wallet each send their own code.
+	// TxCode is the transaction code for a pre-authorized offer that requires
+	// one. Each flow carries its own code because concurrent offers can share a
+	// wallet.
 	TxCode string
-	// Owner is the browser this issuance belongs to, so a presentation the
-	// issuer asks for mid-flow belongs to it too.
+	// Owner is the browser this issuance belongs to. A presentation the issuer
+	// requests during the flow belongs to the same browser.
 	Owner string
-	// ResolvedOffer is an offer the caller already resolved from the same
-	// URI, which is what a consent dialog holds by the time the user
-	// approves. It is used only when reading the URI again fails.
+	// ResolvedOffer is the offer the caller already resolved from the same URI,
+	// for example for a consent dialog. It is used only when reading the URI
+	// again fails.
 	ResolvedOffer *oid4vc.CredentialOffer
 }
 
-// resolveOffer reads the credential offer the URI names. approved is an offer
-// the caller took from the same URI earlier (a consent dialog holds one by the
-// time the user approves).
+// resolveOffer reads the credential offer at the URI. approved is the offer
+// the caller resolved from the same URI earlier.
 //
-// The URI is read again even so: §4.1.3 asks the wallet to fetch it "unless
-// it is already cached". An issuer that consumes the offer on the first read
-// answers the second with an error, and the flow then continues with what was
-// approved.
+// §4.1.3 asks the wallet to fetch the URI "unless it is already cached", so
+// the URI is read again. An issuer that consumes the offer on the first read
+// answers the second with an error. The flow then continues with the approved
+// offer.
 func (w *Wallet) resolveOffer(offerURI string, approved *oid4vc.CredentialOffer) (*oid4vc.CredentialOffer, error) {
 	reqType, result, err := oid4vc.ParseWithOptions(offerURI, oid4vc.ParseOptions{HTTPClient: w.HTTPClient()})
 	if err != nil {
@@ -147,13 +146,13 @@ func (w *Wallet) resolveOffer(offerURI string, approved *oid4vc.CredentialOffer)
 		return nil, fmt.Errorf("unexpected credential offer type")
 	}
 	// §4.1.1 makes credential_issuer required, so a response without one is
-	// not an offer. Issuers that answer a spent offer with an error body and
-	// HTTP 200 land here rather than in the error branch above.
+	// not an offer. Some issuers answer a spent offer with HTTP 200 and an error
+	// body.
 	if strings.TrimSpace(offer.CredentialIssuer) == "" {
 		return w.keepApprovedOffer(offerURI, approved, fmt.Errorf("the response carried no credential_issuer"))
 	}
-	// An offer that names a different issuer or different credentials is not
-	// the one the user approved.
+	// An offer with a different issuer or different credentials is not the one
+	// the user approved.
 	if approved != nil && !sameCredentialOffer(approved, offer) {
 		w.addProtocolWarning("issuance", "credential_offer_changed",
 			fmt.Sprintf("The credential_offer_uri now offers %s rather than the %s this issuance was approved for, continuing with what was approved",
@@ -204,8 +203,8 @@ func offerSummary(offer *oid4vc.CredentialOffer) string {
 }
 
 // ProcessCredentialOffer processes an OID4VCI credential offer URI for a user
-// who is present, so an interaction the issuer asks for mid-flow is put to
-// them.
+// who is present. Interactions the issuer requests during the flow are shown to
+// that user.
 func (w *Wallet) ProcessCredentialOffer(offerURI string) (*IssuanceResult, error) {
 	return w.ProcessCredentialOfferWithOptions(offerURI, OfferOptions{})
 }
@@ -247,9 +246,8 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		return nil, fmt.Errorf("fetching issuer metadata: %w", err)
 	}
 
-	// A missing authorization server document is not fatal here: the
-	// endpoints fall back to the issuer's own metadata below, so the error is
-	// carried rather than returned.
+	// A missing authorization server document is not fatal. The endpoints fall
+	// back to the issuer's own metadata, so oauthErr is kept for later checks.
 	authServer, err := selectAuthorizationServer(metadata, offer)
 	if err != nil {
 		return nil, err
@@ -277,8 +275,7 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		return nil, err
 	}
 
-	// HAIP selects checks. Strict mode rejects findings and debug mode logs them
-	// before continuing.
+	// Strict mode rejects HAIP findings. Debug mode logs them and continues.
 	if w.RequireHAIP {
 		if violations := ValidateHAIPIssuanceCompliance(offer, oauthMeta); len(violations) > 0 {
 			if err := w.reportHAIPViolations("Credential offer", offer.CredentialIssuer, violations); err != nil {
@@ -299,14 +296,14 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		return w.processAuthorizationCodeOffer(offer, metadata, oauthMeta, tokenEndpoint, credentialEndpoint, opts)
 	}
 
-	// Token exchange (pre-authorized code flow). An issuer may protect it like
-	// the authorization code flow (DPoP, attestation-based client
-	// authentication, key attestation), each following its own metadata.
+	// Token exchange for the pre-authorized code flow. An issuer may protect it
+	// with DPoP, attestation-based client authentication and key attestation,
+	// like the authorization code flow. Each follows the issuer's metadata.
 	nonces := &dpopNonceState{}
 	dpopKey := w.dpopKeyFor(oauthMeta)
 	// A pre-authorized offer carries no client_id, and the wallet is not
-	// registered with the issuer. The attestation names the wallet itself, so
-	// its own identifier is the subject.
+	// registered with the issuer. The attestation identifies the wallet itself,
+	// so the wallet's own identifier is the subject.
 	attestationClientID := strings.TrimSpace(w.VCIClientID)
 	if attestationClientID == "" {
 		attestationClientID = strings.TrimSpace(w.BaseURL)
@@ -316,8 +313,8 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 
 	txCode := opts.TxCode
 	// §4.1.1 puts tx_code in the grant when the Authorization Server expects
-	// one. An auto-accepting wallet shows no dialog, and an API caller
-	// supplies the code on the call.
+	// one. An auto-accepting wallet shows no dialog. An API caller supplies the
+	// code with the call.
 	if len(offer.Grants.TxCode) > 0 && strings.TrimSpace(txCode) == "" {
 		return nil, fmt.Errorf("this offer requires a transaction code, which the issuer delivers separately: supply it as tx_code on the call, or --tx-code on the command line%s", txCodeHintSuffix(offer.Grants.TxCode))
 	}
@@ -327,7 +324,6 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 	if txCode != "" {
 		tokenForm.Set("tx_code", txCode)
 	}
-	// Include authentication headers in the log alongside the token request form.
 	attestor := w.attestorFor(clientAuth)
 	w.addProtocolLog("issuance", "token_request", fmt.Sprintf("Request token from %s", tokenEndpoint), true, map[string]any{
 		"direction":           "outbound",
@@ -395,15 +391,16 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		return nil, err
 	}
 
-	credentialIdentifier := resolveCredentialIdentifier(tokenResp)
+	credentialIdentifier, authorizedOther := resolveCredentialIdentifier(tokenResp, configID)
+	w.reportAuthorizedConfiguration(offer.CredentialIssuer, configID, authorizedOther)
 	credentialConfigurationID := ""
 	if credentialIdentifier == "" && len(offer.CredentialConfigurationIDs) > 0 {
 		credentialConfigurationID = offer.CredentialConfigurationIDs[0]
 	}
 
-	// A pre-authorized flow names the client in the key proof only when it
-	// authenticated as one (its attestation, above). An anonymous exchange
-	// leaves iss out, since the token is bound to no client to match it against.
+	// In a pre-authorized flow the key proof carries iss only when the wallet
+	// authenticated as a client with its attestation. An anonymous token is
+	// bound to no client, so iss is left out.
 	proofClientID := ""
 	if clientAuth != nil {
 		proofClientID = clientAuth.ClientID
@@ -468,7 +465,6 @@ func (w *Wallet) ProcessCredentialOfferWithOptions(offerURI string, opts OfferOp
 		return nil, err
 	}
 
-	// Use the same validation mode for the received credential as for the offer.
 	if w.RequireHAIP {
 		if violations := w.haipCredentialViolations(credential); len(violations) > 0 {
 			if err := w.reportHAIPViolations("Credential", offer.CredentialIssuer, violations); err != nil {
@@ -582,10 +578,10 @@ func fetchIssuerMetadata(client *http.Client, issuer string, payloads ...*LogPay
 		if err != nil {
 			return nil, fmt.Errorf("creating metadata request: %w", err)
 		}
-		// §12.2.2 gives the issuer two forms, application/json and
-		// application/jwt, so naming both signals that signed metadata is
-		// supported. There is no application/openidvci-issuer-metadata+jwt
-		// media type: that string is the signed form's typ header (§12.2.3).
+		// §12.2.2 allows application/json and application/jwt. Listing both
+		// tells the issuer that signed metadata is supported.
+		// openidvci-issuer-metadata+jwt is the typ header of the signed form
+		// (§12.2.3). It is not a media type.
 		req.Header.Set("Accept", "application/json, application/jwt")
 		return req, nil
 	}, client)
@@ -632,9 +628,9 @@ func wellKnownURL(issuerOrServer, wellKnownType string) (string, error) {
 }
 
 // parseIssuerMetadataResponse decodes a Credential Issuer Metadata response in
-// either of the two forms §12.2.2 allows. issuer is the Credential Issuer
-// Identifier the metadata URL was built from, which both the signature check
-// and the identity check below are made against.
+// either form §12.2.2 allows. issuer is the Credential Issuer Identifier the
+// metadata URL was built from. The signature check and the identity check both
+// use it.
 func parseIssuerMetadataResponse(body []byte, contentType, issuer string) (map[string]any, error) {
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
@@ -662,8 +658,8 @@ func parseIssuerMetadataResponse(body []byte, contentType, issuer string) (map[s
 	return metadata, nil
 }
 
-// checkCredentialIssuerIdentifier holds the metadata to the identifier it was
-// fetched for.
+// checkCredentialIssuerIdentifier checks that the metadata matches the
+// identifier it was fetched for.
 //
 // OpenID4VCI 1.0 §12.2.4 on credential_issuer: "The value MUST be identical to
 // the Credential Issuer's identifier value into which the well-known URI string
@@ -707,9 +703,9 @@ func isLikelyCompactJWT(raw string) bool {
 }
 
 // issuerMetadataTrustAnchors are the roots a signed Credential Issuer Metadata
-// certificate chain has to end in. nil selects the host's own root store, which
-// is what a wallet with no separately provisioned anchors has to go on. Tests
-// point it at the certificate authority they signed with.
+// certificate chain must end in. nil selects the host's root store because the
+// wallet has no provisioned anchors of its own. Tests set it to the certificate
+// authority they sign with.
 var issuerMetadataTrustAnchors *x509.CertPool
 
 // signedIssuerMetadataTyp is the typ header value §12.2.3 requires on signed
@@ -720,10 +716,10 @@ const signedIssuerMetadataTyp = "openidvci-issuer-metadata+jwt"
 // §12.2.3: typ openidvci-issuer-metadata+jwt, an asymmetric alg, a sub
 // matching the Credential Issuer Identifier, and the signature.
 //
-// §12.2.3 also asks the wallet to "establish trust in the signer", by a
-// mechanism it leaves out of scope. This wallet tries an x5c chain to a
-// trusted root but does not reject a signer it cannot place: it holds no
-// issuer CAs (ADR-0009).
+// §12.2.3 also asks the wallet to "establish trust in the signer" and leaves
+// the mechanism out of scope. The wallet tries to build an x5c chain to a
+// trusted root. It accepts a signer it cannot place because it holds no issuer
+// CAs (ADR-0009).
 func verifySignedIssuerMetadata(token *sdjwt.Token, issuer string) error {
 	if token == nil {
 		return fmt.Errorf("signed issuer metadata token is nil")
@@ -783,8 +779,7 @@ func signedIssuerMetadataChain(token *sdjwt.Token) ([]*x509.Certificate, error) 
 }
 
 // verifyIssuerMetadataChainTrust reports whether a signed metadata chain ends
-// in one of the anchors the wallet holds. issuerMetadataTrustAnchors is nil in
-// normal operation, which selects the host's root store.
+// in one of issuerMetadataTrustAnchors.
 func verifyIssuerMetadataChainTrust(certs []*x509.Certificate) error {
 	intermediates := x509.NewCertPool()
 	for _, cert := range certs[1:] {
@@ -872,11 +867,11 @@ func offerAuthorizationServer(offer *oid4vc.CredentialOffer) string {
 	return ""
 }
 
-// selectAuthorizationServer picks the authorization server this offer is
-// redeemed at. §12.2.4: the wallet "MUST NOT proceed with the flow if the
+// selectAuthorizationServer picks the authorization server for this offer.
+// §12.2.4: the wallet "MUST NOT proceed with the flow if the
 // authorization_server Credential Offer parameter value does not match any of
-// the entries in the authorization_servers array", so a hint matching nothing
-// is an error rather than something to fall back from.
+// the entries in the authorization_servers array". A hint that matches no
+// entry is an error.
 func selectAuthorizationServer(metadata map[string]any, offer *oid4vc.CredentialOffer) (string, error) {
 	servers := authorizationServersFromMetadata(metadata)
 	hint := offerAuthorizationServer(offer)
@@ -898,9 +893,8 @@ func selectAuthorizationServer(metadata map[string]any, offer *oid4vc.Credential
 	return "", fmt.Errorf("credential offer names authorization server %q, which the issuer metadata of %s does not list", hint, issuer)
 }
 
-// Do not apply RFC 8414's old authorization_code and implicit defaults to
-// pre-authorized issuance. If grant_types_supported is absent, infer no
-// incompatibility.
+// RFC 8414's default of authorization_code and implicit does not fit
+// pre-authorized issuance. An absent grant_types_supported states nothing.
 func grantTypesSupported(oauthMeta map[string]any) ([]string, bool) {
 	raw, ok := oauthMeta["grant_types_supported"].([]any)
 	if !ok {
@@ -915,13 +909,11 @@ func grantTypesSupported(oauthMeta map[string]any) ([]string, bool) {
 	return out, len(out) > 0
 }
 
-// checkAuthorizationServerGrant reports an authorization server that says it
-// cannot process the grant this issuance is about to use. §12.2.4 has the
-// wallet read exactly this ("by examining the grant_types_supported values,
-// the Wallet can filter the server to use based on the grant type it plans to
-// use"), and §4.1.1 defines the offer's authorization_server as the one to use
-// "with this grant type", so a server listing neither is the offer naming the
-// wrong one.
+// checkAuthorizationServerGrant reports an authorization server whose metadata
+// leaves out the grant this issuance uses. §12.2.4: "by examining the
+// grant_types_supported values, the Wallet can filter the server to use based
+// on the grant type it plans to use". §4.1.1 defines the offer's
+// authorization_server as the server to use "with this grant type".
 func (w *Wallet) checkAuthorizationServerGrant(authServer string, oauthMeta map[string]any, grantType string) error {
 	supported, stated := grantTypesSupported(oauthMeta)
 	if !stated || slices.Contains(supported, grantType) {
@@ -953,13 +945,10 @@ func oauthMetadataFetch(issuer string) metadataFetch {
 	}
 }
 
-// fallbackAuthorizationServer finds an advertised authorization server that
-// states support for the grant this issuance uses, once the selected server's
-// metadata has stated it cannot take it. §4.1.1 makes the offer's
-// authorization_server a value the wallet "can use", and §12.2.4 has the
-// wallet examine grant_types_supported to pick the server for its grant. The
-// move happens only between explicit statements on both sides and only among
-// the servers the issuer's metadata advertises. Strict mode refuses at
+// fallbackAuthorizationServer finds another advertised authorization server
+// that lists the grant this issuance uses. It applies only when the selected
+// server's metadata leaves the grant out. §4.1.1 makes the offer's
+// authorization_server a value the wallet "can use". Strict mode refuses in
 // checkAuthorizationServerGrant before this runs.
 func (w *Wallet) fallbackAuthorizationServer(metadata map[string]any, authServer string, oauthMeta map[string]any, grantType string) (string, map[string]any, bool) {
 	supported, stated := grantTypesSupported(oauthMeta)
@@ -1019,11 +1008,10 @@ func normalizeIssuerURL(raw string) string {
 }
 
 // resolveTokenEndpoint resolves the token endpoint. token_endpoint is an
-// authorization server metadata parameter (RFC 8414 §2) and §12.2.4 defines no
-// Credential Issuer Metadata equivalent, so an issuer publishing one anyway is
-// read only when no authorization server metadata was reachable. A server that
-// publishes none has broken its own metadata: strict refuses, debug warns and
-// works around it with the conventional path.
+// authorization server metadata parameter (RFC 8414 §2). §12.2.4 defines no
+// Credential Issuer Metadata equivalent, so the issuer metadata is only a
+// fallback. Without either, strict mode refuses and debug mode warns and uses
+// the conventional path.
 func (w *Wallet) resolveTokenEndpoint(metadata map[string]any, oauthMeta map[string]any, issuer string) (string, error) {
 	if ep, ok := oauthMeta["token_endpoint"].(string); ok && ep != "" {
 		return ep, nil
@@ -1083,10 +1071,10 @@ func fetchOAuthMetadata(client *http.Client, authServer string, payloads ...*Log
 	return meta, nil
 }
 
-// resolveCredentialEndpoint resolves the credential endpoint. credential_endpoint
-// is REQUIRED in the Credential Issuer Metadata (OpenID4VCI 1.0), so as with the
-// token endpoint strict refuses a metadata that omits it and debug warns and
-// assumes the conventional path.
+// resolveCredentialEndpoint resolves the credential endpoint. OpenID4VCI 1.0
+// makes credential_endpoint REQUIRED in the Credential Issuer Metadata. Strict
+// mode refuses metadata without it. Debug mode warns and uses the conventional
+// path.
 func (w *Wallet) resolveCredentialEndpoint(metadata map[string]any, issuer string) (string, error) {
 	if ep, ok := metadata["credential_endpoint"].(string); ok && ep != "" {
 		return ep, nil
@@ -1132,9 +1120,7 @@ func createProofJWT(holderKey *ecdsa.PrivateKey, audience, clientID, cNonce stri
 		"iat": time.Now().Unix(),
 	}
 	// OID4VCI 1.0 Appendix F.1: iss is the client_id of the client making the
-	// credential request. It is sent when the wallet obtained the access token
-	// as an identified OAuth client and omitted for an anonymous pre-authorized
-	// flow.
+	// credential request. An anonymous pre-authorized flow has no client_id.
 	if clientID != "" {
 		payload["iss"] = clientID
 	}
@@ -1147,33 +1133,62 @@ func createProofJWT(holderKey *ecdsa.PrivateKey, audience, clientID, cNonce stri
 	return signJWT(header, payload, holderKey)
 }
 
-// resolveCredentialIdentifier extracts a credential_identifier from the token
-// response's authorization_details. OID4VCI 1.0 has the credential request
-// name it instead of the credential_configuration_id from the offer.
-func resolveCredentialIdentifier(tokenResp map[string]any) string {
-	if authDetails, ok := tokenResp["authorization_details"].([]any); ok {
-		for _, detail := range authDetails {
-			d, ok := detail.(map[string]any)
-			if !ok {
-				continue
-			}
-			if ids, ok := d["credential_identifiers"].([]any); ok && len(ids) > 0 {
-				if id, ok := ids[0].(string); ok {
-					return id
-				}
-			}
+// resolveCredentialIdentifier returns a credential_identifier from the token
+// response's authorization_details and prefers the entry for configID. OID4VCI
+// 1.0 has the credential request send it in place of the
+// credential_configuration_id from the offer. authorizedOther is the
+// configuration of the returned identifier when no entry matches configID.
+func resolveCredentialIdentifier(tokenResp map[string]any, configID string) (identifier, authorizedOther string) {
+	authDetails, _ := tokenResp["authorization_details"].([]any)
+	var firstID, firstConfig string
+	for _, detail := range authDetails {
+		d, ok := detail.(map[string]any)
+		if !ok {
+			continue
+		}
+		ids, _ := d["credential_identifiers"].([]any)
+		if len(ids) == 0 {
+			continue
+		}
+		id, ok := ids[0].(string)
+		if !ok {
+			continue
+		}
+		config, _ := d["credential_configuration_id"].(string)
+		if configID != "" && config == configID {
+			return id, ""
+		}
+		if firstID == "" {
+			firstID, firstConfig = id, config
 		}
 	}
+	if firstID != "" && configID != "" && firstConfig != configID {
+		return firstID, firstConfig
+	}
+	return firstID, ""
+}
 
-	return ""
+// OID4VCI 1.0 §6.1 only RECOMMENDS that "the Credential Issuer issues an Access
+// Token valid only for the Credentials indicated in the Credential Offer". A
+// token for another configuration is therefore a warning in every mode.
+func (w *Wallet) reportAuthorizedConfiguration(issuer, offered, authorized string) {
+	if authorized == "" {
+		return
+	}
+	detail := fmt.Sprintf("the token response from %s authorizes credential configuration %q, not the offered %q. The credential request names the identifier it returned", issuer, authorized, offered)
+	log.Printf("[VCI] WARNING: %s", detail)
+	w.addProtocolWarning("issuance", "token_authorizes_other_configuration", detail, map[string]any{
+		"offered_configuration":    offered,
+		"authorized_configuration": authorized,
+	})
 }
 
 // buildCredentialResponseEncryptionRequest builds the
-// credential_response_encryption object of §8.2, or nil when the wallet must
-// not ask for an encrypted response. The parameter never travels on its own:
-// "Credential Request encryption MUST be used if the
-// credential_response_encryption parameter is included", so an issuer offering
-// no usable request encryption key gets no encryption request either.
+// credential_response_encryption object of §8.2. It returns nil when the
+// wallet must not ask for an encrypted response. §8.2: "Credential Request
+// encryption MUST be used if the credential_response_encryption parameter is
+// included". An issuer without a usable request encryption key therefore gets
+// no response encryption request.
 func buildCredentialResponseEncryptionRequest(mode ValidationMode, metadata map[string]any, holderKey *ecdsa.PrivateKey) (map[string]any, error) {
 	if holderKey == nil {
 		return nil, nil
@@ -1330,8 +1345,8 @@ func selectCredentialRequestEncryption(mode ValidationMode, metadata map[string]
 		if err != nil {
 			continue
 		}
-		// Debug mode read past a specification violation to get here. No
-		// wallet is in scope here, so the finding goes to the process log.
+		// Debug mode continued past a specification violation. No wallet is in
+		// scope, so the finding goes to the process log.
 		if finding != "" {
 			log.Printf("[VCI] WARNING: %s", finding)
 		}
@@ -1373,15 +1388,15 @@ func (w *Wallet) reportHAIPViolations(subject, issuer string, violations []strin
 
 // issuanceChallenge obtains the c_nonce the key proofs are signed over. §8.2
 // leaves one source: "The c_nonce value is retrieved from the Nonce Endpoint
-// as defined in Section 7." A c_nonce in the token response is a pre-1.0
-// issuer showing through, which strict ignores and debug uses after saying so.
+// as defined in Section 7." A c_nonce in the token response comes from a
+// pre-1.0 issuer. Strict mode ignores it. Debug mode uses it with a warning.
 func (w *Wallet) issuanceChallenge(metadata, tokenResp map[string]any, issuer string, dpopNonce *string) (string, error) {
 	if cNonce := w.fetchNonce(metadata, dpopNonce); cNonce != "" {
 		return cNonce, nil
 	}
-	// A nonce endpoint that was advertised but gave no challenge is a §7.1
-	// deviation. Strict refuses, debug warns and sends the proof without a
-	// c_nonce so the issuer's rejection is the finding.
+	// An advertised nonce endpoint that returns no challenge deviates from
+	// §7.1. Strict mode refuses. Debug mode warns and sends the proof without a
+	// c_nonce, so the issuer's rejection shows the result.
 	if ep, _ := metadata["nonce_endpoint"].(string); ep != "" {
 		if w.Mode() == ValidationModeStrict {
 			return "", fmt.Errorf("the nonce endpoint %s that %s advertises returned no c_nonce (OID4VCI 1.0 §7.1)", ep, issuer)
@@ -1417,26 +1432,25 @@ type credentialRequestAttempt struct {
 	responseEncryption        map[string]any
 	dpopKey                   *ecdsa.PrivateKey
 	proofKeys                 []*ecdsa.PrivateKey
-	// clientID is the OAuth client_id the access token was issued to, echoed as
-	// the key proof's iss claim. Empty for an anonymous pre-authorized flow,
-	// where there is no client to name.
+	// clientID is the OAuth client_id the access token was issued to. The key
+	// proof sends it as iss. It is empty for an anonymous pre-authorized flow.
 	clientID string
 	// nonce is the DPoP nonce state of the resource server, not the c_nonce.
 	nonce *string
 }
 
-// credentialProofs is the proofs object of a credential request (§8.2): the
-// proofs of one proof type.
+// credentialProofs is the proofs object of a credential request (§8.2). It
+// holds proofs of one proof type.
 type credentialProofs struct {
 	Type   string
 	Values []string
 }
 
 // buildCredentialProofs builds the key proofs over one challenge. With the
-// attestation proof type the key attestation naming every batch key is the
-// proof (Appendix F.3). With the jwt proof type there is one proof per proof
-// key, or under a required key attestation a single holder-key proof whose
-// attestation names every batch key (Appendix F.1, HAIP §4.5.1).
+// attestation proof type the proof is a key attestation that lists every batch
+// key (Appendix F.3). With the jwt proof type there is one proof per key. When
+// a key attestation is required, a single holder-key proof carries an
+// attestation that lists every batch key (Appendix F.1, HAIP §4.5.1).
 func (w *Wallet) buildCredentialProofs(a credentialRequestAttempt, cNonce string) (credentialProofs, error) {
 	if finding := proofSigningAlgFinding(a.metadata, a.configID, w.RequireHAIP); finding != "" {
 		if w.Mode() == ValidationModeStrict {

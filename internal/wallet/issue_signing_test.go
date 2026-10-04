@@ -52,9 +52,9 @@ func TestIssueWithSigningOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The override chain is embedded as given, self-signed root included, so
-	// a verifier's rejection of it can be tested. Debug mode records the
-	// HAIP finding.
+	// The override chain is embedded as given, including the self-signed
+	// root. This lets a user test how a verifier handles it. Debug mode
+	// records the HAIP finding.
 	token, err := sdjwt.ParseLenient(result.Raw)
 	if err != nil {
 		t.Fatal(err)
@@ -73,8 +73,8 @@ func TestIssueWithSigningOverride(t *testing.T) {
 		t.Error("expected a warning about the self-signed root in the chain")
 	}
 
-	// The type registers like an import, without the request's own trust
-	// metadata, which describes the wallet CA rather than the foreign chain.
+	// The type registers like an import. The request's trust metadata
+	// describes the wallet CA, so it does not apply to the foreign chain.
 	for _, spec := range w.IssuedAttestations {
 		for _, e := range spec.Entitlements {
 			if e == "https://entitlement.example/custom" {

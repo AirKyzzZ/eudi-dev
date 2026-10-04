@@ -32,11 +32,10 @@ import (
 // VerifyRequestObjectSignature verifies the Request Object JWS.
 //
 // The x509 prefixes (x509_san_dns:, x509_hash:) carry the signing certificate
-// in the x5c header, so the signature is checked against the leaf and the
-// chain for internal consistency. verifier_attestation: and
+// in the x5c header. The signature is checked against the leaf, and the chain
+// is checked for consistency. verifier_attestation: and
 // decentralized_identifier: take the key from the attestation or the resolved
-// DID, which this wallet does not resolve, so they get a finding naming the
-// signature as unverified.
+// DID. This wallet resolves neither, so it reports the signature as unverified.
 func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil {
 		return ""
@@ -81,9 +80,9 @@ func VerifyRequestObjectSignature(clientID string, reqObj *oid4vc.RequestObjectJ
 	return ""
 }
 
-// signed means the request signature verified using its supplied key material. It does
-// not establish trust in the signer. detail explains unsigned or unverified requests
-// to the consent dialog.
+// clientAuthState reports whether the request signature verified with the key
+// material the request supplies. That does not establish trust in the signer.
+// detail explains an unsigned or unverified request to the consent dialog.
 func clientAuthState(params *AuthorizationRequestParams) (signed bool, detail string) {
 	if params == nil || params.RequestObject == nil {
 		return false, "The request was not a signed request object."
@@ -97,8 +96,8 @@ func clientAuthState(params *AuthorizationRequestParams) (signed bool, detail st
 	return true, ""
 }
 
-// client_name is self-asserted display text, not a verified identity. Prefer request
-// object metadata over outer parameters.
+// clientMetadataName returns client_name from the request object metadata, or
+// else from the outer parameters. client_name is self-asserted display text.
 func clientMetadataName(params *AuthorizationRequestParams) string {
 	if params == nil {
 		return ""
@@ -119,7 +118,8 @@ func (r *ConsentRequest) applyClientAuth(params *AuthorizationRequestParams) {
 	r.ClientName = clientMetadataName(params)
 }
 
-// Identify unsupported key resolution when a signed request remains unverified. See
+// unverifiedSignatureFinding explains why a signed request stays unverified
+// when the wallet does not support the key resolution of its prefix. See
 // docs/adr/0013-only-the-eudi-stack-is-supported.md.
 func unverifiedSignatureFinding(clientID string) string {
 	switch {
@@ -142,15 +142,15 @@ func unverifiedSignatureFinding(clientID string) string {
 	}
 }
 
-// Only x509 prefixes identify a signing certificate in x5c. Other prefixes resolve
-// keys elsewhere or use unsigned requests.
+// clientIDVerifiesViaX5C reports whether the prefix carries the signing
+// certificate in x5c. Only the x509 prefixes do.
 func clientIDVerifiesViaX5C(clientID string) bool {
 	return strings.HasPrefix(clientID, "x509_san_dns:") || strings.HasPrefix(clientID, "x509_hash:")
 }
 
-// VerifyClientID validates the client_id prefix against the request object and
-// response URI per OID4VP 1.0 Client Identifier Prefixes.
-// Returns a warning string if there's a mismatch, or "" if OK / not applicable.
+// VerifyClientID checks the client_id prefix against the request object and
+// the response URI (OID4VP 1.0 Client Identifier Prefixes). It returns a
+// warning on a mismatch and "" otherwise.
 func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseURI string, requestOrigin string) string {
 	switch {
 	case strings.HasPrefix(clientID, "x509_san_dns:"):
@@ -159,13 +159,13 @@ func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseUR
 		return verifyX509Hash(clientID, reqObj)
 	case strings.HasPrefix(clientID, "origin:"):
 		// OID4VP 1.0 §5.9.3: "The Wallet MUST NOT accept this Client Identifier
-		// Prefix in requests." It names the audience a Digital Credentials API
-		// presentation is bound to, which the wallet derives from the origin
+		// Prefix in requests." The prefix marks the audience of a Digital
+		// Credentials API presentation. The wallet derives it from the origin
 		// the platform reports.
 		return "OID4VP 1.0 §5.9.3: origin: is a reserved Client Identifier Prefix and MUST NOT be accepted in a request"
 	case strings.HasPrefix(clientID, "openid_federation:"):
-		// §5.9.3 defers to OpenID Federation for this prefix, whose trust
-		// chain this wallet does not resolve.
+		// §5.9.3 defers to OpenID Federation for this prefix. This wallet does
+		// not resolve federation trust chains.
 		return "openid_federation: client_id is not supported by this wallet"
 	case strings.HasPrefix(clientID, "redirect_uri:"):
 		return verifyRedirectURI(clientID, reqObj, responseURI)
@@ -179,8 +179,8 @@ func VerifyClientID(clientID string, reqObj *oid4vc.RequestObjectJWT, responseUR
 }
 
 // verifyX509SAN checks that the leaf certificate SAN contains the expected DNS
-// name and, outside the DC API, that the response destination's FQDN matches
-// the client_id (OID4VP 1.0 §5.9.1).
+// name. Outside the DC API it also checks that the FQDN of the response
+// destination matches the client_id (OID4VP 1.0 §5.9.1).
 func verifyX509SAN(clientID, prefix, scheme string, reqObj *oid4vc.RequestObjectJWT, responseURI, requestOrigin string) string {
 	expected := strings.TrimPrefix(clientID, prefix)
 
@@ -202,9 +202,9 @@ func verifyX509SAN(clientID, prefix, scheme string, reqObj *oid4vc.RequestObject
 		}
 	}
 
-	// §5.9.3: outside the DC API (which is origin-bound) and with no trusted
-	// client list to waive it, the FQDN of the response destination MUST match
-	// the client_id.
+	// §5.9.3: the FQDN of the response destination MUST match the client_id
+	// unless a trusted client list waives it. The DC API is origin-bound, so
+	// the rule does not apply there.
 	if requestOrigin == "" && responseURI != "" {
 		if parsed, err := url.Parse(responseURI); err != nil || !strings.EqualFold(parsed.Hostname(), expected) {
 			return fmt.Sprintf("OID4VP 1.0 §5.9.3: the response goes to %q, whose host does not match the x509_san_dns client_id %q", responseURI, expected)
@@ -249,10 +249,9 @@ func verifyRedirectURI(clientID string, reqObj *oid4vc.RequestObjectJWT, respons
 	return ""
 }
 
-// verifyVerifierAttestation validates the verifier_attestation: prefix per
-// OID4VP 1.0 §5.9.3: the Request Object carries the Verifier Attestation JWT
-// in its "jwt" header, and that JWT's sub matches the client_id value after
-// the prefix.
+// verifyVerifierAttestation checks the verifier_attestation: prefix (OID4VP
+// 1.0 §5.9.3). The Request Object carries the Verifier Attestation JWT in its
+// "jwt" header. The sub of that JWT matches the client_id after the prefix.
 func verifyVerifierAttestation(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil || reqObj.Header == nil {
 		return "OID4VP 1.0 §5.9.3: verifier_attestation: requires a signed Request Object"
@@ -282,9 +281,9 @@ func verifyVerifierAttestation(clientID string, reqObj *oid4vc.RequestObjectJWT)
 	return ""
 }
 
-// verifyDecentralizedIdentifier validates the decentralized_identifier: prefix
-// per OID4VP 1.0 §5.9.3: the value is a DID (did:method:identifier) and a
-// signed Request Object is present. The DID is not resolved.
+// verifyDecentralizedIdentifier checks the decentralized_identifier: prefix
+// (OID4VP 1.0 §5.9.3). The value is a DID (did:method:identifier) and a signed
+// Request Object is present. The DID is not resolved.
 func verifyDecentralizedIdentifier(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	did := strings.TrimPrefix(clientID, "decentralized_identifier:")
 
@@ -363,8 +362,8 @@ func extractCertChain(reqObj *oid4vc.RequestObjectJWT) ([]*x509.Certificate, str
 	return certs, ""
 }
 
-// prefixRequiresSigning returns true if the client_id prefix requires a signed
-// Request Object per OID4VP 1.0.
+// prefixRequiresSigning reports whether OID4VP 1.0 requires a signed Request
+// Object for the client_id prefix.
 func prefixRequiresSigning(clientID string) bool {
 	prefixes := []string{"x509_san_dns:", "x509_hash:", "decentralized_identifier:", "verifier_attestation:"}
 	for _, p := range prefixes {
@@ -375,9 +374,9 @@ func prefixRequiresSigning(clientID string) bool {
 	return false
 }
 
-// ValidateRequestObject checks that the Request Object's typ header is
-// "oauth-authz-req+jwt" per OID4VP 1.0 / RFC 9101.
-// Also warns if the client_id prefix requires signing but no Request Object is present.
+// ValidateRequestObject checks that the typ header of the Request Object is
+// "oauth-authz-req+jwt" (OID4VP 1.0, RFC 9101). It also warns when the
+// client_id prefix requires signing and no Request Object is present.
 func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) string {
 	if reqObj == nil {
 		if prefixRequiresSigning(clientID) {
@@ -393,9 +392,9 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	alg := jsonutil.GetString(reqObj.Header, "alg")
 	typ := jsonutil.GetString(reqObj.Header, "typ")
 
-	// An unsigned ("alg": "none") Request Object satisfies none of the prefixes
+	// An unsigned ("alg": "none") Request Object fails every prefix that
 	// OID4VP 1.0 requires to be signed. VerifyRequestObjectSignature has
-	// nothing to verify for alg=none, so it is caught here.
+	// nothing to verify for alg=none, so this check catches it.
 	if alg == "none" && prefixRequiresSigning(clientID) {
 		return "OID4VP 1.0 §5.9.3: the client_id prefix requires a signed Request Object but the Request Object is unsigned (alg \"none\")"
 	}
@@ -417,9 +416,9 @@ func ValidateRequestObject(clientID string, reqObj *oid4vc.RequestObjectJWT) str
 	return ""
 }
 
-// verifyAlgMatchesCert checks that the JWT "alg" header is compatible with the
-// public key type in the x5c leaf certificate. Returns a warning on mismatch,
-// or "" if OK or if x5c is not present.
+// verifyAlgMatchesCert checks that the JWT "alg" header fits the key type of
+// the x5c leaf certificate. It returns a warning on a mismatch and "" when they
+// match or x5c is absent.
 func verifyAlgMatchesCert(reqObj *oid4vc.RequestObjectJWT) string {
 	alg := jsonutil.GetString(reqObj.Header, "alg")
 	if alg == "" {

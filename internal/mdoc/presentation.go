@@ -32,9 +32,8 @@ import (
 )
 
 // VerifyValueDigests checks the disclosed items against the digests the issuer
-// signed in the MSO. The issuer signature only covers the MSO, so without this
-// a holder could change any element value and still present a document whose
-// signature verifies.
+// signed in the MSO. The issuer signature covers only the MSO, so this check
+// protects the element values.
 func VerifyValueDigests(doc *Document) error {
 	if doc == nil || doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return fmt.Errorf("document carries no MSO to check digests against")
@@ -88,15 +87,14 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 	}
 
 	// DeviceAuthentication = ["DeviceAuthentication", SessionTranscript,
-	// DocType, DeviceNameSpacesBytes], and the payload is Tag24 of its CBOR.
-	// The wallet sends empty DeviceNameSpaces, rebuilt here.
+	// DocType, DeviceNameSpacesBytes]. The payload is Tag24 of its CBOR.
+	// The wallet sends empty DeviceNameSpaces.
 	emptyNamespaces, err := tag24(map[string]any{})
 	if err != nil {
 		return err
 	}
-	// The holder signed over the session transcript bytes verbatim, so they go
-	// back in unchanged. Decoding and re-encoding would fail an mdoc handover
-	// carrying a map or a tag.
+	// The holder signed the session transcript bytes verbatim. Re-encoding them
+	// breaks an mdoc handover that carries a map or a tag.
 	if err := cbor.Wellformed(sessionTranscript); err != nil {
 		return fmt.Errorf("the session transcript is not valid CBOR: %w", err)
 	}
@@ -120,9 +118,8 @@ func VerifyDeviceAuth(doc *Document, sessionTranscript []byte) error {
 	if err != nil {
 		return fmt.Errorf("creating the device signature verifier: %w", err)
 	}
-	// The payload is detached: the holder signed the DeviceAuthentication
-	// rebuilt above, and the response carries only the signature. A mismatch
-	// means the holder signed a different request.
+	// The payload is detached. The response carries only the signature over the
+	// DeviceAuthentication rebuilt above. A mismatch means a different request.
 	msg.Payload = payload
 	if err := msg.Verify(nil, verifier); err != nil {
 		return fmt.Errorf("the device signature does not verify against this request: %w", err)
@@ -204,8 +201,8 @@ func tag24Raw(encoded []byte) ([]byte, error) {
 	return wrapped, nil
 }
 
-// DeviceKeyThumbprint is the RFC 7638 JWK thumbprint of a device key, which
-// identifies it the same way a kid does elsewhere in the toolkit.
+// DeviceKeyThumbprint is the RFC 7638 JWK thumbprint of a device key. It
+// identifies the key like a kid does elsewhere in the toolkit.
 func DeviceKeyThumbprint(key *ecdsa.PublicKey) string {
 	if key == nil {
 		return ""
@@ -274,7 +271,6 @@ func NameCOSEHeader(header map[string]any) map[string]any {
 	return out
 }
 
-// Show readable certificate details instead of raw DER.
 func describeCertificates(value any) any {
 	var ders [][]byte
 	switch v := value.(type) {

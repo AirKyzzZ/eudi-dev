@@ -1,9 +1,9 @@
 // @ts-check
 // Runs the wallet under /some/context and the proxy dashboard under /eudi-proxy, behind
-// a TLS proxy that acts like an Istio ingress. Like Istio, it does not touch Location
-// headers. It only forwards the prefixes and the three issuer metadata paths at the
-// host root. Any other path would belong to another app on the shared host, so a test
-// fails when the browser requests one.
+// a TLS proxy that acts like an Istio ingress. Like Istio, it leaves Location headers
+// unchanged. It only forwards the prefixes and the three issuer metadata paths at the
+// host root. Any other path belongs to another app on the shared host, so a test fails
+// when the browser requests one.
 const { test, expect } = require("@playwright/test");
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
@@ -57,7 +57,7 @@ function startIngress(cert, key) {
     const url = new URL(req.url || "/", ORIGIN);
     const route = routeRequest(url.pathname);
     if (!route) {
-      // Browsers ask the host root for a favicon when a page names none.
+      // Browsers ask the host root for a favicon when a page has none.
       if (url.pathname !== "/favicon.ico") unrouted.push(url.pathname);
       res.writeHead(404).end("not routed to eudi-dev");
       return;
@@ -169,7 +169,7 @@ for (const mode of ["rewrite", "rewrite-header", "keep"]) {
       await page.goto(PUBLIC);
       await expect(page.locator(".credential-card").first()).toBeVisible({ timeout: 15_000 });
       await expect(page.locator("#decoder-link")).toHaveJSProperty("href", PUBLIC + "/decoder/");
-      // The cookie is scoped to the prefix, so look it up for a URL under it.
+      // The cookie is scoped to the prefix, so the lookup uses a URL under it.
       const cookies = await context.cookies(PUBLIC + "/");
       const session = cookies.find((c) => c.name === "eudi_session");
       expect(session && session.path).toBe(PREFIX);

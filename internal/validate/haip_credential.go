@@ -22,11 +22,9 @@ import (
 )
 
 // NonStatusListFormat describes a status claim that does not use the IETF Token
-// Status List (status.status_list), so a caller can tell it apart from a
-// credential that carries no status at all. It returns "" when the status claim
-// is absent or is a status_list, and catches a W3C StatusList2021Entry. HAIP 1.0
-// §6.1 requires the status_list form, so a caller under that profile treats a
-// non-empty result as a finding.
+// Status List (status.status_list), such as a W3C StatusList2021Entry. It
+// returns "" when the status claim is absent or is a status_list. HAIP 1.0 §6.1
+// requires the status_list form.
 func NonStatusListFormat(claims map[string]any) string {
 	status, ok := claims["status"].(map[string]any)
 	if !ok {
@@ -41,9 +39,9 @@ func NonStatusListFormat(claims map[string]any) string {
 	return "the status claim is not a Token Status List (status.status_list)"
 }
 
-// HAIPCredentialFindings holds a credential's issuer key to §6.1.1: the
-// certificate chain that signed it, and whether it is named by a DID, which
-// this profile has no way to resolve.
+// HAIPCredentialFindings checks a credential's issuer key against HAIP 1.0
+// §6.1.1. It checks the signing certificate chain and reports a DID key
+// reference, which this profile cannot resolve.
 func HAIPCredentialFindings(header, payload map[string]any) []string {
 	var findings []string
 	kid, _ := header["kid"].(string)
@@ -53,9 +51,8 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 			"HAIP 1.0 §6.1.1: the credential names its issuer key by the DID %s, where the issuer's signing certificate and its trust chain travel in the x5c header instead", did))
 	}
 	// HAIP 1.0 §6.1: "The status claim, if present, MUST contain status_list as
-	// defined in [I-D.ietf-oauth-status-list]." A W3C StatusList2021Entry does
-	// not, so it is a finding under the profile (a plain claim, so it sits in
-	// the payload rather than behind a disclosure).
+	// defined in [I-D.ietf-oauth-status-list]." The status claim is always in the
+	// payload because it is never selectively disclosed.
 	if nonStandard := NonStatusListFormat(payload); nonStandard != "" {
 		findings = append(findings, fmt.Sprintf("HAIP 1.0 §6.1: %s", nonStandard))
 	}
@@ -71,9 +68,8 @@ func HAIPCredentialFindings(header, payload map[string]any) []string {
 // trust anchor MUST NOT be included in the x5c JOSE header of the SD-JWT VC.
 // The X.509 certificate signing the request MUST NOT be self-signed."
 //
-// The issuer of a credential carrying x5c is the subject of the end-entity
-// certificate, so SD-JWT VC makes iss optional there. Only SD-JWT
-// VCs are in scope: §6.1.1 is the IETF SD-JWT VC profile, and an mdoc carries
+// With x5c the issuer is the subject of the end-entity certificate, so SD-JWT
+// VC makes iss optional. §6.1.1 is the IETF SD-JWT VC profile. An mdoc carries
 // its issuer certificate elsewhere.
 func HAIPCredentialChain(chain []*x509.Certificate) []string {
 	if len(chain) == 0 {
@@ -84,10 +80,8 @@ func HAIPCredentialChain(chain []*x509.Certificate) []string {
 	if SelfSignedCertificate(chain[0]) {
 		violations = append(violations, "HAIP 1.0 §6.1.1: the certificate signing the credential MUST NOT be self-signed")
 	}
-	// Which certificate is the anchor depends on what the checking party was
-	// configured to trust, and this wallet holds no such list. So the finding
-	// reports what is visible, a self-signed certificate, rather than claiming
-	// the anchor was included.
+	// The anchor depends on what the checking party trusts, and this wallet holds
+	// no such list. The finding reports the visible fact of a self-signed certificate.
 	for i, cert := range chain[1:] {
 		if SelfSignedCertificate(cert) {
 			violations = append(violations, fmt.Sprintf(
@@ -107,9 +101,7 @@ func SelfSignedCertificate(cert *x509.Certificate) bool {
 	if cert.Subject.String() != cert.Issuer.String() {
 		return false
 	}
-	// CheckSignature verifies the certificate against its own key. CheckSignatureFrom
-	// enforces CA constraints first and rejects a non-CA certificate before it ever
-	// checks the signature, so it misses a self-signed end-entity leaf, the
-	// case HAIP §6.1.1 targets.
+	// CheckSignatureFrom rejects a non-CA certificate before it checks the signature.
+	// It would miss a self-signed end-entity leaf, which HAIP §6.1.1 targets.
 	return cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature) == nil
 }

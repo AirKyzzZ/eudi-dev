@@ -26,16 +26,12 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
 )
 
-// Beside its ticket, the demo issuer offers every known credential template
-// (the built-in ones and the user's) as a credential configuration named
-// after the template. An offer names the configurations it covers, and the
-// credential is issued from the template's claim set, signed under the trust
-// profile the type belongs to (PID types under the PID signer). A wallet
-// that must be configured with a PID provider can therefore name the demo
-// issuer, and a user of the issuer page picks the template to issue.
+// The demo issuer offers the ticket and every credential template as a
+// credential configuration. The configuration id is the template name. PID
+// types are signed by the PID signer, so a wallet that needs a PID provider
+// can use the demo issuer.
 
-// templateConfiguration is one credential configuration issued from a
-// template.
+// templateConfiguration is a credential configuration backed by a template.
 type templateConfiguration struct {
 	id       string
 	format   string
@@ -44,8 +40,8 @@ type templateConfiguration struct {
 	template credtemplate.Template
 }
 
-// templateConfigurations lists the templates the demo issuer can issue, by
-// name. Templates without a usable format (SD-JWT or mdoc) are left out.
+// templateConfigurations lists the templates the demo issuer can issue,
+// sorted by name. It skips templates that are neither SD-JWT nor mdoc.
 func (d *DemoRP) templateConfigurations() []templateConfiguration {
 	templates, err := credtemplate.List(d.wallet.Templates)
 	if err != nil {
@@ -90,8 +86,7 @@ func (d *DemoRP) templateConfiguration(id string) (templateConfiguration, bool) 
 	return templateConfiguration{}, false
 }
 
-// offeredConfigurationIDs are the configurations a new offer may name: the
-// ticket and every template.
+// offeredConfigurationIDs returns the ticket and every template configuration.
 func (d *DemoRP) offeredConfigurationIDs() []string {
 	ids := []string{ticketConfigurationID}
 	for _, cfg := range d.templateConfigurations() {
@@ -100,8 +95,8 @@ func (d *DemoRP) offeredConfigurationIDs() []string {
 	return ids
 }
 
-// credentialConfigurations adds the template configurations to the metadata
-// entries (OpenID4VCI 1.0 §11.2.3), the ticket's among them.
+// credentialConfigurations adds the template configurations to the
+// credential_configurations_supported entries of OpenID4VCI 1.0 §11.2.3.
 func (d *DemoRP) credentialConfigurations(base map[string]any) map[string]any {
 	for _, cfg := range d.templateConfigurations() {
 		entry := map[string]any{
@@ -145,8 +140,8 @@ func (d *DemoRP) credentialConfigurations(base map[string]any) map[string]any {
 	return base
 }
 
-// templateClaimPaths lists the template's top-level claims as claim
-// descriptions, under the namespace for an mdoc.
+// templateClaimPaths lists the top-level claims of the template. For an mdoc
+// each path starts with the namespace.
 func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 	names := make([]string, 0, len(cfg.template.Claims))
 	for name := range cfg.template.Claims {
@@ -168,9 +163,8 @@ func templateClaimPaths(cfg templateConfiguration) []map[string]any {
 	return paths
 }
 
-// signTemplate issues one credential of the configuration for the holder
-// key of a proof, from the template's claims (the offer's holder claims
-// override them), signed under the trust profile the type belongs to.
+// signTemplate issues one credential from the template claims, bound to
+// holderKey. Holder claims from the offer override the template claims.
 func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.PublicKey, granted ticketGrant) (string, error) {
 	tpl := cfg.template
 	expiresIn := 30 * 24 * time.Hour
@@ -239,7 +233,7 @@ func (d *DemoRP) signTemplate(cfg templateConfiguration, holderKey *ecdsa.Public
 	return "", fmt.Errorf("configuration %s has an unknown format %s", cfg.id, cfg.format)
 }
 
-// offerConfigurationIDs validates the configurations an offer names. An
+// offerConfigurationIDs checks the configurations requested for an offer. An
 // empty request means the ticket.
 func (d *DemoRP) offerConfigurationIDs(requested []string) ([]string, error) {
 	if len(requested) == 0 {

@@ -24,8 +24,7 @@ import (
 var cborDecMode cbor.DecMode
 
 func init() {
-	// Decoding unsigned integers as signed keeps a CBOR integer key from
-	// arriving as uint64 in one document and int64 in the next.
+	// Unsigned integers decode as signed, so a CBOR integer key always has one Go type.
 	var err error
 	cborDecMode, err = cbor.DecOptions{
 		IntDec: cbor.IntDecConvertSigned,

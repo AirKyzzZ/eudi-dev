@@ -66,10 +66,10 @@ func nationalitiesQuery(path ...any) map[string]any {
 	}}}
 }
 
-// A whole path onto an array of selectively disclosable elements discloses the
-// array but none of its elements (OpenID4VP 1.0 §7.1 selects elements with a
-// null or an index). The wallet marks the claim so the consent dialog and the
-// activity log can warn.
+// A path that ends at an array of selectively disclosable elements discloses the
+// array without its elements. OpenID4VP 1.0 §7.1 selects elements with a null or
+// an index. The wallet flags the claim so the consent dialog and the activity log
+// can warn.
 func TestPresentation_BareArrayPathDisclosesEmptyArray(t *testing.T) {
 	w := generateTestWallet(t)
 	importNationalitiesPID(t, w)

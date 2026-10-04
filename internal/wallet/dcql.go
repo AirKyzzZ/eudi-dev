@@ -313,7 +313,7 @@ func unmatchedCredentialQueries(credQueries []any, matches []CredentialMatch) []
 }
 
 // DCQLQueryFindings reports where a DCQL query departs from OID4VP 1.0 §6.
-// Strict refuses to answer the query, debug logs the findings and evaluates
+// Strict mode refuses the query. Debug mode logs the findings and evaluates
 // the query as far as it can.
 func DCQLQueryFindings(query map[string]any) []string {
 	if query == nil {
@@ -369,8 +369,7 @@ func DCQLQueryFindings(query map[string]any) []string {
 			}
 		}
 
-		// §6.1 makes meta REQUIRED, with an empty object as the way to place
-		// no constraints. Leaving the member out is not.
+		// §6.1 makes meta REQUIRED. An empty object places no constraints.
 		meta, present := cqMap["meta"]
 		if !present {
 			findings = append(findings, fmt.Sprintf("OID4VP 1.0 §6.1: the credential query %q is missing the required meta (use an empty object to place no constraints)", label))
@@ -503,8 +502,8 @@ type claimSelection struct {
 }
 
 // matchesFormat checks if a credential matches the requested format. §6.1
-// makes format REQUIRED, so an absent one is a malformed query reported by
-// DCQLQueryFindings. Treating it as a wildcard here is the debug-mode reading.
+// makes format REQUIRED and DCQLQueryFindings reports a missing one. Debug
+// mode treats a missing format as a wildcard.
 func matchesFormat(cred StoredCredential, queryFormat string) bool {
 	if queryFormat == "" {
 		return true
@@ -512,11 +511,11 @@ func matchesFormat(cred StoredCredential, queryFormat string) bool {
 	return cred.Format == queryFormat
 }
 
-// matchesMeta checks format-specific metadata (vct_values, doctype_value). An
-// absent meta is reported by DCQLQueryFindings. Treating it as unconstrained
-// is the debug-mode reading. A vct_values entry is answered by that type and
-// by types extending it (internal/credtype), while doctype_value takes no such
-// rule, since ISO/IEC 18013-5 has no inheritance.
+// matchesMeta checks format-specific metadata (vct_values, doctype_value).
+// DCQLQueryFindings reports a missing meta. Debug mode treats it as
+// unconstrained. A vct_values entry matches that type and every type extending
+// it (internal/credtype). ISO/IEC 18013-5 has no inheritance, so doctype_value
+// matches exactly.
 func matchesMeta(cred StoredCredential, cqMap map[string]any) bool {
 	meta, ok := cqMap["meta"].(map[string]any)
 	if !ok {
@@ -643,7 +642,7 @@ func buildClaimByID(claimsQuery []any) map[string]map[string]any {
 
 // claimSelectorFor resolves one Claims Query against a credential and returns
 // the selector to disclose, or "" when the credential does not answer it.
-// §6.4.1 has a value mismatch treated "the same as if it did not exist in the
+// §6.4.1 treats a value mismatch "the same as if it did not exist in the
 // Credential".
 func claimSelectorFor(cred StoredCredential, cqMap map[string]any) string {
 	path, ok := cqMap["path"].([]any)
@@ -667,7 +666,7 @@ func claimSelectorFor(cred StoredCredential, cqMap map[string]any) string {
 // selectAllRequestedClaims returns all requested claims that exist in the
 // credential, plus the paths of the ones it cannot answer. §6.4.1: "If claims
 // is present, but claim_sets is absent, the Verifier requests all claims
-// listed in claims", and none of them can be marked optional.
+// listed in claims". None of them is optional.
 func selectAllRequestedClaims(cred StoredCredential, claimsQuery []any) claimSelection {
 	var selected []string
 	var missingRequired []string
@@ -888,8 +887,8 @@ func selectJSONClaims(root map[string]any, path []any) []any {
 }
 
 // claimPathIndex reads an array index segment. §7: "A claims path pointer MUST
-// be a non-empty array of strings, nulls and non-negative integers", and JSON
-// decoding hands those integers over as float64.
+// be a non-empty array of strings, nulls and non-negative integers". JSON
+// decoding returns those integers as float64.
 func claimPathIndex(segment any) (int, bool) {
 	switch v := segment.(type) {
 	case float64:
@@ -907,9 +906,9 @@ func claimPathIndex(segment any) (int, bool) {
 	}
 }
 
-// mdocValueAsJSON converts an mdoc data element value to the JSON value value
-// matching compares against. §6.3 requires the conversion of RFC 8949 §6.1,
-// which encodes a byte string as base64url and a CBOR integer as a number.
+// mdocValueAsJSON converts an mdoc data element value to JSON for values
+// matching. §6.3 requires the conversion of RFC 8949 §6.1. It encodes a byte
+// string as base64url and a CBOR integer as a number.
 func mdocValueAsJSON(value any) any {
 	switch v := value.(type) {
 	case []byte:
@@ -942,9 +941,8 @@ func valuesConstraintSatisfied(selected []any, values []any) bool {
 }
 
 // claimValueEquals compares a claim against one entry of a values array. §6.3
-// allows "strings, integers or boolean values" there, and demands that type and
-// value both match, so a string never answers a number and a boolean never
-// answers the integer 1.
+// allows "strings, integers or boolean values" there. Type and value must both
+// match, so the string "1" and the boolean true never match the integer 1.
 func claimValueEquals(claim, want any) bool {
 	switch expected := want.(type) {
 	case string:
@@ -964,8 +962,8 @@ func claimValueEquals(claim, want any) bool {
 }
 
 // numericClaimValue reports the numeric value of a claim or of a values entry.
-// A JSON decoder hands over float64, while a CBOR decoder hands over the
-// signed and unsigned integer types an mdoc data element carries.
+// A JSON decoder returns float64. A CBOR decoder returns signed and unsigned
+// integer types for mdoc data elements.
 func numericClaimValue(value any) (float64, bool) {
 	switch v := value.(type) {
 	case float64:
@@ -1416,8 +1414,8 @@ func extractMDOCX5Chain(doc *mdoc.Document) ([]*x509.Certificate, error) {
 
 func checkETSITrustList(cred StoredCredential, trustListURL string, clients ...*http.Client) bool {
 	tlRaw, err := format.FetchURL(trustListURL, clients...)
-	// A verifier in Docker names the host as host.docker.internal, which the
-	// wallet on the host reaches as localhost.
+	// A verifier in Docker reaches the host as host.docker.internal. The wallet
+	// on the host reaches the same server as localhost.
 	if err != nil && strings.Contains(trustListURL, "host.docker.internal") {
 		fallbackURL := strings.Replace(trustListURL, "host.docker.internal", "localhost", 1)
 		log.Printf("[DCQL]   trusted_authorities: retrying with %s", fallbackURL)

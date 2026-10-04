@@ -154,7 +154,7 @@ func TestGetConfigStatusListURL(t *testing.T) {
 }
 
 func TestGeneratePIDStatusWithIssuerURLOnly(t *testing.T) {
-	// A previously served wallet may retain its issuer URL without a base URL.
+	// A wallet from an earlier serve run can keep its issuer URL without a base URL.
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://localhost:8086"
 	if err := w.GenerateDefaultCredentials(nil, ""); err != nil {

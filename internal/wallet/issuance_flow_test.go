@@ -35,40 +35,38 @@ type mockIssuerOpts struct {
 	tokenCNonce   string
 	nonceEndpoint bool
 	// nonceOnlyGET makes the nonce endpoint answer the POST that §7.1 requires
-	// with 405 and serve the c_nonce over GET instead, like an issuer whose
-	// nonce endpoint is misconfigured.
+	// with 405 and serve the c_nonce over GET.
 	nonceOnlyGET bool
-	// captureNotification, if set, is handed the Notification Request the
-	// wallet sent, so a test can hold it to §11.1.
+	// captureNotification receives the Notification Request the wallet sent, so
+	// a test can check it against §11.1.
 	captureNotification func(*http.Request, []byte)
-	// refusesNotification, if true, publishes a Notification Endpoint that
-	// answers every call with 404, as an issuer whose notification handler
-	// cannot find the session behind the token does.
+	// refusesNotification publishes a Notification Endpoint that answers every
+	// call with 404.
 	refusesNotification       bool
 	tokenAuthorizationDetails []any
-	// credentialResponse is the raw JSON object returned by the credential endpoint.
-	// If nil, a default response with a single SD-JWT credential is returned.
+	// credentialResponse is the JSON object the credential endpoint returns.
+	// When nil, the endpoint returns a single SD-JWT credential.
 	credentialResponse       map[string]any
 	credentialConfigFormat   string
 	inspectCredentialRequest func(*testing.T, map[string]any)
 	offerViaURI              bool
-	// oneShotOfferURI, if true, the credential_offer_uri succeeds once and then returns HTTP 400.
+	// oneShotOfferURI makes the credential_offer_uri succeed once and then
+	// return HTTP 400.
 	oneShotOfferURI bool
-	// secondOffer, if set, is what the credential_offer_uri serves from the
-	// second read on: an issuer that answers a spent offer with something
-	// else, or one that hands out a different offer under the same URI.
+	// secondOffer is served by the credential_offer_uri from the second read
+	// on.
 	secondOffer            map[string]any
 	onOfferFetch           func()
 	inspectMetadataRequest func(*testing.T, *http.Request)
 	inspectNonceRequest    func(*testing.T, *http.Request)
 	// rejectFirstNonce answers the first credential request with the
-	// invalid_nonce error of §8.3.1.2, whatever challenge it carried.
+	// invalid_nonce error of §8.3.1.2.
 	rejectFirstNonce bool
-	// omitAccessToken drops access_token from the token response, an RFC 6749
-	// §5.1 violation the wallet must fail on with a clear reason.
+	// omitAccessToken drops access_token from the token response, which RFC
+	// 6749 §5.1 requires.
 	omitAccessToken bool
 	// omitTokenType drops token_type from the token response, which RFC 6749
-	// §5.1 also requires: a deviation strict refuses and debug works around.
+	// §5.1 also requires.
 	omitTokenType bool
 }
 
@@ -110,7 +108,7 @@ func setupMockIssuer(t *testing.T, w *Wallet, opts mockIssuerOpts) (*httptest.Se
 					"test-config": map[string]any{
 						"format": configFormat,
 						"vct":    "urn:test:credential",
-						// §12.2.4 keeps display and claims inside
+						// §12.2.4 places display and claims inside
 						// credential_metadata.
 						"credential_metadata": map[string]any{
 							"display": []any{
@@ -512,10 +510,8 @@ func TestProcessCredentialOffer_HappyPath(t *testing.T) {
 			if !ok || len(jwts) != 1 {
 				t.Fatalf("expected single jwt proof, got %v", proofs["jwt"])
 			}
-			// This issuer authenticates no client, so the pre-authorized exchange
-			// is anonymous and the key proof leaves iss out (OID4VCI 1.0 Appendix
-			// F.1): naming a client the token is not bound to would fail an
-			// issuer's iss check.
+			// Without client authentication the pre-authorized exchange is
+			// anonymous, so the key proof omits iss (OID4VCI 1.0 Appendix F.1).
 			proofJWT, _ := jwts[0].(string)
 			if _, present := decodeJWTPart(t, proofJWT, 1)["iss"]; present {
 				t.Error("an anonymous pre-authorized flow must omit iss from the key proof")
@@ -571,8 +567,8 @@ func TestProcessCredentialOffer_HappyPath(t *testing.T) {
 	}
 }
 
-// A pre-authorized token response with no access_token (RFC 6749 §5.1 requires
-// it) fails with the real reason, not a later unauthenticated 401.
+// A token response without access_token (RFC 6749 §5.1 requires it) fails with
+// that reason before any credential request.
 func TestProcessCredentialOffer_MissingAccessToken(t *testing.T) {
 	w := generateTestWallet(t)
 	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{omitAccessToken: true})
@@ -616,9 +612,9 @@ func TestProcessCredentialOffer_NonceFallback(t *testing.T) {
 	}
 }
 
-// An issuer whose nonce endpoint answers the required POST with 405 and only
-// serves the c_nonce over GET (a §7.1 deviation) is worked around in debug: the
-// wallet fetches the nonce over GET, warns, and issuance completes.
+// A nonce endpoint that answers the required POST with 405 and serves the
+// c_nonce over GET deviates from §7.1. Debug mode fetches the nonce over GET,
+// warns and completes issuance.
 func TestProcessCredentialOffer_NonceEndpointOnlyGET(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -654,8 +650,8 @@ func TestProcessCredentialOffer_NonceEndpointOnlyGET(t *testing.T) {
 	}
 }
 
-// Strict mode must report the POST failure instead of sending a proof without the
-// required nonce.
+// Strict mode reports the POST failure and sends no proof without the required
+// nonce.
 func TestProcessCredentialOffer_NonceEndpointOnlyGETStrictRefuses(t *testing.T) {
 	w := generateTestWallet(t)
 	w.ValidationMode = ValidationModeStrict
@@ -676,7 +672,7 @@ func TestProcessCredentialOffer_NonceEndpointOnlyGETStrictRefuses(t *testing.T) 
 	}
 }
 
-// The credentials array of objects is the one shape §8.3 defines.
+// §8.3 defines the credentials array of objects as the response shape.
 func TestProcessCredentialOffer_CredentialsArray(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -768,8 +764,8 @@ func TestProcessCredentialOffer_AuthCodeRequiresClientConfiguration(t *testing.T
 		t.Errorf("expected error about the missing client_id, got: %v", err)
 	}
 
-	// The redirect flow also needs somewhere to be redirected back to. Only
-	// interactive authorization can do without one.
+	// The redirect flow needs a redirect URI. Only interactive authorization
+	// works without one.
 	w.VCIClientID = "wallet-client"
 	_, err = w.ProcessCredentialOffer(offerURI)
 	if err == nil {
@@ -866,8 +862,8 @@ func TestProcessCredentialOffer_AuthCodeBrowserFallback(t *testing.T) {
 	httpClient = issuer.Client()
 	defer func() { httpClient = oldClient }()
 
-	// Simulate the browser by taking the authorization URL from the event stream and
-	// visiting it.
+	// The test plays the browser and visits the authorization URL from the
+	// event stream.
 	authCh, unsubscribe := w.SubscribeAuthorization()
 	defer unsubscribe()
 	go func() {
@@ -901,8 +897,8 @@ func TestProcessCredentialOffer_AuthCodeBrowserFallback(t *testing.T) {
 	if parState == "" {
 		t.Fatal("expected PAR request to include state")
 	}
-	// RFC 9126 §4: "the client MUST only use a request_uri value once", and
-	// here the browser's request is that use.
+	// RFC 9126 §4: "the client MUST only use a request_uri value once". The
+	// browser's request is that use.
 	if got := authorizeCalls.Load(); got != 1 {
 		t.Errorf("authorization endpoint requested %d times, want the browser's single request", got)
 	}
@@ -911,7 +907,7 @@ func TestProcessCredentialOffer_AuthCodeBrowserFallback(t *testing.T) {
 	}
 }
 
-// If no browser takes the URL, end issuance without consuming request_uri.
+// When no browser takes the URL, issuance ends without using the request_uri.
 func TestRunAuthorizationCodeRequest_NobodyTookTheURL(t *testing.T) {
 	w := generateTestWallet(t)
 	w.BaseURL = "https://wallet.example"
@@ -1059,9 +1055,8 @@ func TestProcessCredentialOffer_AuthCodeDirectRedirect(t *testing.T) {
 	if result.CredentialID == "" {
 		t.Fatal("expected imported credential ID")
 	}
-	// The authorization code flow identifies the client, so its key proof names
-	// that client as iss (OID4VCI 1.0 Appendix F.1) for an issuer that binds the
-	// access token to it (github.com/dominikschlosser/eudi-dev issue 13).
+	// The authorization code flow identifies the client, so its key proof
+	// carries that client as iss (OID4VCI 1.0 Appendix F.1).
 	if capturedProofJWT == "" {
 		t.Fatal("credential request carried no key proof")
 	}
@@ -1387,9 +1382,7 @@ func TestProcessCredentialOffer_NoTxCodeWhenNotSet(t *testing.T) {
 	}
 }
 
-// §8.3: "The elements of the array MUST be objects." An array of bare strings
-// is a draft shape, and a credential taken out of one never passes through the
-// checks that read the object around it.
+// §8.3: "The elements of the array MUST be objects."
 func TestProcessCredentialOffer_RejectsAnArrayOfRawCredentialStrings(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -1411,7 +1404,7 @@ func TestProcessCredentialOffer_RejectsAnArrayOfRawCredentialStrings(t *testing.
 	}
 }
 
-// §8.3 has no top-level credential member either.
+// §8.3 defines no top-level credential member.
 func TestProcessCredentialOffer_RejectsATopLevelCredentialString(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -1521,8 +1514,78 @@ func TestProcessCredentialOffer_UsesCredentialIdentifierFromAuthorizationDetails
 	}
 }
 
-// Show offered credential details when metadata is available. Missing metadata must
-// still allow a usable consent dialog.
+func authorizedOtherWarnings(w *Wallet) []LogEntry {
+	var found []LogEntry
+	for _, e := range w.Log {
+		if e.Details["event"] == "token_authorizes_other_configuration" {
+			found = append(found, e)
+		}
+	}
+	return found
+}
+
+// A token response can authorize several configurations. The credential request
+// uses the identifier of the offered one.
+func TestProcessCredentialOffer_PicksTheIdentifierOfTheOfferedConfiguration(t *testing.T) {
+	w := generateTestWallet(t)
+
+	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{
+		tokenCNonce: "test-c-nonce",
+		tokenAuthorizationDetails: []any{
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "other-config", "credential_identifiers": []any{"other-id"}},
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "test-config", "credential_identifiers": []any{"offered-id"}},
+		},
+		inspectCredentialRequest: func(t *testing.T, reqBody map[string]any) {
+			t.Helper()
+			if reqBody["credential_identifier"] != "offered-id" {
+				t.Fatalf("credential_identifier = %v, want the offered configuration's offered-id", reqBody["credential_identifier"])
+			}
+		},
+	})
+	defer srv.Close()
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	if _, err := w.ProcessCredentialOffer(offerURI); err != nil {
+		t.Fatalf("ProcessCredentialOffer: %v", err)
+	}
+	if warnings := authorizedOtherWarnings(w); len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %+v", warnings)
+	}
+}
+
+// When the token authorizes only another configuration, the wallet warns with
+// both configurations before the credential request fails.
+func TestProcessCredentialOffer_WarnsWhenTheTokenAuthorizesAnotherConfiguration(t *testing.T) {
+	w := generateTestWallet(t)
+
+	srv, offerURI := setupMockIssuer(t, w, mockIssuerOpts{
+		tokenCNonce: "test-c-nonce",
+		tokenAuthorizationDetails: []any{
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "other-config", "credential_identifiers": []any{"other-id"}},
+		},
+	})
+	defer srv.Close()
+	oldClient := httpClient
+	httpClient = srv.Client()
+	defer func() { httpClient = oldClient }()
+
+	_, _ = w.ProcessCredentialOffer(offerURI)
+	warnings := authorizedOtherWarnings(w)
+	if len(warnings) != 1 {
+		t.Fatalf("warnings = %+v, want one", warnings)
+	}
+	if !strings.Contains(warnings[0].Detail, `authorizes credential configuration "other-config", not the offered "test-config"`) {
+		t.Errorf("warning detail = %q", warnings[0].Detail)
+	}
+	if warnings[0].Severity != "warning" {
+		t.Errorf("severity = %q, want warning", warnings[0].Severity)
+	}
+}
+
+// The consent dialog shows the offered credential details from the metadata.
+// Without metadata the dialog still works.
 func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 	srv := newTestServer(t, false)
 	issuer, offerURI := setupMockIssuer(t, srv.wallet, mockIssuerOpts{})
@@ -1557,7 +1620,7 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 	if cred.Format != "dc+sd-jwt" || cred.VCT != "urn:test:credential" {
 		t.Errorf("format/vct not resolved: %+v", cred)
 	}
-	// Show nested claims as paths in the consent dialog.
+	// Nested claims show as paths in the consent dialog.
 	want := []string{"given_name", "address.locality"}
 	if len(cred.Claims) != len(want) {
 		t.Fatalf("claims = %v, want %v", cred.Claims, want)
@@ -1573,7 +1636,8 @@ func TestIssuanceConsentDescribesTheOffer(t *testing.T) {
 	}
 }
 
-// Resolve referenced offers for consent, then fetch again after approval.
+// An offer by reference is resolved for consent and fetched again after
+// approval.
 func TestIssuanceConsentResolvesOfferByReference(t *testing.T) {
 	srv := newTestServer(t, false)
 	fetched := make(chan struct{}, 4)
@@ -1602,8 +1666,8 @@ func TestIssuanceConsentResolvesOfferByReference(t *testing.T) {
 	}
 }
 
-// If the offer fetch fails, still show the issuer host and failure in the consent
-// dialog.
+// When the offer fetch fails, the consent dialog still shows the issuer host
+// and the failure.
 func TestIssuanceConsentSurvivesUnresolvableOfferURI(t *testing.T) {
 	req, _, err := generateTestWallet(t).prepareIssuanceConsentRequest("openid-credential-offer://?credential_offer_uri=https://issuer.invalid/offer/1", "")
 	if err != nil {
@@ -1665,8 +1729,7 @@ func proofNonceOf(t *testing.T, reqBody map[string]any) string {
 
 // §8.3.1.2 on invalid_nonce: "at least one of the key proofs contains an
 // invalid c_nonce value. The wallet should retrieve a new c_nonce value (refer
-// to Section 7)." Treating it as terminal loses a credential the issuer was
-// willing to hand over for the cost of one more request.
+// to Section 7)." The wallet fetches a new nonce and retries once.
 func TestProcessCredentialOffer_RetriesOnInvalidNonce(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -1703,8 +1766,8 @@ func TestProcessCredentialOffer_RetriesOnInvalidNonce(t *testing.T) {
 }
 
 // §7.1: "The Nonce Endpoint is not a protected resource, meaning the Wallet
-// does not need to supply an access token to access it." Presenting one anyway
-// hands the access token to an endpoint that has no business seeing it.
+// does not need to supply an access token to access it." The wallet sends no
+// access token there.
 func TestProcessCredentialOffer_NonceRequestIsUnauthenticated(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -1739,9 +1802,8 @@ func TestProcessCredentialOffer_NonceRequestIsUnauthenticated(t *testing.T) {
 }
 
 // §12.2.2 gives the metadata two media types, application/json and
-// application/jwt. application/openidvci-issuer-metadata+jwt is not one of
-// them: that string is the typ header value of the signed form (§12.2.3), and
-// an issuer negotiating on it has nothing to match.
+// application/jwt. application/openidvci-issuer-metadata+jwt is the typ header
+// of the signed form (§12.2.3) and no media type.
 func TestProcessCredentialOffer_MetadataAcceptHeader(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -1772,13 +1834,10 @@ func TestProcessCredentialOffer_MetadataAcceptHeader(t *testing.T) {
 	}
 }
 
-// §8.2 leaves one source for the challenge: "The c_nonce value is retrieved
-// from the Nonce Endpoint as defined in Section 7." An issuer that puts one in
-// the token response instead is pre-1.0: strict mode refuses, debug mode
-// completes the flow and says so. RFC 6749 §5.1 makes token_type REQUIRED. A
-// response omitting it is refused in strict and worked around in debug (Bearer
-// is assumed, as no DPoP was sent), and the wallet records the deviation either
-// way.
+// §8.2: "The c_nonce value is retrieved from the Nonce Endpoint as defined in
+// Section 7." A c_nonce in the token response is a pre-1.0 shape. RFC 6749 §5.1
+// makes token_type REQUIRED. Strict mode refuses a response that omits it.
+// Debug mode assumes Bearer, since no DPoP was sent, and records the deviation.
 func TestProcessCredentialOffer_MissingTokenTypeByValidationMode(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -1869,13 +1928,11 @@ func TestProcessCredentialOffer_TokenResponseCNonceByValidationMode(t *testing.T
 	}
 }
 
-// An Authorization Server that publishes no pushed authorization request
-// endpoint takes the request at its authorization endpoint instead, which is
-// the plain authorization request of RFC 6749 §4.1.1. RFC 9126 §2 makes the
-// endpoint's presence the signal ("Authorization servers supporting PAR SHOULD
-// include the URL of their pushed authorization request endpoint in their
-// authorization server metadata document"), and OpenID4VCI requires neither
-// PAR nor DPoP, so an issuer offering neither has to be collectable.
+// Without a published PAR endpoint the wallet sends the plain authorization
+// request of RFC 6749 §4.1.1. RFC 9126 §2: "Authorization servers supporting
+// PAR SHOULD include the URL of their pushed authorization request endpoint in
+// their authorization server metadata document". OpenID4VCI requires neither
+// PAR nor DPoP.
 func TestProcessCredentialOffer_AuthCodeWithoutPARorDPoP(t *testing.T) {
 	w := generateTestWallet(t)
 	w.VCIClientID = "wallet-client"
@@ -1983,8 +2040,9 @@ func TestProcessCredentialOffer_AuthCodeWithoutPARorDPoP(t *testing.T) {
 	}
 }
 
-// Without --base-url, use the recorded serving origin for /callback. Otherwise the
-// default Docker command could not complete authorization code issuance.
+// Without --base-url the wallet accepts /callback on the recorded serving
+// origin. The default Docker command depends on this for authorization code
+// issuance.
 func TestCallbackIsAcceptedOnAWalletWithoutABaseURL(t *testing.T) {
 	w := generateTestWallet(t)
 	w.BaseURL = ""
@@ -2007,10 +2065,10 @@ func TestCallbackIsAcceptedOnAWalletWithoutABaseURL(t *testing.T) {
 	}
 }
 
-// TestProcessCredentialOffer_KeepsCredentialWhenNotificationIsRefused covers an
-// issuer that hands over a credential and then refuses the notification for it.
-// §11 makes the endpoint's use optional for the wallet, and the credential is
-// stored before the notification is sent, so the issuance stands.
+// TestProcessCredentialOffer_KeepsCredentialWhenNotificationIsRefused checks
+// that a refused notification leaves the credential in place. §11 makes the
+// endpoint optional for the wallet, and the credential is stored before the
+// notification is sent.
 func TestProcessCredentialOffer_KeepsCredentialWhenNotificationIsRefused(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -2045,7 +2103,8 @@ func TestProcessCredentialOffer_KeepsCredentialWhenNotificationIsRefused(t *test
 	assertWalletLogEvent(t, logs, "notification_failed")
 }
 
-// Report notification refusals using the response rules in OpenID4VCI §11.3.
+// Notification refusals are explained by the response rules in OpenID4VCI
+// §11.3.
 func TestReadNotificationRefusal(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -2075,9 +2134,8 @@ func TestReadNotificationRefusal(t *testing.T) {
 	}
 }
 
-// TestDPoPTargetURI covers the htu claim of a DPoP proof. RFC 9449 §4.2 asks
-// for the target URI "without query and fragment parts", and a server that
-// compares htu against its own URI refuses a proof that kept either.
+// TestDPoPTargetURI checks the htu claim of a DPoP proof. RFC 9449 §4.2 asks
+// for the target URI "without query and fragment parts".
 func TestDPoPTargetURI(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"https://issuer.example/token", "https://issuer.example/token"},
@@ -2093,11 +2151,11 @@ func TestDPoPTargetURI(t *testing.T) {
 	}
 }
 
-// TestNotificationRequestIsShapedAsSpecified holds the Notification Request to
-// §11.1: an HTTP POST "with the following parameters in the entity-body and
-// using the application/json media type", carrying notification_id (the string
-// from the Credential Response) and event, presenting the Access Token the
-// Token Endpoint issued.
+// TestNotificationRequestIsShapedAsSpecified checks the Notification Request
+// against §11.1. It is an HTTP POST "with the following parameters in the
+// entity-body and using the application/json media type". It carries
+// notification_id from the Credential Response and event, and presents the
+// Access Token from the Token Endpoint.
 func TestNotificationRequestIsShapedAsSpecified(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)

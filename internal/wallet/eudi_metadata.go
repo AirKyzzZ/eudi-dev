@@ -43,10 +43,9 @@ const (
 	pidIssuanceServiceType     = "http://uri.etsi.org/19602/SvcType/PID/Issuance"
 	pidRevocationServiceType   = "http://uri.etsi.org/19602/SvcType/PID/Revocation"
 
-	// Wallet Provider list. An issuer checking a wallet attestation or a key
-	// attestation looks for a Wallet Provider list, so the wallet publishes
-	// one alongside its credential lists. The URIs are the ones ETSI TS 119
-	// 602 assigns.
+	// An issuer that checks a wallet or key attestation looks for a Wallet
+	// Provider list. The wallet publishes one next to its credential lists.
+	// The URIs come from ETSI TS 119 602.
 	walletProviderTrustListType         = "http://uri.etsi.org/19602/LoTEType/EUWalletProvidersList"
 	walletProviderStatusDetermination   = "http://uri.etsi.org/19602/WalletProvidersList/StatusDetn/EU"
 	walletProviderSchemeCommunityRules  = "http://uri.etsi.org/19602/WalletProvidersList/schemerules/EU"
@@ -82,13 +81,13 @@ type Identifier struct {
 	Type       string `json:"type,omitempty"`
 }
 
-// MultiLangString is the localised string structure used by TS5.
+// MultiLangString is a localised string as defined in TS5.
 type MultiLangString struct {
 	Lang    string `json:"lang"`
 	Content string `json:"content"`
 }
 
-// SupervisoryAuthority is the local supervisory authority record used by TS5.
+// SupervisoryAuthority is a supervisory authority record as defined in TS5.
 type SupervisoryAuthority struct {
 	Name    string   `json:"name"`
 	Country string   `json:"country"`
@@ -531,7 +530,8 @@ func buildRegistrarDataset(w *Wallet, issuer string) RegistrarDataset {
 	}
 }
 
-// IssuerInfo includes the registration certificate required by CIR (EU) 2026/1731 Annex XI.
+// IssuerInfo returns the issuer_info entries. They include the registration
+// certificate that CIR (EU) 2026/1731 Annex XI requires.
 func IssuerInfo(w *Wallet, issuer string, specs []IssuedAttestationSpec) ([]IssuerInfoEntry, error) {
 	dataset := buildRegistrarDataset(&Wallet{IssuedAttestations: specs}, issuer)
 	_, access, err := w.AccessSigningMaterial()
@@ -622,7 +622,8 @@ func signCredentialIssuerMetadataJWT(w *Wallet, issuer string, exp time.Time) (s
 	return SignCredentialIssuerMetadata(w, issuer, metadata, exp)
 }
 
-// SignCredentialIssuerMetadata uses an access certificate as TS 119 472-3 V1.1.1 §4.2.2 requires.
+// SignCredentialIssuerMetadata signs the metadata with an access certificate,
+// as TS 119 472-3 V1.1.1 §4.2.2 requires.
 func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]any, exp time.Time) (string, error) {
 	signingKey, signerCerts, err := w.AccessSigningMaterial()
 	if err != nil {
@@ -646,7 +647,7 @@ func SignCredentialIssuerMetadata(w *Wallet, issuer string, metadata map[string]
 }
 
 // SignRequestObjectJWT signs an OpenID4VP authorization request object (JAR)
-// with the signer's certificate chain in x5c. The typ is what
+// with the signer's certificate chain in x5c. It sets the typ that
 // ValidateRequestObject expects.
 func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, signerCerts []*x509.Certificate) (string, error) {
 	if signingKey == nil {
@@ -663,8 +664,7 @@ func SignRequestObjectJWT(claims map[string]any, signingKey *ecdsa.PrivateKey, s
 }
 
 // X509HashClientID returns the `x509_hash:` client identifier for a leaf
-// certificate: the base64url-encoded SHA-256 of its DER encoding, which is
-// what verifyX509Hash compares against.
+// certificate. The value is the base64url-encoded SHA-256 of its DER encoding.
 func X509HashClientID(leaf *x509.Certificate) string {
 	if leaf == nil {
 		return ""

@@ -88,8 +88,7 @@ func signDeviceAuth(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byt
 	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
 		t.Fatal(err)
 	}
-	// Detached again: the response carries the signature without the payload,
-	// and the verifier rebuilds it.
+	// The response carries a detached payload. The verifier rebuilds it.
 	msg.Payload = nil
 	encoded, err := msg.MarshalCBOR()
 	if err != nil {
@@ -107,8 +106,7 @@ func transcriptFor(t *testing.T, nonce string) []byte {
 	return encoded
 }
 
-// Embed the session transcript bytes directly, as the wallet does. The other helper
-// decodes and re-encodes them.
+// signDeviceAuthVerbatim embeds the session transcript bytes unchanged, as the wallet does.
 func signDeviceAuthVerbatim(t *testing.T, key *ecdsa.PrivateKey, sessionTranscript []byte, docType string) []byte {
 	t.Helper()
 	emptyNamespaces, err := tag24(map[string]any{})
@@ -144,8 +142,8 @@ func signDeviceAuthVerbatim(t *testing.T, key *ecdsa.PrivateKey, sessionTranscri
 	return encoded
 }
 
-// Preserve the signed transcript bytes. Decoding and re-encoding this
-// indefinite-length CBOR changes its encoding and would break verification.
+// The verifier must use the signed transcript bytes unchanged. Re-encoding
+// indefinite-length CBOR changes its bytes.
 func TestVerifyDeviceAuthEmbedsTheTranscriptVerbatim(t *testing.T) {
 	key := testKey(t)
 	transcript := []byte{0x9f, 0x00, 0xff} // indefinite-length array holding [0]
@@ -203,12 +201,12 @@ func TestVerifyDeviceAuthRejectsAReplayedResponse(t *testing.T) {
 	}
 }
 
-// The signature must be checked against the key the issuer bound the
-// credential to, not against whatever key the holder supplies.
+// The signature must verify with the device key the issuer bound the
+// credential to.
 func TestVerifyDeviceAuthRejectsAnotherHoldersKey(t *testing.T) {
 	transcript := transcriptFor(t, "nonce")
 	doc := signedDoc(t, testKey(t), transcript)
-	// Same document, but the MSO names somebody else's device key.
+	// The MSO now holds another holder's device key.
 	doc.IssuerAuth.MSO.DeviceKeyCBOR = deviceKeyCBOR(t, &testKey(t).PublicKey)
 
 	if err := VerifyDeviceAuth(doc, transcript); err == nil {
@@ -363,8 +361,7 @@ func TestDeviceKeyErrors(t *testing.T) {
 	}
 }
 
-// A device key on another curve has to be refused rather than verified with
-// P-256 parameters.
+// A device key on a curve other than P-256 must be refused.
 func TestDeviceKeyRejectsANonP256Curve(t *testing.T) {
 	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {

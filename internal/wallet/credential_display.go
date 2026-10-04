@@ -35,12 +35,10 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/publicpath"
 )
 
-// CredentialDisplay is the appearance a §12.2.4 display entry declares for a
-// credential, kept with the credential so the card renders it without asking
-// the issuer again. The image fields hold a data URI or an "asset:" reference:
-// a remote image is fetched once at issuance and stored. Under
-// --adhoc-display-images the field holds the issuer's https URL, fetched by
-// the card on demand.
+// CredentialDisplay is the OpenID4VCI §12.2.4 display entry stored with a
+// credential, so the card renders without contacting the issuer. An image
+// field holds a data URI or an "asset:" reference fetched once at issuance.
+// With --adhoc-display-images it holds the issuer's https URL instead.
 type CredentialDisplay struct {
 	Name            string `json:"name,omitempty"`
 	Description     string `json:"description,omitempty"`
@@ -52,8 +50,8 @@ type CredentialDisplay struct {
 	BackgroundURI   string `json:"background_uri,omitempty"`
 }
 
-// Caps on the display text a credential carries, fed by issuer metadata,
-// operator forms and templates. Images are byte-capped in cacheDisplayImage.
+// Display text comes from issuer metadata, operator forms and templates, so
+// its length is capped.
 const (
 	maxDisplayNameRunes        = 80
 	maxDisplayDescriptionRunes = 500
@@ -70,8 +68,8 @@ func boundDisplayText(s string, maxRunes int) string {
 	return string(r[:maxRunes])
 }
 
-// Explicit display fields override template defaults individually. Unset fields retain
-// the template's value. Either display may be nil.
+// mergeCredentialDisplay lets each set field of over replace the one in base.
+// Either display may be nil.
 func mergeCredentialDisplay(base, over *CredentialDisplay) *CredentialDisplay {
 	if base == nil {
 		return over
@@ -92,8 +90,8 @@ func mergeCredentialDisplay(base, over *CredentialDisplay) *CredentialDisplay {
 	if over.TextColor != "" {
 		out.TextColor = over.TextColor
 	}
-	// Replacing a logo also replaces its alt text, including with an empty value. Alt
-	// text alone can describe an unchanged template logo.
+	// A new logo brings its own alt text, even an empty one. Alt text alone
+	// describes the template's logo.
 	if over.LogoURI != "" {
 		out.LogoURI = over.LogoURI
 		out.LogoAltText = over.LogoAltText
@@ -106,30 +104,26 @@ func mergeCredentialDisplay(base, over *CredentialDisplay) *CredentialDisplay {
 	return &out
 }
 
-// Limit cached image size to keep wallet storage small.
 const maxDisplayImageBytes = 256 << 10
 
-// Limit downloads before resizing large images to fit the cache.
+// maxDisplayImageFetchBytes caps a download before it is shrunk to fit
+// maxDisplayImageBytes.
 const maxDisplayImageFetchBytes = 4 << 20
 
-// Limit image dimensions to the size used by credential cards.
+// displayImageMaxSide is the largest side a credential card shows.
 const displayImageMaxSide = 1024
 
-// maxDisplayImagePixels bounds what is decoded into memory. A small file can
-// carry enormous dimensions (a decompression bomb), and decoding allocates
-// four bytes per pixel, so the dimensions are checked before the decode. 32
-// megapixels caps the decode at about 128MB.
+// maxDisplayImagePixels guards against decompression bombs. Decoding takes
+// four bytes per pixel, so 32 megapixels caps the decode at about 128MB.
 const maxDisplayImagePixels = 32 << 20
 
-// cssColorValue matches what §12.2.4 allows for the two color fields:
-// "numerical color values defined in CSS Color Module Level 3", which are the
-// hex forms and the rgb()/rgba()/hsl()/hsla() functions, plus the named
-// colors. Only a value of this shape reaches a style sheet.
+// cssColorValue follows OpenID4VCI §12.2.4 for the color fields:
+// "numerical color values defined in CSS Color Module Level 3". Named colors
+// are also accepted. Only a value of this shape reaches a style sheet.
 var cssColorValue = regexp.MustCompile(`^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,30}|(?:rgb|rgba|hsl|hsla)\([0-9,.%\s]{1,40}\))$`)
 
-// displayForListing returns a credential's display for an API response with its
-// image fields as reference URLs (/api/credentials/{id}/display/{logo|background}),
-// so a listing does not ship every card's art as base64.
+// displayForListing replaces stored images with URLs of the display endpoint,
+// so a listing does not carry every card's images as base64.
 func displayForListing(c StoredCredential) map[string]any {
 	d := c.Display
 	if d == nil {
@@ -151,9 +145,8 @@ func displayForListing(c StoredCredential) map[string]any {
 	return m
 }
 
-// displayImageRef references a stored image (a data URI or an "asset:" file) by
-// an endpoint URL the wallet serves, and passes an external http(s) URL through
-// unchanged. HTTP handlers add the public prefix with withPublicImagePaths.
+// displayImageRef returns the endpoint URL for a stored image. An http(s) URL
+// passes through. HTTP handlers add the path prefix with withPublicImagePaths.
 func displayImageRef(id, kind, uri string) string {
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
 		return uri
@@ -187,9 +180,8 @@ func dataURIImage(uri string) (contentType string, data []byte, ok bool) {
 	return contentType, decoded, true
 }
 
-// resolveCredentialDisplay reads the display §12.2.4 declares for the issued
-// configuration, with the images cached. The first entry is used. A finding
-// here is a warning in every mode.
+// resolveCredentialDisplay uses the first §12.2.4 display entry of the
+// configuration. A display problem is a warning in every mode.
 func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID string) *CredentialDisplay {
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
 	config, _ := configs[configID].(map[string]any)
@@ -226,8 +218,8 @@ func (w *Wallet) resolveCredentialDisplay(metadata map[string]any, configID stri
 	return d
 }
 
-// checkDisplayContrast warns about a declared color pair below 3:1. A color
-// the parser cannot rate (a named color, an hsl() function) is not rated.
+// checkDisplayContrast warns about a color pair below 3:1. Named colors and
+// hsl() values are skipped because parseCSSColor does not read them.
 func (w *Wallet) checkDisplayContrast(d *CredentialDisplay) {
 	if d.BackgroundColor == "" || d.TextColor == "" {
 		return
@@ -296,7 +288,7 @@ func parseCSSColor(value string) ([3]float64, bool) {
 	return rgb, false
 }
 
-// contrastRatio is the WCAG 2 contrast ratio of two colors.
+// contrastRatio is the WCAG 2 contrast ratio.
 func contrastRatio(a, b [3]float64) float64 {
 	la, lb := relativeLuminance(a), relativeLuminance(b)
 	if la < lb {
@@ -319,11 +311,9 @@ func relativeLuminance(rgb [3]float64) float64 {
 	return 0.2126*channels[0] + 0.7152*channels[1] + 0.0722*channels[2]
 }
 
-// templateDisplay resolves a template's display to a credential display. Colors
-// run through the §12.2.4 validation, and each image reference becomes card art:
-// an "embedded:<file>" name reads a bundled asset, and a data URI or https URL
-// runs through the policed, size-capped cache. It returns nil for a nil or empty
-// template display.
+// templateDisplay validates colors like an issuer's display. An image
+// "embedded:<file>" reads a bundled asset. Any other image goes through
+// cacheDisplayImage. It returns nil for an empty template display.
 func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *CredentialDisplay {
 	if td == nil {
 		return nil
@@ -346,8 +336,8 @@ func (w *Wallet) templateDisplay(td *credtemplate.TemplateDisplay) *CredentialDi
 	return d
 }
 
-// Resolve embedded images by base name to restrict access to bundled assets. Other
-// references use the image cache and address checks.
+// templateImage uses only the base name of an embedded image, so a template
+// cannot read outside static/.
 func (w *Wallet) templateImage(ref, field string) string {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -380,10 +370,8 @@ func embeddedImageMIME(name string) string {
 	return "application/octet-stream"
 }
 
-// issuedDisplay builds the display for a self-issued credential from operator
-// input. Colors run through the same §12.2.4 validation as an offer's display
-// and images through the same policed cache. It returns nil when the input
-// carries no display.
+// issuedDisplay validates operator input like an issuer's display. It
+// returns nil when the input has no display.
 func (w *Wallet) issuedDisplay(in IssueDisplay) *CredentialDisplay {
 	d := &CredentialDisplay{
 		Name:            boundDisplayText(in.Name, maxDisplayNameRunes),
@@ -416,9 +404,8 @@ func (w *Wallet) displayColor(entry map[string]any, field string) string {
 	return ""
 }
 
-// Cache display images under OpenID4VCI §12.2.4. Decode data URIs locally and fetch
-// HTTPS URLs with address checks. Resize images over the cache limit. With
-// --adhoc-display-images, leave HTTPS URLs for the browser to fetch.
+// cacheDisplayImage stores a §12.2.4 display image as a data URI. With
+// --adhoc-display-images an https URL stays for the browser to fetch.
 func (w *Wallet) cacheDisplayImage(uri, field string) string {
 	if uri == "" {
 		return ""
@@ -432,17 +419,15 @@ func (w *Wallet) cacheDisplayImage(uri, field string) string {
 		return w.encodeDisplayImage(body, mediaType, field, uri)
 	}
 	if w.AdhocDisplayImages && strings.HasPrefix(uri, "https://") {
-		// Keep only HTTPS URLs for loading on demand. Browsers block HTTP images on
-		// HTTPS pages, so cache those images. Loading from the issuer reveals each
-		// card view and is disabled by default.
+		// Browsers block http images on https pages, so only https URLs stay.
+		// Each card view then reaches the issuer, so this mode is opt-in.
 		return uri
 	}
 	return w.fetchAndEmbedDisplayImage(uri, field)
 }
 
-// embedDisplayImage resolves an image to an embedded data URI, ignoring
-// --adhoc-display-images. It is for an image shown once at consent time and
-// never stored (the issuer logo).
+// embedDisplayImage ignores --adhoc-display-images. It is for the issuer
+// logo, which consent shows once and the wallet never stores.
 func (w *Wallet) embedDisplayImage(uri, field string) string {
 	if uri == "" {
 		return ""
@@ -458,8 +443,8 @@ func (w *Wallet) embedDisplayImage(uri, field string) string {
 	return w.fetchAndEmbedDisplayImage(uri, field)
 }
 
-// Image URLs come from untrusted issuer metadata. Apply the fetch address policy to
-// block private destinations (ADR-0004).
+// Image URLs come from untrusted issuer metadata, so the fetch address
+// policy blocks private destinations (ADR-0004).
 func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
@@ -490,10 +475,9 @@ func (w *Wallet) fetchAndEmbedDisplayImage(uri, field string) string {
 	return w.encodeDisplayImage(body, strings.TrimSpace(mediaType), field, uri)
 }
 
-// encodeDisplayImage produces the cached data URI: the bytes as served when
-// they fit the cap, a card-size re-encoding when they are larger. Every image
-// is dimension-checked first, since a small file can carry enormous
-// dimensions.
+// encodeDisplayImage keeps the bytes as served when they fit the cap and
+// shrinks them to card size otherwise. Dimensions are checked first because
+// a small file can declare huge dimensions.
 func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) string {
 	if mediaType == "image/svg+xml" {
 		return w.keepVectorImage(body, field, uri)
@@ -522,16 +506,15 @@ func (w *Wallet) encodeDisplayImage(body []byte, mediaType, field, uri string) s
 	return "data:" + shrunkType + ";base64," + base64.StdEncoding.EncodeToString(shrunk)
 }
 
-// keepVectorImage stores an SVG as it was served. SVG carries no pixel
-// dimensions to cap. The byte cap bounds what the store holds.
+// keepVectorImage stores an SVG as served. It has no pixel dimensions, so
+// only the byte cap applies.
 func (w *Wallet) keepVectorImage(body []byte, field, uri string) string {
 	if len(body) > maxDisplayImageBytes {
 		w.rejectDisplayImage(field, uri, fmt.Sprintf("larger than the %dKB cap", maxDisplayImageBytes>>10))
 		return ""
 	}
-	// The SVG is only ever rendered through an <img> tag (no scripts, no event
-	// handlers, no external loads), and the endpoint that serves it carries the
-	// wallet's script-src 'self' CSP.
+	// The SVG is only rendered through an <img> tag, which runs no scripts
+	// and loads nothing external. Its endpoint also sends script-src 'self'.
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(body)
 }
 
@@ -551,9 +534,8 @@ func decodeImageDataURI(uri string) ([]byte, string, bool) {
 	return body, strings.TrimSuffix(meta, ";base64"), true
 }
 
-// shrinkDisplayImage resamples a raster image to card size. JPEG keeps the
-// result small, so it is the output for an opaque image, and PNG keeps the
-// transparency of one that has it.
+// shrinkDisplayImage writes an opaque image as JPEG to keep it small. A
+// transparent image becomes PNG to keep its transparency.
 func shrinkDisplayImage(body []byte) ([]byte, string, bool) {
 	src, _, err := image.Decode(bytes.NewReader(body))
 	if err != nil {
@@ -587,8 +569,8 @@ func (w *Wallet) rejectDisplayImage(field, uri, reason string) {
 		map[string]any{"field": field, "uri": uri, "reason": reason})
 }
 
-// Update both the stored credential and the copy returned by Import. The server may
-// restore that copy after a reload during issuance.
+// rememberDisplay updates both the stored credential and the caller's copy.
+// The server may write that copy back after a reload during issuance.
 func (w *Wallet) rememberDisplay(cred *StoredCredential, d *CredentialDisplay) {
 	if w == nil || cred == nil || d == nil {
 		return
@@ -604,8 +586,8 @@ func (w *Wallet) rememberDisplay(cred *StoredCredential, d *CredentialDisplay) {
 	}
 }
 
-// withPublicImagePaths adds the request's path prefix to the display image paths of a
-// credential summary, so the links work when a proxy serves the wallet under a path prefix.
+// withPublicImagePaths adds the request's path prefix to the display image
+// URLs of a credential summary.
 func withPublicImagePaths(r *http.Request, summary map[string]any) map[string]any {
 	display, _ := summary["display"].(map[string]any)
 	prefix := publicpath.Prefix(r)

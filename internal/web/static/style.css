@@ -55,7 +55,7 @@
   box-sizing: border-box;
 }
 
-/* Use a readable default link color on dark backgrounds. */
+/* The default link color is unreadable on dark backgrounds. */
 a {
   color: var(--accent);
 }
@@ -80,7 +80,7 @@ header {
   flex-shrink: 0;
 }
 
-/* Match the logo's 46:51 aspect ratio to avoid padding from a square box. */
+/* The logo's aspect ratio is 46:51. A square box adds padding. */
 .header-logo {
   width: 26px;
   height: 29px;
@@ -221,8 +221,7 @@ main {
   overflow: hidden;
 }
 
-/* Scope the transparent overlay to the credential editor so other textareas remain
-   visible. */
+/* Only the credential editor has a transparent overlay. Other textareas stay visible. */
 .input-editor textarea {
   position: absolute;
   top: 0;
@@ -391,7 +390,7 @@ main {
 .disclosure-value,
 .claim-value {
   color: var(--green);
-  /* Break long Base64 tokens so image claims cannot widen the entire pane. */
+  /* Long Base64 image claims must not widen the pane. */
   overflow-wrap: anywhere;
 }
 

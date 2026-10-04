@@ -308,7 +308,6 @@ func TestGenerateMDOC_OutputIsBase64URL(t *testing.T) {
 		t.Fatalf("GenerateMDOC: %v", err)
 	}
 
-	// base64url uses A-Z, a-z, 0-9, -, _ (no padding in RawURLEncoding)
 	for _, c := range result {
 		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
 			t.Fatalf("output is not base64url: found character %q", string(c))
@@ -463,9 +462,8 @@ func TestGenerateMDOC_WithValidFrom(t *testing.T) {
 	}
 }
 
-// ISO 18013-5 encodes dates as tagged CBOR: full-date (1004) for a calendar
-// day, tdate (0) for a timestamp. A verifier that type-checks the element
-// sees a plain text string otherwise.
+// ISO 18013-5 encodes dates as tagged CBOR. A calendar day is a full-date
+// (1004) and a timestamp is a tdate (0).
 func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 	key, _ := GenerateKey()
 
@@ -542,8 +540,7 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 		t.Errorf("nested text was converted to a CBOR date: %v", values["nested"])
 	}
 
-	// Parsing unwraps the tags again, so the rest of the wallet keeps seeing
-	// plain strings and claim matching is unaffected.
+	// Parsing unwraps the tags, so the wallet sees plain strings for claim matching.
 	doc, err := mdoc.Parse(result)
 	if err != nil {
 		t.Fatalf("mdoc.Parse: %v", err)
@@ -563,7 +560,7 @@ func TestGenerateMDOC_DatesAreTagged(t *testing.T) {
 	}
 }
 
-// Omit the root because verifiers obtain their trust anchors from a trust list.
+// x5chain must omit the root because verifiers take trust anchors from a trust list.
 func TestGenerateMDOC_X5ChainOmitsTheRoot(t *testing.T) {
 	caKey, err := GenerateKey()
 	if err != nil {

@@ -451,8 +451,7 @@ func TestEvaluateDCQL_DefaultPIDMatchesVerifierQueries(t *testing.T) {
 			if _, ok := match.Claims["address.street_address"]; !ok {
 				t.Error("expected SD-JWT match to include address.street_address")
 			}
-			// A real verifier asks for these, and the rulebook says a German
-			// PID always carries them.
+			// The PID Rulebook requires a German PID to carry these.
 			if _, ok := match.Claims["date_of_expiry"]; !ok {
 				t.Error("expected SD-JWT match to include date_of_expiry")
 			}
@@ -819,10 +818,9 @@ func TestClaimKeyFromPath(t *testing.T) {
 		{"sd-jwt unknown second type", sdCred, []any{"given_name", true}, ""},
 		{"mdoc valid", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "given_name"}, "eu.europa.ec.eudi.pid.1:given_name"},
 		{"mdoc missing", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "missing"}, ""},
-		// §7.2.1 selects the data element the second component names and
-		// errors out when it does not exist, so the encoding-independent data
-		// identifier of the rulebook (birth_place) does not reach the mdoc
-		// element that carries it (place_of_birth).
+		// §7.2.1 selects the data element in the second component and fails
+		// when it does not exist. The rulebook identifier birth_place does not
+		// match the mdoc element place_of_birth.
 		{"mdoc no aliasing", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "birth_place"}, ""},
 		{"mdoc native", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "place_of_birth"}, "eu.europa.ec.eudi.pid.1:place_of_birth"},
 		{"mdoc nested alias unsupported", mdocCred, []any{"eu.europa.ec.eudi.pid.1", "birth_place", "locality"}, ""},
@@ -958,8 +956,8 @@ func TestEvaluateDCQL_TrustedAuthorities_AKIMatch(t *testing.T) {
 	}
 }
 
-// Prefer trusted matches automatically while still offering untrusted alternatives
-// with a warning in debug mode.
+// The automatic selection prefers trusted matches. Debug mode still offers
+// untrusted ones with a warning.
 func TestEvaluateDCQL_TrustedAuthorities_TrustedIsTheDefault(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 	aki := w.CertChain[0].AuthorityKeyId
@@ -1062,8 +1060,8 @@ func TestEvaluateDCQL_TrustedAuthorities_NoCertChain(t *testing.T) {
 		t.Fatalf("ImportCredential: %v", err)
 	}
 
-	// A credential without x5c has no chain to match the trust list against,
-	// so it is rejected even when the list names its signer's CA.
+	// A credential without x5c has no chain to match against the trust list.
+	// It is rejected even when the list contains the CA of its signer.
 	tlJWT, _ := GenerateTrustListJWT(w.IssuerKey, w.CertChain[len(w.CertChain)-1])
 	ts := serveTrustList(t, tlJWT)
 
@@ -1086,8 +1084,8 @@ func TestEvaluateDCQL_TrustedAuthorities_NoCertChain(t *testing.T) {
 	assertUntrustedAuthorityBehavior(t, w, query)
 }
 
-// Separate credential sets require separate credentials. Options within one set are
-// alternatives.
+// Each credential set must be satisfied on its own. Options within one set
+// are alternatives.
 func TestEvaluateDCQL_CredentialSets_MultipleRequiredSets(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 
@@ -1106,7 +1104,7 @@ func TestEvaluateDCQL_CredentialSets_MultipleRequiredSets(t *testing.T) {
 				"claims": []any{map[string]any{"path": []any{"eu.europa.ec.eudi.pid.1", "given_name"}}},
 			},
 		},
-		// Two separate sets, both required: the verifier wants both credentials.
+		// Two required sets ask for both credentials.
 		"credential_sets": []any{
 			map[string]any{"required": true, "options": []any{[]any{"pid_sdjwt"}}},
 			map[string]any{"required": true, "options": []any{[]any{"pid_mdoc"}}},
@@ -1144,7 +1142,7 @@ func TestEvaluateDCQL_CredentialSets_OptionAskingForTwoCredentials(t *testing.T)
 				"claims": []any{map[string]any{"path": []any{"eu.europa.ec.eudi.pid.1", "given_name"}}},
 			},
 		},
-		// A single option listing two ids means both together satisfy it.
+		// An option listing two ids needs both credentials.
 		"credential_sets": []any{
 			map[string]any{"options": []any{[]any{"pid_sdjwt", "pid_mdoc"}}},
 		},
@@ -1190,8 +1188,8 @@ func TestEvaluateDCQL_CredentialSets_OptionalSetIsSkipped(t *testing.T) {
 	}
 }
 
-// Preserve order among equally preferred formats. A comparator that checks only the
-// left item can report both i before j and j before i.
+// Sorting by preferred format keeps the order of equally preferred
+// credentials. A comparator that checks only the left item breaks this.
 func TestEvaluateDCQL_PreferredFormatSortIsStable(t *testing.T) {
 	w := generateTestWallet(t)
 	w.PreferredFormat = "dc+sd-jwt"
@@ -1272,8 +1270,8 @@ func TestEvaluateDCQL_OneCredentialPerQueryNewestWins(t *testing.T) {
 	}
 }
 
-// The selection is by issuance date rather than by arrival: a wallet whose
-// newest credential is not the last one stored still presents the newest.
+// The wallet presents the most recently issued credential, even when it was
+// not the last one stored.
 func TestEvaluateDCQL_NewestWinsEvenWhenStoredFirst(t *testing.T) {
 	w := generateTestWallet(t)
 	addSDJWTPID(t, w, "newest", 9000)
@@ -1312,8 +1310,8 @@ func TestEvaluateDCQL_LogsMatchesAndGroupedSkipReasons(t *testing.T) {
 	}
 }
 
-// Reduce matches per query ID so requests for multiple credential types still return
-// each one.
+// Each credential query keeps its own match, so a request for several
+// credential types returns one of each.
 func TestEvaluateDCQL_DistinctQueriesEachKeepAMatch(t *testing.T) {
 	w := generateTestWalletWithPID(t)
 

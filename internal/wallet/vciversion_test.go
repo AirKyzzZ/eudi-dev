@@ -209,7 +209,7 @@ func TestAuthorizationCodeOfferAtVCI10IgnoresAnInteractiveAuthorizationOffer(t *
 		t.Error("wallet did not reach the token endpoint")
 	}
 
-	// Explain when the configured version prevents using an advertised feature.
+	// The log explains that the configured version skipped an advertised feature.
 	if !hasInteractiveAuthorizationNote(w, "--vci-version 1.1") {
 		t.Errorf("no log entry named the declined interactive authorization offer, log: %v", w.Log)
 	}

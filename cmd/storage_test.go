@@ -44,9 +44,9 @@ func TestOpenStore_FlagBeatsEnvironment(t *testing.T) {
 	}
 }
 
-// The wallet commands route through a running server by the wallet's
-// directory. That name must not depend on the backend, or a CLI on files
-// would miss a server on memory for the same wallet.
+// Wallet commands find a running server by the wallet directory. That key
+// must be the same on every backend. Otherwise a CLI using files misses a
+// memory-backed server for the same wallet.
 func TestResolvedWalletDir_IsBackendIndependent(t *testing.T) {
 	walletDir = t.TempDir()
 	t.Cleanup(func() { walletDir = "" })

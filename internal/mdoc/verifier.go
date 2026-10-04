@@ -32,8 +32,7 @@ type VerifyResult struct {
 	ValidUntil     *time.Time
 	Signed         *time.Time
 	Errors         []string
-	// Warnings identify spec deviations accepted during otherwise successful signature
-	// verification.
+	// Warnings list spec deviations that signature verification accepted.
 	Warnings []string
 }
 
@@ -54,8 +53,7 @@ func Verify(doc *Document, pubKey crypto.PublicKey) *VerifyResult {
 	mso := doc.IssuerAuth.MSO
 	if mso != nil {
 		if mso.DigestAlgorithm == "" {
-			// ISO 18013-5 requires digestAlgorithm. Digest verification falls
-			// back to SHA-256.
+			// ISO 18013-5 requires digestAlgorithm. Digest verification assumes SHA-256.
 			result.Warnings = append(result.Warnings, "the MSO carries no digestAlgorithm, which ISO 18013-5 requires (assuming SHA-256)")
 		}
 		if mso.ValidityInfo != nil {
@@ -74,7 +72,6 @@ func Verify(doc *Document, pubKey crypto.PublicKey) *VerifyResult {
 	}
 
 	if doc.IssuerAuth.ProtectedHeader != nil {
-		// COSE algorithm label is 1
 		if alg, ok := doc.IssuerAuth.ProtectedHeader[int64(1)]; ok {
 			switch v := alg.(type) {
 			case int64:

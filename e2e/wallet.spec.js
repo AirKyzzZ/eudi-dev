@@ -22,7 +22,7 @@ test.beforeAll(async () => {
     cwd: __dirname,
   });
 
-  // Use a fresh directory so stored serving URLs cannot change the test ports.
+  // A fresh directory keeps stored serving URLs from changing the test ports.
   const { spawn } = require("child_process");
   const walletDir = fs.mkdtempSync(path.join(os.tmpdir(), "oid4vc-dev-wallet-e2e-"));
   walletProcess = spawn(
@@ -466,7 +466,7 @@ test.describe("Static Files", () => {
 });
 
 test.describe("Credential Issuing via UI", () => {
-  // Clear earlier errors and consent requests so overlays cannot intercept clicks.
+  // Earlier errors and consent requests are cleared, so no overlay intercepts clicks.
   test.beforeEach(async () => {
     await new Promise((resolve) => {
       const req = http.request(
@@ -653,7 +653,7 @@ test.describe("Credential Issuing via UI", () => {
 
     await page.locator("#issue-claims-mode-json").check();
     await page.locator("#issue-claims").fill("{not json");
-    // Use click() because the UI restores the radio value when JSON is invalid.
+    // The UI restores the radio value when JSON is invalid, so the test uses click().
     await page.locator("#issue-claims-mode-builder").click();
     await expect(page.locator("#issue-error")).toContainText(
       "Claims must be valid JSON"
@@ -758,8 +758,8 @@ test.describe("Credential Issuing via UI", () => {
     await expect(page.locator("#issue-always-disclosed")).toHaveValue(
       "department"
     );
-    // Read input properties through evaluate. The form sets properties rather than
-    // attributes.
+    // The form sets properties and leaves attributes unchanged, so the test reads them
+    // through evaluate.
     const sdStates = await page.evaluate(() => {
       const states = {};
       document
@@ -823,7 +823,7 @@ test.describe("Credential Issuing via UI", () => {
     expect(tplRes.body.vct).toBe("urn:example:e2e-saved");
     expect(tplRes.body.claims.member_id).toBe("M-1");
 
-    // Clean up through the API because pagination may hide the credential delete button.
+    // Pagination may hide the credential delete button, so cleanup uses the API.
     const res = await jsonGet(`${WALLET_URL}/api/credentials`);
     const issued = res.body.find((c) => c.vct === "urn:example:e2e-saved");
     expect(issued).toBeDefined();
@@ -1089,8 +1089,7 @@ test("EUDI offer scheme reports missing offer parameters through issuance", asyn
 
 test.describe("Mobile layout", () => {
   test("footer stays reachable on a small viewport", async ({ page }) => {
-    // Mobile browser controls affect 100vh, so the footer must remain in the scrollable
-    // area.
+    // Mobile browser controls change 100vh, so the footer must stay in the scrollable area.
     await page.setViewportSize({ width: 390, height: 480 });
     await page.goto(WALLET_URL);
     await page.waitForSelector(".credential-card");
@@ -1105,8 +1104,8 @@ test.describe("Mobile layout", () => {
 });
 
 test.describe("Transaction code in the consent dialog", () => {
-  // An unreachable issuer lets the test inspect transaction code input without completing
-  // issuance.
+  // An unreachable issuer lets the test inspect the transaction code input before issuance
+  // completes.
   const offerWithTxCode = (txCode) => {
     const offer = {
       credential_issuer: "https://issuer.invalid",
@@ -1134,7 +1133,7 @@ test.describe("Transaction code in the consent dialog", () => {
   test("dialog asks for the code and blocks an empty approval", async ({
     page,
   }) => {
-    // Do not await this POST. It waits for the consent decision made below.
+    // This POST waits for the consent decision below, so it is not awaited.
     jsonPost(`${WALLET_URL}/api/offers`, {
       uri: offerWithTxCode({
         input_mode: "numeric",
@@ -1217,7 +1216,7 @@ test.describe("Deferred issuance in the UI", () => {
 
 test.describe("Auto-accept toggle", () => {
   test("names the mode and flips it at runtime", async ({ page }) => {
-    // Earlier tests can leave consent pending, which opens an overlay on local wallet
+    // Earlier tests can leave consent pending, and that opens an overlay on local wallet
     // pages.
     const pending = await (await fetch(`${WALLET_URL}/api/requests`)).json();
     for (const req of pending) {
@@ -1241,7 +1240,7 @@ test.describe("Auto-accept toggle", () => {
 
 test.describe("A credential bound to a key the wallet does not hold", () => {
   // Presentations require the holder key (RFC 9901 §4.3 and ISO 18013-5 §9.1.3).
-  // Credentials bound to another wallet remain readable but cannot be presented.
+  // A credential bound to another wallet stays readable and cannot be presented.
   test("is marked on its card and in its summary", async ({ page }) => {
     const crypto = require("crypto");
     const b64 = (obj) =>

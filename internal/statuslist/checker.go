@@ -33,14 +33,13 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/keys"
 )
 
-// Allow one minute of clock drift when checking expiry. The specification defines no
+// The expiry check allows one minute of clock drift. The specification defines no
 // tolerance.
 const clockSkew = time.Minute
 
 // ExtractStatusRef extracts the status list reference from SD-JWT claims or
-// mdoc MSO status. No status claim returns nil. A status_list object missing
-// the idx or uri Section 6.2 requires returns a reference with Invalid set, so
-// a broken reference is not reported as a missing one.
+// mdoc MSO status. It returns nil without a status claim. Section 6.2 requires
+// idx and uri. Without either the reference has Invalid set.
 func ExtractStatusRef(claims map[string]any) *StatusRef {
 	status, ok := claims["status"].(map[string]any)
 	if !ok {
@@ -70,8 +69,7 @@ func ExtractStatusRef(claims map[string]any) *StatusRef {
 	return &StatusRef{URI: uri, Idx: idx}
 }
 
-// JSON uses float64 numbers, while CBOR can use int64 or uint64. Accept the same
-// integer from either encoding.
+// JSON decodes numbers as float64. CBOR decodes them as int64 or uint64.
 func asInt(v any) (int, bool) {
 	switch n := v.(type) {
 	case int:
@@ -106,10 +104,9 @@ func Check(ref *StatusRef) (*StatusResult, error) {
 // CheckWithOptions fetches the Status List Token referenced by a credential
 // and reports the status at the credential's index.
 //
-// Every step Section 8.3 requires runs here, and a failure of any of them is
-// an error: "If any of these checks fails, no statement about the status of
-// the Referenced Token can be made and the Referenced Token SHOULD be
-// rejected."
+// Every step of Section 8.3 runs here. "If any of these checks fails, no
+// statement about the status of the Referenced Token can be made and the
+// Referenced Token SHOULD be rejected."
 func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) {
 	if ref == nil {
 		return nil, fmt.Errorf("no status list reference")
@@ -155,8 +152,7 @@ func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) 
 	}
 	if rawDeflate {
 		// Section 4.1 requires the ZLIB data format around the DEFLATE
-		// stream. A bare DEFLATE stream is still read and reported as a
-		// warning.
+		// stream. A bare DEFLATE stream is read with a warning.
 		tok.warnings = append(tok.warnings, "the status list is raw DEFLATE without the ZLIB header required by section 4.1")
 	}
 
@@ -182,14 +178,14 @@ func CheckWithOptions(ref *StatusRef, opts CheckOptions) (*StatusResult, error) 
 	}, nil
 }
 
-// fetchStatusListToken performs the Section 8.1 request and returns the raw
-// token body together with the declared content type.
+// fetchStatusListToken performs the Section 8.1 request. It returns the raw
+// token body and the declared content type.
 func fetchStatusListToken(uri string, clients ...*http.Client) ([]byte, string, error) {
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request: %w", err)
 	}
-	// Accept JWT and CWT so lists from mdoc issuers can also be resolved.
+	// mdoc issuers may serve the CWT form.
 	req.Header.Set("Accept", MediaTypeJWT+", "+MediaTypeCWT)
 
 	resp, err := format.HTTPClientForURL(uri, clients...).Do(req)
@@ -199,8 +195,8 @@ func fetchStatusListToken(uri string, clients ...*http.Client) ([]byte, string, 
 	defer resp.Body.Close()
 
 	// Section 8.2: "A successful response that contains a Status List Token
-	// MUST use an HTTP status code in the 2xx range." A Status Provider
-	// behind a cache or a proxy answers 203 or 206.
+	// MUST use an HTTP status code in the 2xx range." A cache or a proxy
+	// can answer 203 or 206.
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, "", fmt.Errorf("status list returned HTTP %d", resp.StatusCode)
 	}
@@ -212,9 +208,9 @@ func fetchStatusListToken(uri string, clients ...*http.Client) ([]byte, string, 
 	return body, resp.Header.Get("Content-Type"), nil
 }
 
-// detectFormat picks the representation from the response content type,
-// falling back to the shape of the body. Section 8.2 makes the content type
-// mandatory, so any other one is a warning even when the body parses.
+// detectFormat picks the representation from the response content type or
+// else from the shape of the body. Section 8.2 makes the content type
+// mandatory, so any other one is a warning.
 func detectFormat(contentType string, body []byte) (string, string) {
 	mediaType := ""
 	if contentType != "" {
@@ -267,8 +263,7 @@ type statusListToken struct {
 func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
 	// Section 8.3: "The subject claim (sub or 2) of the Status List Token
 	// MUST be equal to the uri claim in the status_list object of the
-	// Referenced Token". Without this any Status List Token from a trusted
-	// Status Issuer answers for any credential.
+	// Referenced Token".
 	if t.subject == "" {
 		return fmt.Errorf("the status list token has no subject claim, which section 5.1 and 5.2 require")
 	}
@@ -283,9 +278,7 @@ func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
 	}
 
 	// Section 8.3: "If the expiration time is defined (exp or 4), it MUST be
-	// checked if the Status List Token is expired". An unchecked exp lets a
-	// copy of the list taken before a credential was revoked answer for that
-	// credential forever.
+	// checked if the Status List Token is expired".
 	now := opts.now()
 	if t.expiresAt != nil {
 		if now.After(t.expiresAt.Add(clockSkew)) {
@@ -299,8 +292,8 @@ func (t *statusListToken) validate(ref *StatusRef, opts CheckOptions) error {
 	}
 
 	// Section 4.2 and 4.3: "bits: REQUIRED ... The allowed values for bits are
-	// 1, 2, 4, and 8." A missing bits value cannot be defaulted: the wrong
-	// width reads other credentials' entries.
+	// 1, 2, 4, and 8." A wrong width reads other credentials' entries, so a
+	// missing bits value has no default.
 	switch t.bits {
 	case 1, 2, 4, 8:
 	case 0:
@@ -322,10 +315,9 @@ type keyCandidates struct {
 }
 
 // resolveKeys picks the verification keys for a Status List Token.
-// Verification always runs: Sections 5.1 and 5.2 say "Relying Parties MUST
-// reject JWTs with an invalid signature", with no exception for a party
-// holding no trust list. A trust anchor only decides whether the key is also
-// trusted, which is reported separately.
+// Sections 5.1 and 5.2 say "Relying Parties MUST reject JWTs with an invalid
+// signature", so verification runs even without a trust list. A trust anchor
+// only decides whether the key is trusted, and that is reported separately.
 func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named string, opts CheckOptions) (*keyCandidates, error) {
 	if len(opts.TrustListCerts) > 0 {
 		if len(certs) == 0 {
@@ -366,9 +358,8 @@ func resolveKeys(certs []*x509.Certificate, embedded []crypto.PublicKey, named s
 		}, nil
 	}
 
-	// Section 11.3 leaves key resolution to the ecosystem, and this one
-	// resolves a Status Issuer through x5c. A DID kid gets its own error so
-	// the failure is not mistaken for a missing key.
+	// Section 11.3 leaves key resolution to the ecosystem. The EUDI ecosystem
+	// resolves a Status Issuer through x5c. A DID kid gets its own error.
 	if did := keys.DIDReference(named); did != "" {
 		return nil, fmt.Errorf("the status list token names its key by the DID %s, which nothing here resolves: section 11.3 leaves key resolution to the ecosystem, and this one identifies a Status Issuer by the certificate chain in the token's x5c header", did)
 	}
@@ -421,8 +412,6 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	}
 
 	// Section 5.1: "typ: REQUIRED. The JWT type MUST be statuslist+jwt."
-	// Without it a JWT issued for some other purpose, and signed by a key the
-	// Relying Party already trusts, is accepted as a status list.
 	typ, _ := header["typ"].(string)
 	if !isStatusListTyp(typ, TypJWT) {
 		if typ == "" {
@@ -448,8 +437,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		return nil, err
 	}
 
-	// The accepted algorithms stay narrower than the toolkit's shared set on
-	// purpose.
+	// Status lists accept fewer algorithms than the toolkit's shared set.
 	alg, _ := header["alg"].(string)
 	switch alg {
 	case "ES256", "ES384":
@@ -516,8 +504,7 @@ func parseJWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 }
 
 // isStatusListTyp compares a typ header against the required value. RFC 7515
-// section 4.1.9 allows the "application/" prefix to be omitted, so both
-// spellings denote the same media type.
+// section 4.1.9 allows the "application/" prefix to be omitted.
 func isStatusListTyp(typ, want string) bool {
 	typ = strings.ToLower(strings.TrimSpace(typ))
 	return typ == want || typ == "application/"+want
@@ -564,11 +551,11 @@ func unixClaim(v any) *time.Time {
 	return &t
 }
 
-// Limit decompressed status lists to bound memory use for untrusted input.
+// maxBitstringBytes bounds the memory an untrusted status list can use.
 const maxBitstringBytes = 16 << 20
 
-// Limit decompression and report when a raw DEFLATE stream omits the ZLIB header
-// required by Section 4.1.
+// zlibDecompress limits the output size. It reports a raw DEFLATE stream without the
+// ZLIB header that Section 4.1 requires.
 func zlibDecompress(data []byte) ([]byte, bool, error) {
 	r, err := zlib.NewReader(bytes.NewReader(data))
 	if err == nil {
@@ -597,8 +584,8 @@ func readBounded(r io.Reader) ([]byte, error) {
 	return out, nil
 }
 
-// Validate idx and bits from untrusted documents before shifting. Check idx directly
-// because idx*bits can overflow.
+// idx and bits come from untrusted documents. idx*bits can overflow, so idx is
+// checked on its own.
 func extractStatus(bitstring []byte, idx, bits int) (int, error) {
 	if idx < 0 {
 		return 0, fmt.Errorf("status list index %d is negative", idx)

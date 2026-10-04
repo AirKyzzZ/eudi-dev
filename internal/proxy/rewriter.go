@@ -32,8 +32,7 @@ func NewRewriter(targetHost, proxyHost string) *Rewriter {
 	}
 }
 
-// RewriteBody performs byte-level replacement of target host with proxy host in body content.
-// It skips rewriting if the content appears to be a signed JWT.
+// RewriteBody replaces the target host with the proxy host in body content.
 func (rw *Rewriter) RewriteBody(body string, contentType string) string {
 	// Rewriting a signed JWT would invalidate its signature.
 	if isJWTBody(body) {

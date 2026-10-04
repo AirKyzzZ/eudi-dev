@@ -29,8 +29,8 @@ import (
 )
 
 // CertificatePEMToJWKS converts one or more PEM certificates into a JWKS JSON
-// document. The first certificate is treated as the key holder. Its public key
-// becomes the JWK and the full chain is embedded as x5c.
+// document. The public key of the first certificate becomes the JWK. The full
+// chain is embedded as x5c.
 func CertificatePEMToJWKS(pemData []byte) ([]byte, error) {
 	certs, err := ParseCertificatesPEM(pemData)
 	if err != nil {
@@ -47,8 +47,8 @@ func CertificatePEMToJWKS(pemData []byte) ([]byte, error) {
 	return append(out, '\n'), nil
 }
 
-// CertificateJWK builds a public JWK for the first certificate in the chain,
-// embedding the whole chain as x5c and the leaf hash as x5t#S256.
+// CertificateJWK builds a public JWK for the first certificate in the chain. It
+// embeds the whole chain as x5c and the leaf hash as x5t#S256.
 func CertificateJWK(certs []*x509.Certificate) (map[string]any, error) {
 	if len(certs) == 0 {
 		return nil, fmt.Errorf("no certificates found")

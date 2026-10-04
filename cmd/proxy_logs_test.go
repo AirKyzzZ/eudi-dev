@@ -128,7 +128,7 @@ func TestProxyLogsJSON(t *testing.T) {
 	}
 }
 
-// Connection failures must report an error instead of returning empty output.
+// An unreachable proxy must produce an error.
 func TestProxyLogsReportsAnUnreachableProxy(t *testing.T) {
 	cmd := proxyLogsCmd()
 	cmd.SetOut(&bytes.Buffer{})

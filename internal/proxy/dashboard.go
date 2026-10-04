@@ -28,11 +28,11 @@ import (
 )
 
 // streamKeepaliveInterval is how often an idle event stream sends a comment
-// line. A variable so tests do not have to wait for it.
+// line. Tests shorten it.
 var streamKeepaliveInterval = 20 * time.Second
 
-// A client that stops reading must eventually release its goroutine and subscription.
-// Allow enough time for keepalives to reach active readers.
+// A client that stops reading must release its goroutine and subscription. The
+// timeout leaves room for keepalives to reach active readers.
 var streamWriteTimeout = 2 * time.Minute
 
 type Dashboard struct {
@@ -45,8 +45,8 @@ func NewDashboard(store *Store, port int) *Dashboard {
 	return &Dashboard{store: store, port: port}
 }
 
-// SetBaseURL sets the dashboard's public URL, such as https://example.com/eudi-proxy
-// when a reverse proxy serves it there.
+// SetBaseURL sets the dashboard's public URL behind a reverse proxy, such as
+// https://example.com/eudi-proxy.
 func (d *Dashboard) SetBaseURL(raw string) error {
 	first, err := publicpath.FirstSegment(raw)
 	if err != nil {
@@ -83,7 +83,7 @@ func (d *Dashboard) Handler() http.Handler {
 	index, _ := fs.ReadFile(sub, "index.html")
 	mux.Handle("/", publicpath.ServeIndex(index, http.FileServer(http.FS(sub))))
 
-	// Apply security headers because captured traffic contains untrusted input.
+	// Captured traffic is untrusted input.
 	return publicpath.Wrap(publicpath.Options{
 		BaseURL: d.baseURL,
 		OnMismatch: func(observed string) {
@@ -128,9 +128,8 @@ func (d *Dashboard) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extend the deadline before each write. A fixed response deadline would end a
-	// healthy stream, while no deadline would leave stalled clients holding a
-	// subscription forever.
+	// Each write gets a fresh deadline. A healthy stream stays open and a stalled
+	// client releases its subscription.
 	rc := http.NewResponseController(w)
 	extendDeadline := func() {
 		if err := rc.SetWriteDeadline(time.Now().Add(streamWriteTimeout)); err != nil {
@@ -139,9 +138,8 @@ func (d *Dashboard) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	extendDeadline()
 
-	// Subscribed before the response head goes out, so a client that starts
-	// following and then reads the entry list cannot miss an entry that
-	// arrives between the two requests.
+	// The subscription starts before the response head goes out. A client that
+	// follows and then reads the entry list misses no entry.
 	ch, unsub := d.store.Subscribe()
 	defer unsub()
 
@@ -166,8 +164,7 @@ func (d *Dashboard) handleStream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		case <-keepalive.C:
 			extendDeadline()
-			// Send SSE comments as keepalives so intermediaries do not close idle
-			// streams.
+			// SSE comments keep intermediaries from closing idle streams.
 			fmt.Fprint(w, ": keepalive\n\n") //nolint:errcheck // a dead connection ends the stream on the next write anyway
 			flusher.Flush()
 		case <-r.Context().Done():

@@ -34,7 +34,7 @@ func (w *Wallet) tlsVerificationLocked() bool {
 }
 
 // OutboundConfig sets how the wallet reaches issuers and verifiers. A nil TLSVerify
-// follows the validation mode and a nil Proxy follows the proxy environment variables.
+// follows the validation mode. A nil Proxy uses the proxy environment variables.
 type OutboundConfig struct {
 	TLSVerify *bool
 	TLSCAPEM  []byte

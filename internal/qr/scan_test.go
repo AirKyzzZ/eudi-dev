@@ -63,8 +63,7 @@ func TestScanFile_InvalidImage(t *testing.T) {
 }
 
 func TestScanScreen_NonDarwin(t *testing.T) {
-	// ScanScreen is macOS only. Off macOS it refuses immediately, which is
-	// all an automated test can check.
+	// ScanScreen is macOS only. Elsewhere it must fail at once.
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping: ScanScreen launches interactive screencapture on macOS")
 	}

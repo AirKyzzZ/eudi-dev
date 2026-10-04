@@ -15,7 +15,7 @@ Pass the public URL, including the path prefix, as `--base-url`:
 eudi wallet serve --base-url https://example.com/some/context
 ```
 
-The wallet builds all of its URLs from this value: the issuer identifier, the endpoints in its metadata, the links in credential offers and presentation requests, and the status list and trust list URLs. Many of these URLs end up in signed credentials and metadata, so they must stay the same no matter how a request reaches the wallet. The wallet therefore never derives them from request headers.
+The wallet builds all of its URLs from this value: the issuer identifier, the endpoints in its metadata, the links in credential offers and presentation requests, and the status list and trust list URLs. Many of these URLs appear in signed credentials and metadata, so request headers do not change them.
 
 Use an https base URL. With an http base URL, the wallet serves its own issuer on a separate HTTPS port (the wallet port plus one), which your proxy does not cover.
 
@@ -46,7 +46,7 @@ If the proxy strips the prefix, the wallet receives `/api/version` but still nee
 2. Otherwise, if the request's host matches the base URL (`example.com`), the wallet uses the path of the base URL. Most proxies forward the `Host` header, so this usually works without extra configuration.
 3. Otherwise the request did not come through the proxy, and the prefix is empty.
 
-The wallet applies the prefix to redirects, to links in its web pages, to links in API responses (such as credential images) and to its session cookie. The cookie is limited to the prefix, so other apps on the same host never receive it. It is marked `Secure` when the proxy reports that the browser used https.
+The wallet applies the prefix to redirects, to links in its web pages, to links in API responses (such as credential images) and to its session cookie. The cookie path is the prefix, so other apps on the same host do not receive it. It is marked `Secure` when the proxy reports that the browser used https.
 
 The wallet reads the browser's host and scheme from `Forwarded` (RFC 7239), or from `X-Forwarded-Host` and `X-Forwarded-Proto`. If these headers or `X-Forwarded-Prefix` don't match the base URL, the wallet logs a warning for each new value. This usually points to a wrong proxy route or `--base-url`.
 
@@ -99,7 +99,7 @@ location ~ ^/\.well-known/(openid-credential-issuer|oauth-authorization-server|j
 }
 ```
 
-`proxy_buffering off` makes wallet events, such as consent requests, reach the browser immediately.
+`proxy_buffering off` streams wallet events, such as consent requests, to the browser without delay.
 
 ## Proxy dashboard
 

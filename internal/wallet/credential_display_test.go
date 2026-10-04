@@ -35,8 +35,7 @@ import (
 var tinyPNG, _ = base64.StdEncoding.DecodeString(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
-// Generate a PNG larger than the cache limit that shrinks to a small JPEG. This
-// exercises image resizing.
+// cardArtPNG is larger than the cache cap and shrinks to a small JPEG.
 func cardArtPNG(t *testing.T) []byte {
 	t.Helper()
 	const width, height = 1700, 1080
@@ -64,8 +63,7 @@ func cardArtPNG(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// Use a small compressed file with dimensions over the pixel limit. Reject it before
-// allocating the decoded image.
+// pixelBombPNG is a small file whose dimensions exceed the pixel cap.
 func pixelBombPNG(t *testing.T) []byte {
 	t.Helper()
 	side := 8192 // 67 megapixels, past the 32-megapixel cap
@@ -151,8 +149,8 @@ func displayIssuer(t *testing.T, w *Wallet, display []map[string]any) (*httptest
 		}
 	}))
 	serverURL = srv.URL
-	// The display entries are written before the server URL exists, so image
-	// URIs use the SERVER placeholder and get the real host here.
+	// The display entries exist before the server URL, so image URIs use a
+	// SERVER placeholder.
 	for _, entry := range display {
 		for _, key := range []string{"logo", "background_image"} {
 			if obj, ok := entry[key].(map[string]any); ok {
@@ -196,8 +194,8 @@ func issueWithDisplay(t *testing.T, w *Wallet, display []map[string]any) *Stored
 	return nil
 }
 
-// Persist OpenID4VCI §12.2.4 display metadata and cache images so cards render without
-// fetching from the issuer again.
+// The wallet stores OpenID4VCI §12.2.4 display metadata and caches its
+// images, so a card renders without contacting the issuer.
 func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 	t.Run("name, colors and images are stored with the credential", func(t *testing.T) {
 		w := generateTestWallet(t)
@@ -365,9 +363,8 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 			"logo": map[string]any{"uri": dataURI},
 		}})
 
-		// Vector logos are common issuer branding and a browser renders them
-		// inertly, so the wallet keeps them rather than dropping them like it
-		// would an image format it cannot decode.
+		// Issuers often use SVG logos, and an <img> tag renders them without
+		// running scripts.
 		if imported.Display == nil || imported.Display.LogoURI != dataURI {
 			t.Errorf("SVG logo should be kept, got %.40q", imported.Display.LogoURI)
 		}
@@ -381,7 +378,6 @@ func TestProcessCredentialOffer_CredentialDisplay(t *testing.T) {
 			"text_color":       "#777777",
 		}})
 
-		// Keep the declared colors and log the contrast warning.
 		d := imported.Display
 		if d == nil || d.BackgroundColor != "#888888" || d.TextColor != "#777777" {
 			t.Fatalf("expected the pair to be kept, got %+v", d)
@@ -492,12 +488,12 @@ func TestGenerateDefaultCredentials_Display(t *testing.T) {
 	}
 }
 
-// Issuer metadata is untrusted. Apply the same private-address checks to display
-// images as other fetches (ADR-0004).
+// Display image fetches follow the private address policy of ADR-0004,
+// because issuer metadata is untrusted.
 func TestCacheDisplayImage_BlocksInternalAddress(t *testing.T) {
 	w := generateTestWallet(t)
 
-	// Use the default client to exercise its address policy.
+	// The address policy lives in the default client.
 	oldClient := httpClient
 	httpClient = defaultHTTPClient
 	defer func() { httpClient = oldClient }()
@@ -505,9 +501,8 @@ func TestCacheDisplayImage_BlocksInternalAddress(t *testing.T) {
 	format.SetFetchPolicy(format.BlockPrivateAddresses)
 	defer format.SetFetchPolicy(nil)
 
-	// A loopback address stands in for any internal target (cloud metadata,
-	// a service on the demo host). The port is closed, so an unblocked fetch
-	// fails with a connection error, and the policy refuses at dial time first.
+	// Loopback stands in for any internal target. The port is closed, so the
+	// policy has to refuse at dial time for the test to see a policy error.
 	got := w.cacheDisplayImage("http://127.0.0.1:9/internal.png", "logo")
 	if got != "" {
 		t.Errorf("a display image at an internal address was fetched: %.40q", got)
@@ -574,8 +569,8 @@ func TestIssueFromTemplateKeepsArtWhenNameOverridden(t *testing.T) {
 func TestIssueWithDisplayTemplateAppliesTemplateArt(t *testing.T) {
 	w := generateTestWallet(t)
 	noStatus := ""
-	// The UI flattens a template's claims into explicit values and names it only
-	// for the display, since its embedded art cannot travel in a form field.
+	// The UI sends a template's claims as explicit values and names the
+	// template only for its display. Embedded images cannot travel in a form.
 	res, err := w.IssueCredential(IssueOptions{
 		Format:          "sdjwt",
 		VCT:             "urn:example:pid",
@@ -701,8 +696,8 @@ func TestPresentUnboundSDJWTOmitsKeyBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolving the signing key: %v", err)
 	}
-	// A credential with no cnf names no holder key, so it presents without a
-	// KB-JWT (the token ends with the final disclosure separator).
+	// A credential without cnf presents without a KB-JWT, so the token ends
+	// with the final disclosure separator.
 	token, err := w.createSDJWTPresentation(cred, nil, "nonce", "https://verifier.example", key)
 	if err != nil {
 		t.Fatalf("presenting the unbound credential: %v", err)

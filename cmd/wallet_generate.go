@@ -115,8 +115,8 @@ func walletGeneratePIDCmd() *cobra.Command {
 				return err
 			}
 
-			// Only pass an explicit --vct so the template's VCT (which a
-			// user override of german-pid-sdjwt may change) applies otherwise.
+			// Pass --vct only when the user set it. Otherwise the template's VCT
+			// applies, and a user override of german-pid-sdjwt can change it.
 			vct := ""
 			if cmd.Flags().Changed("vct") {
 				vct = vctFlag

@@ -104,7 +104,6 @@ func TestPrintMapFiltered_NonArrayHiddenKey(t *testing.T) {
 	if strings.Contains(out, "hidden-string") {
 		t.Error("hidden non-array key should not show its value")
 	}
-	// Non-array hidden keys are silently omitted (no summary line)
 	if strings.Contains(out, "secret") {
 		t.Error("non-array hidden key should be silently omitted")
 	}
@@ -848,8 +847,8 @@ func TestBuildMDOCJSON_DeviceBinding(t *testing.T) {
 	})
 }
 
-// Report disclosures not referenced by the credential, because they prove nothing
-// about its claims.
+// A disclosure the credential does not reference proves nothing about its claims
+// and must be reported.
 func TestFormatDisclosuresJSON_Referenced(t *testing.T) {
 	token := &sdjwt.Token{
 		Payload: map[string]any{

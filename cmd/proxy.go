@@ -218,8 +218,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		}
 		return nil
 	}
-	// The proxy never came up (e.g. the port was busy). The launched service
-	// runs in its own process group and would otherwise outlive this command.
+	// The proxy did not start, for example because the port was busy. The
+	// launched service runs in its own process group and outlives this command
+	// unless it is stopped here.
 	if sub != nil {
 		sub.Stop()
 		_ = sub.Wait()

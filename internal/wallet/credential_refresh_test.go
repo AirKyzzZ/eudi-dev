@@ -27,10 +27,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/format"
 )
 
-// renewalIssuerMetadata is the Credential Issuer Metadata a renewal reads back
-// from the Credential Issuer Identifier. §12.2.2 makes the identifier the
-// address of this document, and §8.2 makes the Nonce Endpoint in it the source
-// of the challenge every credential request needs.
+// renewalIssuerMetadata is served at the Credential Issuer Identifier
+// (§12.2.2). Its Nonce Endpoint supplies the proof challenge (§8.2).
 func renewalIssuerMetadata(issuer string) map[string]any {
 	return map[string]any{
 		"credential_issuer":   issuer,
@@ -39,8 +37,8 @@ func renewalIssuerMetadata(issuer string) map[string]any {
 	}
 }
 
-// Keep the credential ID during renewal so existing references still resolve. Fetch a
-// fresh Nonce Endpoint challenge for the proof required by OpenID4VCI §8.2.
+// A renewal keeps the credential ID. Its proof uses a fresh challenge from
+// the Nonce Endpoint (OpenID4VCI §8.2).
 func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 	w := generateTestWallet(t)
 	original := generateTestCredential(t, w)
@@ -83,8 +81,7 @@ func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 				_ = json.NewEncoder(rw).Encode(map[string]any{"error": "invalid_proof"})
 				return
 			}
-			// A renewal that never asked the Nonce Endpoint sends a proof with
-			// no nonce claim, which every 1.0 issuer refuses.
+			// An OpenID4VCI 1.0 issuer refuses a proof without its nonce.
 			if nonce := proofNonce(jwts[0]); nonce != "renewal-nonce" {
 				rw.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(rw).Encode(map[string]any{
@@ -135,8 +132,7 @@ func TestRefreshCredentialKeepsTheIdentity(t *testing.T) {
 	if stored.Raw != renewed {
 		t.Error("the stored credential is still the old one")
 	}
-	// A rotated refresh token has to replace the stored one, or the next
-	// renewal presents one the issuer already retired.
+	// The issuer retires a rotated refresh token.
 	if stored.Renewal == nil || stored.Renewal.RefreshToken != "refresh-2" {
 		t.Errorf("the rotated refresh token was not stored: %+v", stored.Renewal)
 	}
@@ -160,7 +156,7 @@ func TestRefreshCredentialRefusesWithoutARefreshToken(t *testing.T) {
 	}
 }
 
-// One failed renewal must not stop the sweep from trying other credentials.
+// One failed renewal does not stop the sweep.
 func TestRenewExpiringCredentialsSweep(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -192,7 +188,6 @@ func TestRenewExpiringCredentialsSweep(t *testing.T) {
 		t.Fatalf("the sweep reported failure over one credential: %v", err)
 	}
 
-	// Back off after failure instead of retrying at the next 30-second sweep.
 	if server.renewalDue(expiring.Credential.ID, now) {
 		t.Error("a credential whose renewal just failed is due again immediately")
 	}
@@ -204,8 +199,8 @@ func TestRenewExpiringCredentialsSweep(t *testing.T) {
 	}
 }
 
-// Check renewal before presentation too, because the background poller runs only with
-// wallet serve.
+// Presentation renews a credential near expiry, because the background
+// sweep runs only under wallet serve.
 func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 	w := generateTestWallet(t)
 	replacement := generateTestCredential(t, w)
@@ -261,8 +256,7 @@ func TestPresentingRenewsACredentialAboutToExpire(t *testing.T) {
 	}
 }
 
-// Persist client authentication settings for later refresh requests, after the
-// original issuance flow has ended.
+// A refresh authenticates the client the same way the original issuance did.
 func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://wallet.example"
@@ -332,8 +326,7 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 		if sawAttestation == "" || sawPoP == "" {
 			t.Error("the refresh carried no client attestation")
 		}
-		// A server that hands out challenges rejects a stale one, so the refresh
-		// has to ask for its own rather than replay one from issuance.
+		// A challenge from issuance is stale, so the refresh fetches its own.
 		if challenges != 1 {
 			t.Errorf("the refresh fetched %d attestation challenges, want 1", challenges)
 		}
@@ -390,7 +383,6 @@ func TestRefreshCredentialAuthenticatesTheClient(t *testing.T) {
 	})
 }
 
-// Read stored authentication settings from the same metadata used to build requests.
 func TestResolveClientAuthentication(t *testing.T) {
 	w := generateTestWallet(t)
 	ctx := clientAuthContext{
@@ -425,18 +417,16 @@ func TestResolveClientAuthentication(t *testing.T) {
 		t.Errorf("an issuer that asked for nothing resolved to %+v", auth)
 	}
 
-	// Enforcing HAIP in strict mode authenticates the client even against an
-	// issuer that offers nothing, and lets the exchange fail downstream if it
-	// will not take the attestation.
+	// HAIP in strict mode always authenticates the client, even when the
+	// issuer advertises no method.
 	w.RequireHAIP = true
 	w.ValidationMode = ValidationModeStrict
 	if auth := w.resolveClientAuthentication("", plain); auth == nil || auth.Method != ClientAuthAttestation {
 		t.Errorf("HAIP strict did not authenticate the client: %+v", auth)
 	}
 
-	// In debug mode the wallet attests a silent issuer (it may require an
-	// attestation without advertising it, §10.1) and warns about the missing
-	// advertisement.
+	// In debug mode the wallet still attests and warns. An issuer may require
+	// an attestation without advertising it (§10.1).
 	w.ValidationMode = ValidationModeDebug
 	if auth := w.resolveClientAuthentication("", plain); auth == nil || auth.Method != ClientAuthAttestation {
 		t.Errorf("HAIP debug should attest a silent issuer, got %+v", auth)
@@ -445,8 +435,8 @@ func TestResolveClientAuthentication(t *testing.T) {
 		t.Error("expected a warning about the missing client-authentication advertisement")
 	}
 
-	// An issuer that explicitly offers only unauthenticated access is taken at
-	// its word: the wallet proceeds without client auth and warns instead.
+	// An issuer that lists only "none" gets no client authentication, with a
+	// warning.
 	explicitNone := clientAuthContext{clientID: ctx.clientID, tokenEndpoint: ctx.tokenEndpoint, oauthMeta: map[string]any{
 		"token_endpoint_auth_methods_supported": []any{"none"},
 	}}
@@ -458,8 +448,7 @@ func TestResolveClientAuthentication(t *testing.T) {
 	}
 }
 
-// Report the issuer's OAuth error description without repeating the status and raw
-// body.
+// A refresh error shows the issuer's OAuth error description.
 func TestRefreshReportsWhatTheIssuerSaid(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -495,7 +484,7 @@ func TestRefreshReportsWhatTheIssuerSaid(t *testing.T) {
 	}
 }
 
-// Keep the response body when no OAuth error fields are available.
+// A refresh error without OAuth error fields shows the response body.
 func TestRefreshReportsANonOAuthRefusal(t *testing.T) {
 	w := generateTestWallet(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -540,12 +529,10 @@ func proofNonce(raw any) string {
 	return nonce
 }
 
-// §8.2 lets exactly one of the two members name what is being requested:
-// credential_identifier is "REQUIRED when an Authorization Details of type
-// openid_credential was returned from the Token Response. It MUST NOT be used
-// otherwise", and credential_configuration_id "MUST NOT be used" when a
-// credential_identifiers parameter was returned. A renewal that always sends
-// the configuration id gets refused by an issuer that answered with datasets.
+// OpenID4VCI §8.2: credential_identifier is "REQUIRED when an Authorization
+// Details of type openid_credential was returned from the Token Response. It
+// MUST NOT be used otherwise", and credential_configuration_id "MUST NOT be
+// used" when a credential_identifiers parameter was returned.
 func TestRefreshCredentialNamesTheCredentialTheTokenResponseAllows(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string

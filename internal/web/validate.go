@@ -36,11 +36,11 @@ type ValidateOpts struct {
 	TrustListURL string
 	TrustListRaw string
 	CheckStatus  bool
-	// Skip network checks and mark them NeedsNetwork so the UI can display offline
-	// results first.
+	// Offline skips network checks and marks them NeedsNetwork. The UI shows
+	// offline results first.
 	Offline bool
-	// Use this wallet's CA and issuer key for locally issued credentials. Nil selects
-	// the default wallet.
+	// WalletStore provides the CA and issuer key for locally issued credentials. Nil
+	// selects the default wallet.
 	WalletStore *wallet.WalletStore
 }
 
@@ -52,8 +52,8 @@ func Validate(input string, opts ValidateOpts) (map[string]any, error) {
 
 	switch detected {
 	case format.FormatSDJWT:
-		// Inspect retains malformed credentials and records deviations so the decoder
-		// can still show them.
+		// Inspect keeps a malformed credential and records its deviations, so the decoder
+		// can still show it.
 		token, err := sdjwt.Inspect(input)
 		if err != nil {
 			return nil, fmt.Errorf("parsing SD-JWT: %w", err)
@@ -299,8 +299,8 @@ func checkSDJWTSignature(token *sdjwt.Token, opts ValidateOpts) CheckResult {
 	}
 }
 
-// Verify using supplied or embedded keys. Mark checks requiring issuer metadata as
-// pending network access.
+// offlineSDJWTSignature verifies with supplied or embedded keys. A check that needs
+// issuer metadata is marked as pending network access.
 func offlineSDJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCerts []trustlist.CertInfo, opts ValidateOpts) CheckResult {
 	result, source, err := validate.VerifyJWTSignatureOffline(token, pubKeys, tlCerts)
 	if err != nil {
@@ -345,8 +345,7 @@ func offlineSDJWTSignature(token *sdjwt.Token, pubKeys []crypto.PublicKey, tlCer
 			Detail: fmt.Sprintf("Valid (%s)", result.Algorithm),
 		}
 	}
-	// A local key mismatch may still need an online check if issuer metadata can
-	// provide another key.
+	// Issuer metadata can provide another key after a local key mismatch.
 	if validate.CanResolveJWTIssuerMetadata(token) {
 		return CheckResult{
 			Name:         "signature",
@@ -474,8 +473,8 @@ func checkMDOCStatus(doc *mdoc.Document, opts ValidateOpts) []CheckResult {
 		return []CheckResult{{Name: "status", Status: "skipped", Detail: "No status reference in credential"}}
 	}
 
-	// ExtractStatusRef expects {"status": {"status_list": ...}} but MSO.Status
-	// is already the inner status object. Wrap it so the lookup works.
+	// ExtractStatusRef expects {"status": {"status_list": ...}}. MSO.Status is
+	// already the inner status object.
 	ref := statuslist.ExtractStatusRef(map[string]any{"status": doc.IssuerAuth.MSO.Status})
 	if skip, ok := statusCheckNotRun(ref, opts); ok {
 		return []CheckResult{skip}
@@ -488,8 +487,8 @@ func checkMDOCStatus(doc *mdoc.Document, opts ValidateOpts) []CheckResult {
 	return checkStatusRef(ref, tlCerts)
 }
 
-// No status reference needs no network check. An existing reference remains unresolved
-// until its list is fetched.
+// A credential without a status reference needs no network check. A reference stays
+// unresolved until its list is fetched.
 func statusCheckNotRun(ref *statuslist.StatusRef, opts ValidateOpts) (CheckResult, bool) {
 	if ref == nil {
 		return CheckResult{
@@ -516,7 +515,7 @@ func statusCheckNotRun(ref *statuslist.StatusRef, opts ValidateOpts) (CheckResul
 	return CheckResult{}, false
 }
 
-// Report credential status separately from trust in the status list signature.
+// The credential status is reported apart from trust in the status list signature.
 func checkStatusRef(ref *statuslist.StatusRef, tlCerts []trustlist.CertInfo) []CheckResult {
 	if ref == nil {
 		return []CheckResult{{Name: "status", Status: "skipped", Detail: "No status list reference in credential"}}
@@ -580,7 +579,7 @@ func resolveKeys(opts ValidateOpts) ([]crypto.PublicKey, []trustlist.CertInfo, e
 	}
 
 	if opts.TrustListURL != "" && !opts.Offline {
-		// The URL is caller-supplied. ReadRemoteInput cannot read local files.
+		// The URL is caller-supplied, and ReadRemoteInput cannot read local files.
 		tlRaw, err := format.ReadRemoteInput(opts.TrustListURL)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fetching trust list: %w", err)

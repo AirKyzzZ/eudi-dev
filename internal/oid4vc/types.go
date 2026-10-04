@@ -48,10 +48,9 @@ type AuthorizationRequest struct {
 	ResponseURI      string
 	Scope            string
 	RequestURIMethod string // "get" (default) or "post" per OID4VP 1.0 §5.10
-	// RequestURI is the request_uri the request object was fetched from, empty
-	// when the request carried its parameters directly or passed the object
-	// inline. HAIP 1.0 §5.1 requires the object to be delivered this way, so
-	// the difference has to survive parsing.
+	// RequestURI is the request_uri the request object was fetched from. It is
+	// empty for inline parameters or an inline object. HAIP 1.0 §5.1 requires
+	// delivery by request_uri.
 	RequestURI     string
 	ClientMetadata map[string]any
 	DCQLQuery      map[string]any
@@ -68,8 +67,7 @@ type RequestObjectJWT struct {
 
 type ParseOptions struct {
 	HTTPClient *http.Client
-	// FetchRequestURI is called to retrieve the request object from request_uri.
-	// url is the request_uri value, method is "get" or "post".
-	// If nil, format.FetchURL (HTTP GET) is used regardless of method.
+	// FetchRequestURI retrieves the request object from request_uri. method is
+	// "get" or "post". When nil, format.FetchURL sends a GET for either method.
 	FetchRequestURI func(url string, method string, clientID string) (string, error)
 }

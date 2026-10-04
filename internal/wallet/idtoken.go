@@ -52,13 +52,11 @@ func (w *Wallet) CreateSelfIssuedIDToken(nonce, clientID string) (string, error)
 	return signJWT(header, payload, w.HolderKey)
 }
 
-// jwkThumbprint computes the JWK thumbprint per RFC 7638 for a P-256 public key.
-// The thumbprint is the base64url-encoded SHA-256 hash of the canonical JWK representation
-// with members sorted lexicographically: {"crv","kty","x","y"}.
+// jwkThumbprint computes the RFC 7638 thumbprint of a P-256 public key.
 func jwkThumbprint(key *ecdsa.PublicKey) (string, error) {
 	jwk := mock.PublicKeyJWKMap(key)
 
-	// RFC 7638: canonical form uses sorted required members only
+	// RFC 7638 §3.2: only the required members, in lexicographic order.
 	canonical := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s","y":"%s"}`,
 		jwk["crv"], jwk["kty"], jwk["x"], jwk["y"])
 
@@ -81,11 +79,10 @@ func ResponseTypeRequiresVP(responseType string) bool {
 	return responseType == "" || ResponseTypeContains(responseType, "vp_token")
 }
 
-// presentationAudience returns the value a presentation or self-issued token is
-// audienced to. Over the Digital Credentials API that is the caller's origin:
-// OID4VP 1.0 §5.9.3 says "the audience of the Credential Presentation is always
-// the origin value prefixed by origin:". Everywhere else it is the Client
-// Identifier, prefix included.
+// presentationAudience returns the aud value for a presentation or a
+// self-issued ID token. For the Digital Credentials API, OID4VP 1.0 §5.9.3 says
+// "the audience of the Credential Presentation is always the origin value
+// prefixed by origin:". Otherwise it is the Client Identifier with its prefix.
 func presentationAudience(params *AuthorizationRequestParams) string {
 	if params == nil {
 		return ""

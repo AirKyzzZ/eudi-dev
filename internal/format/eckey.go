@@ -21,24 +21,21 @@ import (
 )
 
 // ECPublicCoords returns the fixed-width big-endian X and Y coordinates of an
-// EC public key, the encoding a JWK uses for "x" and "y". The width follows the
-// curve, so the same call serves P-256, P-384 and P-521.
+// EC public key, as a JWK encodes "x" and "y". The width follows the curve.
 func ECPublicCoords(pub *ecdsa.PublicKey) (x, y []byte, err error) {
 	raw, err := pub.Bytes()
 	if err != nil {
 		return nil, nil, err
 	}
-	// raw is the SEC1 uncompressed point 0x04 || X || Y, each coordinate the
-	// curve width, so the two halves after the prefix are X and Y.
+	// raw is the SEC1 uncompressed point 0x04 || X || Y with fixed-width coordinates.
 	body := raw[1:]
 	half := len(body) / 2
 	return body[:half], body[half:], nil
 }
 
 // ECPublicKeyFromCoords rebuilds an EC public key from its JWK coordinates and
-// checks that the point lies on the curve. The coordinates may arrive shorter
-// than the curve width when a leading zero was stripped, so each is left-padded
-// into its slot.
+// checks that the point lies on the curve. A coordinate without its leading zero
+// byte is left-padded to the curve width.
 func ECPublicKeyFromCoords(curve elliptic.Curve, x, y []byte) (*ecdsa.PublicKey, error) {
 	size := (curve.Params().BitSize + 7) / 8
 	if len(x) > size || len(y) > size {

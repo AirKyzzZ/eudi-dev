@@ -28,14 +28,12 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// strictPreAuthIssuer serves a pre-authorized_code issuer that requires
-// DPoP-bound tokens, client (wallet) attestation, and key attestation in the
-// proof, which issuer metadata may ask for all three of at once. Each
-// requirement is enforced, so a wallet that omits one gets the same error an
-// issuer would send.
-// proofTypes names what the issuer offers: "jwt", "attestation", or "both"
-// (a jwt type requiring a key attestation next to an attestation type that
-// states no requirement of its own).
+// strictPreAuthIssuer serves a pre-authorized_code issuer that can require
+// DPoP-bound tokens, client attestation and key attestation in the proof.
+// Issuer metadata can ask for all three at once. A wallet that omits one gets
+// the error a real issuer would send.
+// proofTypes is "jwt", "attestation" or "both". With "both" the jwt type
+// requires a key attestation and the attestation type states no requirement.
 func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAttestation, requireKeyAttestation bool, proofTypes string) (*httptest.Server, string) {
 	t.Helper()
 
@@ -142,11 +140,11 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 				var reqBody map[string]any
 				json.Unmarshal(body, &reqBody)
 				proofs, _ := reqBody["proofs"].(map[string]any)
-				// The advertised batch arrives as one proof of one type whose
-				// key attestation names every batch key, holder key first, and
-				// the issuer issues one credential per attested key: the
-				// attestation itself under the attestation proof type
-				// (Appendix F.3), else a holder-key jwt carrying it (F.1).
+				// The batch arrives as one proof. Its key attestation lists
+				// every batch key with the holder key first, and the issuer
+				// issues one credential per attested key. Under the attestation
+				// proof type the proof is the attestation itself (Appendix F.3).
+				// Otherwise it is a holder-key jwt that carries it (F.1).
 				wantType := "attestation"
 				if proofTypes == "jwt" {
 					wantType = "jwt"
@@ -222,8 +220,8 @@ func strictPreAuthIssuer(t *testing.T, w *Wallet, requireDPoP, requireClientAtte
 	return srv, "openid-credential-offer://?credential_offer=" + url.QueryEscape(string(offerJSON))
 }
 
-// Pre-authorized issuance must send DPoP, client attestation and key attestation when
-// the issuer requires them.
+// Pre-authorized issuance sends DPoP, client attestation and key attestation
+// when the issuer requires them.
 func TestProcessCredentialOffer_PreAuthHonorsIssuerProtections(t *testing.T) {
 	for _, tc := range []struct {
 		name                                               string
@@ -275,9 +273,9 @@ func TestProcessCredentialOffer_PreAuthHonorsIssuerProtections(t *testing.T) {
 	}
 }
 
-// TestIssuanceProofKeys_KeyAttestationCoversBatch covers batch issuance and
-// key attestation meeting: the batch keeps one key per copy, and the key
-// attestation attests all of them (Appendix F.1, HAIP §4.5.1).
+// TestIssuanceProofKeys_KeyAttestationCoversBatch covers batch issuance with
+// key attestation. The batch keeps one key per copy and the key attestation
+// covers all of them (Appendix F.1, HAIP §4.5.1).
 func TestIssuanceProofKeys_KeyAttestationCoversBatch(t *testing.T) {
 	w := generateTestWallet(t)
 	metadata := map[string]any{
@@ -315,9 +313,10 @@ func TestIssuanceProofKeys_KeyAttestationCoversBatch(t *testing.T) {
 	}
 }
 
-// TestCredentialProofType covers Appendix F.1 and F.3 meeting the issuer's
-// proof_types_supported: attestation when it is the only type offered or when
-// the jwt type would need a key attestation anyway, jwt otherwise.
+// TestCredentialProofType covers the choice between the proof types of
+// Appendix F.1 and F.3. The wallet uses attestation when it is the only type
+// offered or when the jwt type needs a key attestation anyway. Otherwise it
+// uses jwt.
 func TestCredentialProofType(t *testing.T) {
 	metadataFor := func(proofTypes map[string]any) map[string]any {
 		return map[string]any{"credential_configurations_supported": map[string]any{
@@ -344,8 +343,9 @@ func TestCredentialProofType(t *testing.T) {
 	}
 }
 
-// Check the advertised key protection level and its activity log warning for each
-// setting.
+// The key attestation claims the protection level that KeyAttestationLevel
+// selects. The activity log warns when that claim cannot be backed or omits a
+// required level.
 func TestKeyAttestationClaims(t *testing.T) {
 	metadataRequiring := func(requirement map[string]any) map[string]any {
 		return map[string]any{"credential_configurations_supported": map[string]any{
@@ -405,10 +405,10 @@ func TestKeyAttestationClaims(t *testing.T) {
 	}
 }
 
-// TestProofSigningAlgMustBeListed covers Appendix F.1 and F.3: the proof's alg
-// has to be one the configuration lists. This wallet signs ES256 only, so a
-// configuration listing other algorithms is refused in strict mode and
-// reported in debug mode, with HAIP §7 named when the profile is on.
+// TestProofSigningAlgMustBeListed covers Appendix F.1 and F.3. The proof's alg
+// must be one the configuration lists. The wallet signs ES256 only. Strict mode
+// refuses a configuration without it and debug mode warns. The warning cites
+// HAIP §7 when the profile is on.
 func TestProofSigningAlgMustBeListed(t *testing.T) {
 	metadata := map[string]any{"credential_configurations_supported": map[string]any{
 		"cfg": map[string]any{"proof_types_supported": map[string]any{

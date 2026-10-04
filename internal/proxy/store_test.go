@@ -64,8 +64,7 @@ func TestStoreFlowsMapBounded(t *testing.T) {
 		Classify(e)
 		s.Add(e)
 	}
-	// Each entry contributes one correlation key, and the buffer holds 10, so
-	// the flows map must not accumulate all 500 keys.
+	// The buffer holds 10 entries, so the flows map must not keep all 500 keys.
 	if got := len(s.flows); got > s.maxSize*3 {
 		t.Fatalf("flows map grew to %d for a %d-entry buffer, eviction is not pruning it", got, s.maxSize)
 	}

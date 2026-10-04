@@ -30,13 +30,13 @@ type OfferedCredential struct {
 	Name        string   `json:"name,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Claims      []string `json:"claims,omitempty"`
-	// Preview issuer display metadata with the same image address checks as issued
-	// credentials. --adhoc-display-images can retain HTTPS URLs for the browser.
+	// Display images get the same address checks as images of issued
+	// credentials. --adhoc-display-images can keep HTTPS URLs for the browser.
 	Display *CredentialDisplay `json:"display,omitempty"`
 }
 
-// IssuanceOfferDetails combines the offer with optional metadata for consent. Missing
-// metadata leaves fields empty without blocking consent.
+// IssuanceOfferDetails combines the offer with optional issuer metadata for the
+// consent dialog. Fields stay empty when metadata is missing.
 type IssuanceOfferDetails struct {
 	Issuer     string `json:"issuer"`
 	IssuerName string `json:"issuer_name,omitempty"`
@@ -44,21 +44,21 @@ type IssuanceOfferDetails struct {
 	Grant      string `json:"grant,omitempty"`
 	TxCode     bool   `json:"tx_code,omitempty"`
 	TxCodeHint string `json:"tx_code_hint,omitempty"`
-	// The three members OID4VCI 1.0 defines on tx_code, passed through so the
-	// dialog can size and type its input and repeat the issuer's own wording.
+	// OID4VCI 1.0 defines these three members on tx_code. The dialog uses them
+	// to size and type its input and to show the issuer's wording.
 	TxCodeInputMode   string              `json:"tx_code_input_mode,omitempty"`
 	TxCodeLength      int                 `json:"tx_code_length,omitempty"`
 	TxCodeDescription string              `json:"tx_code_description,omitempty"`
 	Credentials       []OfferedCredential `json:"credentials,omitempty"`
 	MetadataError     string              `json:"metadata_error,omitempty"`
-	// OfferURI and ResolveError are set when an offer delivered by reference
-	// could not be fetched, so the dialog can name the host and say why
-	// nothing more is known.
+	// OfferURI and ResolveError are set when an offer passed by reference
+	// could not be fetched. The dialog then shows the host and the reason.
 	OfferURI     string `json:"offer_uri,omitempty"`
 	ResolveError string `json:"resolve_error,omitempty"`
 }
 
-// Show the offer's own details even if issuer metadata cannot be fetched.
+// describeCredentialOffer shows the offer's own details even when issuer
+// metadata cannot be fetched.
 func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *IssuanceOfferDetails {
 	if offer == nil {
 		return nil
@@ -82,7 +82,6 @@ func (w *Wallet) describeCredentialOffer(offer *oid4vc.CredentialOffer) *Issuanc
 		details.MetadataError = err.Error()
 	} else {
 		details.IssuerName, details.IssuerLogo = issuerDisplay(metadata)
-		// Apply image address checks when embedding the issuer logo.
 		details.IssuerLogo = w.embedDisplayImage(details.IssuerLogo, "issuer_logo")
 	}
 
@@ -143,7 +142,8 @@ func issuerDisplay(metadata map[string]any) (name, logo string) {
 	return name, logo
 }
 
-// Keep unknown configuration IDs visible so consent still shows everything offered.
+// describeConfiguration keeps unknown configuration IDs, so consent still shows
+// everything offered.
 func (w *Wallet) describeConfiguration(metadata map[string]any, id string) OfferedCredential {
 	out := OfferedCredential{ID: id}
 	configs, _ := metadata["credential_configurations_supported"].(map[string]any)
@@ -166,7 +166,8 @@ func (w *Wallet) describeConfiguration(metadata map[string]any, id string) Offer
 	return out
 }
 
-// Show the issuer's first display entry without locale negotiation.
+// firstDisplayEntry returns the issuer's first display entry. It does no locale
+// negotiation.
 func firstDisplayEntry(raw any) (map[string]any, bool) {
 	entries, ok := raw.([]any)
 	if !ok || len(entries) == 0 {
@@ -177,8 +178,8 @@ func firstDisplayEntry(raw any) (map[string]any, bool) {
 }
 
 // configurationClaimNames lists the claims a configuration declares. OID4VCI
-// 1.0 uses an array of objects with a "path", while earlier drafts used a
-// nested object keyed by claim name. Both appear in the wild.
+// 1.0 uses an array of objects with a "path". Earlier drafts used a nested
+// object keyed by claim name. Issuers still publish both.
 func configurationClaimNames(raw any) []string {
 	switch claims := raw.(type) {
 	case []any:

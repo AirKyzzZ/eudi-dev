@@ -116,8 +116,7 @@ func TestParseIssuerAuth_TaggedInput(t *testing.T) {
 }
 
 func TestParseIssuerAuth_UntaggedArrayInput(t *testing.T) {
-	// Simulate what happens after DeviceResponse roundtrip:
-	// issuerAuth arrives as []any (tag stripped during decode→re-encode)
+	// After a DeviceResponse round trip issuerAuth arrives as []any without its tag.
 	coseArr := []any{
 		[]byte{0xa1, 0x01, 0x26}, // protected: {1: -7} (ES256)
 		map[any]any{},            // unprotected
@@ -130,7 +129,7 @@ func TestParseIssuerAuth_UntaggedArrayInput(t *testing.T) {
 		t.Fatalf("parseIssuerAuth([]any) error: %v", err)
 	}
 
-	// RawCOSE must include Tag 18 for go-cose
+	// go-cose needs Tag 18 on RawCOSE.
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(ia.RawCOSE); err != nil {
 		t.Errorf("go-cose UnmarshalCBOR failed on RawCOSE from []any input: %v", err)
@@ -185,8 +184,8 @@ func TestParseIssuerAuth_UntaggedBytesInput(t *testing.T) {
 }
 
 func TestParseIssuerSignedItem_RawCBORContainsTag24(t *testing.T) {
-	// RawCBOR keeps the full Tag-24 encoding, since MSO ValueDigests hash the
-	// complete #6.24(bstr .cbor IssuerSignedItem) encoding.
+	// MSO ValueDigests hash the complete #6.24(bstr .cbor IssuerSignedItem)
+	// encoding, so RawCBOR must keep it.
 	item := map[string]any{
 		"digestID":          uint64(0),
 		"random":            []byte("random-salt"),

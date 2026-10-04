@@ -23,8 +23,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/mock"
 )
 
-// Read expiry from both credential formats. Missing expiry must not count as due for
-// renewal.
+// Expiry is read from both formats. A credential without one is never due
+// for renewal.
 func TestCredentialExpiryReadsBothFormats(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -75,7 +75,7 @@ func TestCredentialWithoutAStatedLifetimeNeverExpires(t *testing.T) {
 	}
 }
 
-// Sort newest first and preserve ties so repeated listings remain stable.
+// Ties keep their order so repeated listings are stable.
 func TestSortCredentialsNewestFirst(t *testing.T) {
 	at := func(unix int64) StoredCredential {
 		key, err := mock.GenerateKey()
@@ -141,7 +141,7 @@ func TestCredentialIssuedAt_ImportedCredentials(t *testing.T) {
 	}
 }
 
-// Keep credentials with no issuance time after dated credentials, preserving their
+// Credentials without an issuance time sort after dated ones and keep their
 // order.
 func TestSortCredentialsNewestFirst_UndatedGoLast(t *testing.T) {
 	key, err := mock.GenerateKey()

@@ -46,9 +46,8 @@ func ecEncJWK(t *testing.T, use string) map[string]any {
 	return jwk
 }
 
-// A verifier that offers an RSA-OAEP encryption key (valid under OID4VP 1.0, not
-// under HAIP) is answered: the wallet builds a JWE the verifier can decrypt with
-// its RSA private key.
+// OID4VP 1.0 allows an RSA-OAEP encryption key and HAIP does not. The wallet
+// answers such a verifier with a JWE it can decrypt with its RSA private key.
 func TestEncryptJWERSARoundTrip(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -123,8 +122,8 @@ func TestExtractEncryptionKeyRSA(t *testing.T) {
 	}
 }
 
-// When a verifier offers both an EC and an RSA key, the wallet uses the EC key
-// (ECDH-ES), the OID4VP baseline and the only key HAIP allows.
+// When a verifier offers both an EC and an RSA key, the wallet uses the EC key.
+// ECDH-ES is the OID4VP baseline and the only option HAIP allows.
 func TestFindEncryptionJWKPrefersECOverRSA(t *testing.T) {
 	rsaPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
 	ecJWK := map[string]any{"kty": "EC", "crv": "P-256", "use": "enc", "kid": "ec", "x": "8Yrbbg", "y": "V2Ki0w"}
@@ -138,8 +137,8 @@ func TestFindEncryptionJWKPrefersECOverRSA(t *testing.T) {
 	}
 }
 
-// A verifier that publishes only a signing-marked key is a misconfiguration:
-// debug encrypts to it anyway and records a finding, strict refuses.
+// A verifier that publishes only a key marked for signing is misconfigured.
+// Debug mode encrypts to it and records a finding. Strict mode refuses.
 func TestExtractEncryptionKeySigningOnlyFallback(t *testing.T) {
 	meta := map[string]any{"jwks": map[string]any{"keys": []any{ecEncJWK(t, "sig")}}}
 

@@ -124,8 +124,8 @@ func authorizationFindings(params *AuthorizationRequestParams, payload map[strin
 			findings = append(findings, "OID4VP 1.0 §5.1: a vp_token request must carry either dcql_query or scope")
 		}
 	}
-	// Invalid format, meta or query ID fields violate §6.1. Report a request error
-	// rather than a missing credential.
+	// Invalid format, meta or query ID fields violate §6.1. This is a request
+	// error.
 	findings = append(findings, DCQLQueryFindings(params.DCQLQuery)...)
 	// §5.1: "Wallets that do not support this parameter MUST reject requests
 	// that contain it."
@@ -281,8 +281,9 @@ func validateResponseMode(responseMode, responseURI, redirectURI string) error {
 	return nil
 }
 
-// Only HTTP and HTTPS redirects are safe here. url.Parse also calls javascript: and
-// data: absolute, but navigating to them could execute script on the wallet's origin.
+// Only HTTP and HTTPS redirects are safe here. url.Parse also treats javascript: and
+// data: URLs as absolute, and navigating to them could run script on the wallet's
+// origin.
 func validateAbsoluteURI(field, raw string) error {
 	if raw == "" {
 		return nil

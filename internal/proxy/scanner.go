@@ -24,8 +24,8 @@ import (
 	"time"
 )
 
-// OutputScanner scans lines from a subprocess's stdout/stderr for encryption
-// keys and credentials. It is thread-safe and designed for best-effort detection.
+// OutputScanner scans lines from a subprocess's stdout and stderr for encryption
+// keys and credentials. It is safe for concurrent use. Detection is best effort.
 type OutputScanner struct {
 	mu          sync.RWMutex
 	lastCEK     string // most recent base64url-encoded CEK
@@ -40,11 +40,11 @@ type ScannedCredential struct {
 }
 
 var (
-	// Explicit CEK log lines, e.g. "[VP] JWE content encryption key for proxy debugging: <base64url>"
-	// or any line mentioning CEK/cek followed by a base64url value.
+	// A CEK log line such as "[VP] JWE content encryption key for proxy debugging: <base64url>",
+	// or any line with CEK and then a base64url value.
 	cekPattern = regexp.MustCompile(`(?i)(?:CEK|content.encryption.key)[^:]*:\s*([A-Za-z0-9_-]{16,})`)
 
-	// JWT pattern: eyJ<base64url>.<base64url>.<base64url> optionally followed by ~disclosures (SD-JWT)
+	// A JWT, optionally followed by SD-JWT ~disclosures.
 	jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*(?:~[A-Za-z0-9_-]*)*`)
 )
 
@@ -67,8 +67,8 @@ func (s *OutputScanner) scanCEK(line string) {
 	}
 }
 
-// scanJWK looks for JWK objects with a "d" (private key) parameter.
-// If found, the full JWK JSON is stored and can be used to derive decryption keys.
+// scanJWK looks for JWK objects with a "d" (private key) parameter. It stores the
+// full JWK JSON for decryption.
 func (s *OutputScanner) scanJWK(line string) {
 	start := strings.Index(line, "{")
 	if start < 0 {
@@ -117,7 +117,7 @@ func (s *OutputScanner) scanJWK(line string) {
 func (s *OutputScanner) scanCredentials(line string) {
 	matches := jwtPattern.FindAllString(line, -1)
 	for _, m := range matches {
-		// Skip very short matches that are likely false positives
+		// Very short matches are likely false positives.
 		if len(m) < 50 {
 			continue
 		}
@@ -196,8 +196,7 @@ func (s *OutputScanner) Credentials() []ScannedCredential {
 	return out
 }
 
-// mdoc credentials in JSON vp_token maps do not match the JWT regex. Scan those maps
-// separately.
+// mdoc credentials in JSON vp_token maps do not match the JWT regex.
 func (s *OutputScanner) scanVPTokenJSON(line string) {
 	lower := strings.ToLower(line)
 	if !strings.Contains(lower, "vp_token") && !strings.Contains(lower, "vp token") {
@@ -240,9 +239,9 @@ func (s *OutputScanner) scanVPTokenJSON(line string) {
 	}
 }
 
-// extractNonJWTCredentials extracts long base64/base64url strings from a JSON
-// object that don't look like JWTs (don't start with "eyJ"). These are typically
-// mdoc CBOR credentials in DCQL VP token format.
+// extractNonJWTCredentials extracts long base64 or base64url strings that do not
+// start with "eyJ" from a JSON object. These are usually mdoc credentials in a
+// DCQL vp_token.
 func (s *OutputScanner) extractNonJWTCredentials(obj map[string]any, prefix string) {
 	for key, val := range obj {
 		label := prefix + "." + key

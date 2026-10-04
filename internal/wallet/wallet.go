@@ -48,8 +48,8 @@ const (
 	SessionTranscriptISO SessionTranscriptMode = "iso"
 
 	// SessionTranscriptOID4VP uses the OID4VP 1.0 Appendix B.2.6 handover: the
-	// SHA-256 of CBOR([client_id, nonce, jwkThumbprint, response_uri]). The
-	// default.
+	// SHA-256 of CBOR([client_id, nonce, jwkThumbprint, response_uri]). This is
+	// the default.
 	SessionTranscriptOID4VP SessionTranscriptMode = "oid4vp"
 )
 
@@ -73,8 +73,8 @@ type Wallet struct {
 	AutoAccept              bool
 	SessionTranscript       SessionTranscriptMode // "oid4vp" (default) or "iso"
 	PreferredFormat         string                // "" (no preference), "dc+sd-jwt", or "mso_mdoc"
-	RequireEncryptedRequest bool                  // Rejects unencrypted request_uri responses. The wallet advertises its encryption
-	// key even when this is false.
+	RequireEncryptedRequest bool                  // Rejects unencrypted request_uri responses.
+	// The wallet advertises this key even when RequireEncryptedRequest is false.
 	RequestEncryptionKey *ecdsa.PrivateKey
 	RequireHAIP          bool
 	// Read runtime changes through KeyAttestationLevelSetting. See
@@ -86,9 +86,9 @@ type Wallet struct {
 	// Sends the wallet attestation even without advertised support. Disabled by
 	// default because reusing an attestation can link activity across issuers.
 	ForceClientAttestation bool
-	// Keep HTTPS image URLs for browser fetching on demand. HTTP images, data URIs and
-	// template images are stored. By default images pass through the restricted HTTP
-	// client and become stored assets.
+	// Keeps HTTPS image URLs so the browser fetches them on demand. HTTP images,
+	// data URIs and template images are still stored. By default every image is
+	// fetched through the restricted HTTP client and stored.
 	AdhocDisplayImages bool           `json:"-"`
 	ValidationMode     ValidationMode `json:"-"`
 	Credentials        []StoredCredential
@@ -99,8 +99,7 @@ type Wallet struct {
 	IssuerURL          string
 	VCIClientID        string `json:"-"`
 	VCIRedirectURI     string `json:"-"`
-	// The current server origin is never persisted. It provides a callback URL when
-	// BaseURL is unset.
+	// Callback URLs use this origin when BaseURL is unset.
 	ServingOrigin string `json:"-"`
 	// The zero value uses the default template directory.
 	Templates    credtemplate.Location `json:"-"`
@@ -130,7 +129,6 @@ type Wallet struct {
 	batchDirty bool
 }
 
-// Clears the dirty flag after reporting it so the caller saves batch state once.
 func (w *Wallet) takeBatchStateDirty() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -243,20 +241,18 @@ type StoredCredential struct {
 	// reduces linking through repeated use of the same credential (EUDI ARF Annex 2
 	// Topic 10 method C, ISSU_51-54). Empty for single issuance.
 	BatchGroup string `json:"batch_group,omitempty"`
-	// The private holder key for this copy. Empty means use the wallet's holder key.
-	// Batch copies can each use a different key.
+	// The private holder key for this copy. Empty means the wallet's holder key.
 	BindingKeyPEM string `json:"binding_key,omitempty"`
 	// Present a random copy among those with the lowest use count. After every copy
 	// has been used, the batch cycles through them again (EUDI ARF method C, ISSU_52).
 	Uses            int                `json:"uses,omitempty"`
 	LastPresentedAt time.Time          `json:"last_presented_at,omitempty"`
 	Disclosures     []sdjwt.Disclosure `json:"-"`
-	// Cache the parsed issuance time for sorting.
+	// Parsed issuance time, cached for sorting.
 	issuedAt   time.Time
 	NameSpaces map[string][]mdoc.IssuerSignedItem `json:"-"`
 }
 
-// An empty per-copy key falls back to the wallet's holder key.
 func (w *Wallet) batchSigningKey(cred StoredCredential) (*ecdsa.PrivateKey, error) {
 	if cred.BindingKeyPEM == "" {
 		return w.HolderKeyPair(), nil
@@ -343,9 +339,8 @@ type ConsentRequest struct {
 	// Keep the offer shown at consent in case its URL cannot be fetched again after
 	// approval.
 	ResolvedOffer *oid4vc.CredentialOffer `json:"-"`
-	// True when the Request Object signature verifies against its supplied key
-	// material. This checks signature consistency without establishing trust in the
-	// verifier. Computed when the request is created.
+	// True when the Request Object signature verifies against the key material it
+	// carries. This does not establish trust in the verifier.
 	ClientAuthSigned bool `json:"-"`
 	// Empty when ClientAuthSigned is true. Otherwise explains why verification was
 	// unavailable or failed.
@@ -429,7 +424,7 @@ type LogEntry struct {
 	Time   time.Time `json:"time"`
 	Action string    `json:"action"`
 	Detail string    `json:"detail"`
-	// An empty Severity uses Success alone. warning records a violation that did not
+	// Severity is empty or "warning". A warning records a violation that did not
 	// fail the action.
 	Success  bool           `json:"success"`
 	Severity string         `json:"severity,omitempty"`
@@ -478,7 +473,8 @@ func New(holderKey, issuerKey *ecdsa.PrivateKey, autoAccept bool) *Wallet {
 	return w
 }
 
-// SetCertificateAuthority preserves the issuer key while replacing its CA and chain.
+// SetCertificateAuthority replaces the CA and certificate chain. The issuer key
+// stays.
 func (w *Wallet) SetCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.Certificate) error {
 	return w.setCertificateAuthority(caKey, caCert, false)
 }
@@ -493,9 +489,8 @@ func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.C
 	if err != nil {
 		return fmt.Errorf("generating issuer leaf certificate: %w", err)
 	}
-	// Protect the chain swap because slice header writes are not atomic. Concurrent
-	// readers must not combine a pointer and length from different chains. Generate
-	// the leaf outside the lock.
+	// Slice header writes are not atomic. Without the lock a reader could see the
+	// pointer of one chain and the length of another.
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.CAKey = caKey
@@ -503,8 +498,8 @@ func (w *Wallet) setCertificateAuthority(caKey *ecdsa.PrivateKey, caCert *x509.C
 	return nil
 }
 
-// RefreshSigningCertificate retains the CA and issuer key to preserve published trust
-// material.
+// RefreshSigningCertificate issues a new leaf. It keeps the CA and issuer key so
+// published trust material stays valid.
 func (w *Wallet) RefreshSigningCertificate() error {
 	if w == nil || w.CAKey == nil || len(w.CertChain) < 2 {
 		return nil
@@ -520,8 +515,7 @@ func (w *Wallet) SigningCertificateExpiry() time.Time {
 	return w.CertChain[0].NotAfter
 }
 
-// Renew before expiry so a continuously running wallet keeps issuing verifiable
-// credentials.
+// A long running wallet renews its signing certificate this long before expiry.
 const signingCertificateRenewBefore = 30 * 24 * time.Hour
 
 func (w *Wallet) RefreshSigningCertificateIfExpiring(now time.Time) (bool, error) {
@@ -542,9 +536,8 @@ func (w *Wallet) GenerateDefaultCredentials(claimOverrides map[string]any, vct s
 	return w.generateDefaultCredentials(claimOverrides, vct, true)
 }
 
-// Local regeneration replaces existing defaults of the same type. Demo baseline
-// generation removes its own protected credentials separately and preserves visitor
-// credentials.
+// dropExisting replaces existing defaults of the same type. Baseline generation
+// passes false because it removes its protected credentials itself.
 func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct string, dropExisting bool) error {
 	sdName, mdocName, _ := credtemplate.PIDTemplateNames(vct)
 	sdTpl, err := credtemplate.Load(sdName, w.Templates)
@@ -580,8 +573,7 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	mdocClaims := credtemplate.MergeClaims(mdocTpl.Claims, claimOverrides)
 	mdocNamespaces := splitClaimsByNamespace(mdocClaims, mdocNamespace)
 
-	// Keep protected defaults and skip regenerating them to avoid duplicate baseline
-	// credentials.
+	// A protected default stays and is not generated again.
 	var keptSD, keptMDoc bool
 	if dropExisting {
 		keptSD = w.removeByType("dc+sd-jwt", vct) > 0
@@ -682,8 +674,7 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 		w.IssuedAttestations = []IssuedAttestationSpec{pidSpec, mdocSpec}
 		return nil
 	}
-	// Baseline generation adds several PID profiles, so accumulate their
-	// registrations.
+	// Baseline generation runs once per PID type, so registrations accumulate.
 	for _, spec := range []IssuedAttestationSpec{pidSpec, mdocSpec} {
 		if err := w.RegisterIssuedAttestation(spec); err != nil {
 			return fmt.Errorf("registering PID attestation metadata: %w", err)
@@ -693,8 +684,7 @@ func (w *Wallet) generateDefaultCredentials(claimOverrides map[string]any, vct s
 	return nil
 }
 
-// Keep protected credentials so regenerating defaults cannot remove the shared
-// baseline. Return the number retained.
+// Protected credentials stay. Returns how many were kept.
 func (w *Wallet) removeByType(format, vct string) int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -713,8 +703,8 @@ func (w *Wallet) removeByType(format, vct string) int {
 	return keptProtected
 }
 
-// German and EUDI PIDs share a doctype but use different namespaces. Match both to
-// avoid deleting the other PID. Protected credentials remain.
+// German and EUDI PIDs share a doctype and differ in namespaces. Matching both
+// keeps one PID when the other is regenerated. Protected credentials stay.
 func (w *Wallet) removeMDocsByNamespace(docType string, namespaces []string) int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -734,8 +724,8 @@ func (w *Wallet) removeMDocsByNamespace(docType string, namespaces []string) int
 	return keptProtected
 }
 
-// Use NameSpaces rebuilt from the credential. Derived claim keys may lack namespace
-// prefixes in older wallet files.
+// NameSpaces comes first because claim keys in older wallet files may lack the
+// namespace prefix.
 func credentialNamespaces(c StoredCredential) []string {
 	if len(c.NameSpaces) > 0 {
 		names := make([]string, 0, len(c.NameSpaces))
@@ -798,7 +788,7 @@ func (w *Wallet) ClearCredentials() int {
 	return removed
 }
 
-// RemoveCredential preserves protected baseline credentials across API and CLI calls.
+// RemoveCredential refuses to remove a protected credential.
 func (w *Wallet) RemoveCredential(id string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -814,7 +804,7 @@ func (w *Wallet) RemoveCredential(id string) bool {
 			break
 		}
 	}
-	// A protected copy prevents deletion of the entire batch.
+	// One protected copy protects the whole batch.
 	if group != "" {
 		for _, c := range w.Credentials {
 			if c.BatchGroup == group && c.Protected {
@@ -847,22 +837,18 @@ func (w *Wallet) IsProtected(id string) bool {
 	return false
 }
 
-// BaselinePIDVCTs includes EUDI and German PIDs to demonstrate type inheritance.
+// BaselinePIDVCTs holds both PIDs to demonstrate type inheritance.
 var BaselinePIDVCTs = []string{mock.DefaultPIDVCT, mock.GermanPIDVCT}
 
-// GenerateProtectedDefaults protects newly generated defaults only. Existing visitor
-// credentials retain their flags.
+// GenerateProtectedDefaults marks only the newly generated defaults as protected.
 func (w *Wallet) GenerateProtectedDefaults() error {
-	// Remove the previous baseline by its protected flag. Matching only current types
-	// would leave old credentials behind after a type changes.
+	// The old baseline may hold types that are no longer in BaselinePIDVCTs.
 	w.removeProtected()
 
 	existing := make(map[string]bool)
 	for _, c := range w.GetCredentials() {
 		existing[c.ID] = true
 	}
-	// Preserve visitor credentials and other baseline types while generating fresh
-	// defaults.
 	for _, vct := range BaselinePIDVCTs {
 		if err := w.generateDefaultCredentials(nil, vct, false); err != nil {
 			return err
@@ -907,16 +893,14 @@ func (w *Wallet) GetCredentials() []StoredCredential {
 	return out
 }
 
-// Mode reads runtime settings under the lock. Concurrent string reads and writes can
-// return inconsistent values.
+// Mode takes the lock because the mode can change at runtime.
 func (w *Wallet) Mode() ValidationMode {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.ValidationMode
 }
 
-// VCIFeatureVersion holds the lock because configuration can change at runtime. An unset
-// value defaults to 1.0.
+// VCIFeatureVersion returns 1.0 when no version is set.
 func (w *Wallet) VCIFeatureVersion() VCIVersion {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -926,8 +910,7 @@ func (w *Wallet) VCIFeatureVersion() VCIVersion {
 	return w.VCIVersion
 }
 
-// HolderKeyPair reads the key pointer once under the lock because a concurrent reload can
-// replace it. Read the pointer once under the lock.
+// HolderKeyPair takes the lock because a concurrent reload can replace the key.
 func (w *Wallet) HolderKeyPair() *ecdsa.PrivateKey {
 	if w == nil {
 		return nil
@@ -937,14 +920,14 @@ func (w *Wallet) HolderKeyPair() *ecdsa.PrivateKey {
 	return w.HolderKey
 }
 
-// ConformanceSettings reads related settings together under the lock.
+// ConformanceSettings reads the three settings under one lock so they are consistent.
 func (w *Wallet) ConformanceSettings() (ValidationMode, bool, bool) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.ValidationMode, w.RequireHAIP, w.RequireEncryptedRequest
 }
 
-// KeyAttestationLevelSetting holds the lock because configuration can change during a
+// KeyAttestationLevelSetting takes the lock because the level can change during a
 // flow.
 func (w *Wallet) KeyAttestationLevelSetting() string {
 	w.mu.RLock()
@@ -952,8 +935,8 @@ func (w *Wallet) KeyAttestationLevelSetting() string {
 	return w.KeyAttestationLevel
 }
 
-// Caller must hold w.mu. Exact IDs take precedence. Return empty for missing or
-// ambiguous prefixes.
+// Caller must hold w.mu. An exact ID wins over a prefix match. A missing or
+// ambiguous prefix returns "".
 func (w *Wallet) resolveIDLocked(idOrPrefix string) string {
 	if idOrPrefix == "" {
 		return ""
@@ -1012,8 +995,7 @@ func (w *Wallet) AddLogPayload(action, detail string, success bool, details map[
 	})
 }
 
-// AddWarning preserves Success and sets Severity so the UI can distinguish warnings from
-// failures.
+// AddWarning logs a successful action with a warning severity.
 func (w *Wallet) AddWarning(action, detail string, details map[string]any) {
 	w.appendLogEntry(LogEntry{
 		Time:     time.Now(),
@@ -1025,8 +1007,7 @@ func (w *Wallet) AddWarning(action, detail string, details map[string]any) {
 	})
 }
 
-// Summarize multiple findings in one log entry and put the full list in its details. A
-// single finding uses its own message.
+// Several findings share one log entry with the full list in its details.
 func (w *Wallet) warnFindings(action, summary string, findings []string) {
 	switch len(findings) {
 	case 0:
@@ -1038,8 +1019,8 @@ func (w *Wallet) warnFindings(action, summary string, findings []string) {
 	}
 }
 
-// Bound stored activity history to limit reload costs. logTrimSlack allows occasional
-// trimming instead of copying on every append.
+// The log is bounded because every reload reads it. logTrimSlack lets the log
+// grow a little so trimming copies once per batch of entries.
 const (
 	maxLogEntries = 1000
 	logTrimSlack  = 256
@@ -1049,8 +1030,7 @@ func (w *Wallet) appendLogEntry(entry LogEntry) {
 	w.mu.Lock()
 	w.Log = append(w.Log, entry)
 	if len(w.Log) >= maxLogEntries+logTrimSlack {
-		// Copy into a new slice so removed entries and their details can be garbage
-		// collected.
+		// A fresh slice lets the trimmed entries be garbage collected.
 		trimmed := make([]LogEntry, maxLogEntries)
 		copy(trimmed, w.Log[len(w.Log)-maxLogEntries:])
 		w.Log = trimmed
@@ -1099,7 +1079,6 @@ func LoadKeyFromFile(path string) (*ecdsa.PrivateKey, error) {
 	return ecKey, nil
 }
 
-// Use the credential type as its label, falling back to its ID.
 func credentialLabel(c StoredCredential) string {
 	if c.VCT != "" {
 		return c.VCT
@@ -1110,8 +1089,8 @@ func credentialLabel(c StoredCredential) string {
 	return c.ID
 }
 
-// Exclude protocol fields from the user claim count. These include RFC 7519 registered
-// claims and SD-JWT VC fields from draft-ietf-oauth-sd-jwt-vc §3.2.2.
+// Protocol claims that the user claim count skips. These are the RFC 7519
+// registered claims and the SD-JWT VC claims of draft-ietf-oauth-sd-jwt-vc §3.2.2.
 var reservedCredentialClaims = map[string]bool{
 	"iss": true, "sub": true, "aud": true, "exp": true, "nbf": true,
 	"iat": true, "jti": true, "cnf": true, "vct": true, "vct#integrity": true,
@@ -1145,14 +1124,13 @@ func CredentialSummary(c StoredCredential) map[string]any {
 	if c.Protected {
 		summary["protected"] = true
 	}
-	// The UI treats a batch as one credential and applies actions to the whole batch.
+	// The UI shows a batch as one credential.
 	if c.BatchGroup != "" {
 		summary["batch"] = true
 	}
 	if disp := displayForListing(c); disp != nil {
 		summary["display"] = disp
 	}
-	// Keep expiry values consistent between local and remote listings.
 	if expiry := CredentialExpiry(c); !expiry.IsZero() {
 		summary["expires_at"] = expiry.UTC().Format(time.RFC3339)
 	}
@@ -1165,13 +1143,11 @@ func CredentialSummary(c StoredCredential) map[string]any {
 	if signature := credentialSignatureState(c); signature != nil {
 		summary["signature"] = signature
 	}
-	// Expose renewal availability without the refresh token, since listings may be
-	// printed or logged.
+	// Listings may be printed or logged, so they never carry the refresh token.
 	if c.CanRenew() {
 		summary["can_renew"] = true
 	}
-	// Record when issuer key resolution is unavailable and the signature remains
-	// unchecked.
+	// Set when the issuer key is a DID. The signature then stays unchecked.
 	if did := credentialIssuerDID(c.Raw); did != "" {
 		summary["issuer_key_did"] = did
 	}
@@ -1208,16 +1184,14 @@ func MarshalConsentRequest(r *ConsentRequest) map[string]any {
 	if r.OfferDetails != nil {
 		m["offer_details"] = r.OfferDetails
 	}
-	// Presentation consent reports whether the Request Object signature verifies
-	// against its supplied key. This does not establish trust in the verifier.
-	// Issuance offers have no Request Object and omit client_auth.
+	// Issuance offers have no Request Object, so only presentations carry
+	// client_auth.
 	if r.Type == ConsentTypePresentation || r.Type == ConsentTypeIssuancePresentation {
 		m["client_auth"] = map[string]any{
 			"signed": r.ClientAuthSigned,
 			"detail": r.ClientAuthDetail,
 		}
 	}
-	// The verifier name is unverified.
 	if r.ClientName != "" {
 		m["client_name"] = r.ClientName
 	}
@@ -1228,7 +1202,7 @@ func (w *Wallet) CredentialsJSON() ([]byte, error) {
 	return w.CredentialsJSONWindow(0, 0)
 }
 
-// ListedCredentials represents each batch once using its holder key copy.
+// ListedCredentials lists each batch once.
 func (w *Wallet) ListedCredentials() []StoredCredential {
 	creds := w.GetCredentials()
 	out := make([]StoredCredential, 0, len(creds))
@@ -1247,8 +1221,8 @@ func (w *Wallet) ListedCredentials() []StoredCredential {
 	return out
 }
 
-// Use the holder-key copy as a stable batch representative. Fall back to the supplied
-// copy if none exists.
+// The copy bound to the wallet holder key represents its batch, so the listed ID
+// stays stable while other copies rotate.
 func batchRepresentative(creds []StoredCredential, member StoredCredential) StoredCredential {
 	if member.BindingKeyPEM == "" {
 		return member
@@ -1261,14 +1235,14 @@ func batchRepresentative(creds []StoredCredential, member StoredCredential) Stor
 	return member
 }
 
-// CredentialsJSONWindow includes all remaining credentials when the limit is zero. An
-// offset beyond the end returns an empty array for stale pages.
+// CredentialsJSONWindow returns all remaining credentials when limit is zero. An
+// offset past the end returns an empty array.
 func (w *Wallet) CredentialsJSONWindow(offset, limit int) ([]byte, error) {
 	return json.Marshal(w.listedSummaries(offset, limit))
 }
 
-// CredentialsListingWindow omits raw credentials and claims to keep refreshes small.
-// Full details remain available through the credential endpoint and decoder.
+// CredentialsListingWindow omits raw credentials and claims to keep UI refreshes
+// small.
 func (w *Wallet) CredentialsListingWindow(offset, limit int) []map[string]any {
 	summaries := w.listedSummaries(offset, limit)
 	for _, s := range summaries {
@@ -1277,7 +1251,7 @@ func (w *Wallet) CredentialsListingWindow(offset, limit int) []map[string]any {
 	return summaries
 }
 
-// TrimCredentialListing omits raw credentials and claims from overview responses.
+// TrimCredentialListing removes raw credentials and claims from a summary.
 func TrimCredentialListing(summary map[string]any) {
 	delete(summary, "raw")
 	delete(summary, "claims")
@@ -1285,7 +1259,6 @@ func TrimCredentialListing(summary map[string]any) {
 
 func (w *Wallet) listedSummaries(offset, limit int) []map[string]any {
 	creds := w.ListedCredentials()
-	// Sort before pagination so the order is consistent across pages.
 	SortCredentialsNewestFirst(creds)
 	if offset > len(creds) {
 		offset = len(creds)
@@ -1316,8 +1289,8 @@ func (w *Wallet) BatchGroupSize(group string) int {
 	return n
 }
 
-// RestoreCredential restores an import discarded by concurrent reload without parsing it
-// again.
+// RestoreCredential puts back an import that a concurrent reload dropped. It keeps
+// an existing copy with the same ID.
 func (w *Wallet) RestoreCredential(cred StoredCredential) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -1329,7 +1302,7 @@ func (w *Wallet) RestoreCredential(cred StoredCredential) {
 	w.Credentials = append(w.Credentials, cred)
 }
 
-// PutCredential replaces existing copies, unlike RestoreCredential.
+// PutCredential replaces a credential with the same ID.
 func (w *Wallet) PutCredential(cred StoredCredential) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

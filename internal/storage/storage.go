@@ -13,8 +13,7 @@
 // limitations under the License.
 
 // Package storage stores wallet state, keys, certificates, assets and templates as
-// blobs under slash-separated keys. File storage preserves the existing directory
-// layout.
+// blobs under slash-separated keys. File storage keeps the wallet directory layout.
 package storage
 
 import (
@@ -40,9 +39,9 @@ type Store interface {
 	// Read returns the blob at key. A missing key returns an error that
 	// satisfies errors.Is(err, fs.ErrNotExist).
 	Read(key string) ([]byte, error)
-	// Write replaces the blob at key atomically: a concurrent reader sees the
-	// old or the new content, never a mix. perm is the file mode the file
-	// backend applies. The others ignore it. It returns the blob's new stamp.
+	// Write replaces the blob at key atomically. A concurrent reader sees the
+	// old or the new content. Only the file backend applies perm. Write returns
+	// the blob's new stamp.
 	Write(key string, data []byte, perm fs.FileMode) (Stamp, error)
 	// Delete removes the blob at key. A missing key is not an error.
 	Delete(key string) error
@@ -56,12 +55,12 @@ type Store interface {
 	// Stamps returns the stamp of every blob under prefix, at any depth, by
 	// key.
 	Stamps(prefix string) (map[string]Stamp, error)
-	// WriteIf replaces the blob at key only while its stamp version is still
-	// expected ("" for a blob that must not exist yet) and returns
-	// ErrConflict otherwise. It returns the blob's new stamp.
+	// WriteIf replaces the blob at key only while its stamp version equals
+	// expected. An expected value of "" means the blob must not exist yet. A
+	// mismatch returns ErrConflict. WriteIf returns the blob's new stamp.
 	WriteIf(key string, data []byte, perm fs.FileMode, expected string) (Stamp, error)
-	// Locate returns a readable location of key for messages (the file path
-	// on the file backend). The root when key is "".
+	// Locate returns a readable location of key for messages, such as the file
+	// path on the file backend. An empty key returns the root.
 	Locate(key string) string
 	Kind() string
 }
@@ -83,10 +82,10 @@ type Stamp struct {
 }
 
 type Options struct {
-	// Root is the directory of the file backend, and what "auto" inspects.
+	// Root is the directory of the file backend. "auto" inspects it.
 	Root string
-	// RootRequested reports that the caller named the state location (a flag
-	// or an environment variable), which makes "auto" pick files.
+	// RootRequested reports that a flag or an environment variable set the state
+	// location. "auto" then picks files.
 	RootRequested bool
 }
 
@@ -95,8 +94,8 @@ var (
 	autoKind string
 )
 
-// Open resolves auto once per process so all callers use the same backend. A named or
-// existing state directory selects files. Otherwise use memory.
+// Open resolves auto once per process so all callers use the same backend. A requested
+// or existing state directory selects files. Otherwise auto selects memory.
 func Open(spec string, opts Options) (Store, error) {
 	spec = strings.TrimSpace(spec)
 	switch {
@@ -119,9 +118,8 @@ func Open(spec string, opts Options) (Store, error) {
 	}
 }
 
-// Ignore the instance registry and remote target when detecting wallet state. Those
-// local files also exist for memory storage and must not change the next backend
-// selection.
+// The instance registry and remote target are local files that also exist with
+// memory storage. They do not count as wallet state.
 func rootHoldsState(root string) bool {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -187,7 +185,7 @@ func cleanPrefix(prefix string) (string, error) {
 	return cleanKey(prefix)
 }
 
-// Use errors.Is(err, fs.ErrNotExist) consistently across backends.
+// Every backend reports a missing key as fs.ErrNotExist.
 func notExist(op, key string) error {
 	return &fs.PathError{Op: op, Path: key, Err: fs.ErrNotExist}
 }

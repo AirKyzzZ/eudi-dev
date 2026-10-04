@@ -35,10 +35,9 @@ type SDJWTConfig struct {
 	Issuer            string
 	VCT               string
 	ExpiresIn         time.Duration
-	// IssuedAt overrides the issuance instant iat carries and exp counts
-	// from. An issuer that hands out several copies of one credential rounds
-	// it, so the copies do not share the precise issuance second (RFC 9901
-	// §10.1). Nil issues at now.
+	// IssuedAt overrides the issuance time of iat, which exp counts from. An
+	// issuer of several copies rounds it, so the copies are not linkable by the
+	// issuance second (RFC 9901 §10.1). Nil issues at now.
 	IssuedAt      *time.Time
 	NotBefore     *time.Time // optional: sets nbf claim
 	Claims        map[string]any
@@ -47,20 +46,19 @@ type SDJWTConfig struct {
 	StatusListURI string              // optional: status list URI for revocation
 	StatusListIdx int                 // optional: index in the status list
 	CertChain     []*x509.Certificate // optional: x5c certificate chain [leaf, CA]
-	// KeepTrustAnchor embeds the chain as given, keeping a terminal
-	// self-signed root that is otherwise stripped from x5c.
+	// KeepTrustAnchor embeds the chain as given, including a terminal
+	// self-signed root.
 	KeepTrustAnchor bool
-	// AlwaysDisclosed lists claims embedded plainly instead of becoming
-	// selective disclosures, as top-level names ("family_name") or dotted
-	// paths ("address.country"). Entries matching no claim are ignored.
+	// AlwaysDisclosed lists claims that stay in plain text, as top-level names
+	// ("family_name") or dotted paths ("address.country"). Entries that match no
+	// claim are ignored.
 	AlwaysDisclosed []string
 }
 
 // GenerateSDJWT creates a mock SD-JWT credential. By default all claims are
-// selectively disclosable. Claims listed in AlwaysDisclosed go plainly into
-// the payload instead.
-// Map values produce nested disclosures (subclaims with their own _sd array).
-// Slice values produce array element disclosures ({"...": digest} entries).
+// selectively disclosable. Claims in AlwaysDisclosed stay in plain text. Map
+// values produce nested disclosures with their own _sd array. Slice values
+// produce array element disclosures.
 func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	if cfg.Key == nil {
 		return "", fmt.Errorf("signing key is required")
@@ -179,7 +177,7 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 
 	// RFC 9901 §4 orders the parts JWT, tilde, disclosures each followed by a
 	// tilde, then the optional KB-JWT. Its ABNF permits no empty component, so
-	// a credential with no disclosures is jwt~ and not jwt~~.
+	// a credential with no disclosures is jwt~.
 	var serialized strings.Builder
 	serialized.WriteString(jwt)
 	serialized.WriteString("~")
@@ -190,11 +188,10 @@ func GenerateSDJWT(cfg SDJWTConfig) (string, error) {
 	return serialized.String(), nil
 }
 
-// forcePlainClaims are the claim names embedded plainly even when the caller
-// asks for everything to be selectively disclosable. SD-JWT VC §2.2.2.3 lists
-// most of them (iss, nbf, exp, cnf, vct, vct#integrity, aka_vcts, status). iat
-// joins them because this generator writes one itself, and a disclosure for a
-// name already present alongside _sd is rejectable under RFC 9901 §7.1.
+// forcePlainClaims always stay in plain text. SD-JWT VC §2.2.2.3 lists iss, nbf,
+// exp, cnf, vct, vct#integrity, aka_vcts and status. This generator writes iat
+// itself, and RFC 9901 §7.1 rejects a disclosure for a claim already present
+// next to _sd.
 var forcePlainClaims = map[string]bool{
 	"iss":           true,
 	"nbf":           true,
@@ -207,10 +204,9 @@ var forcePlainClaims = map[string]bool{
 	"iat":           true,
 }
 
-// checkClaimName refuses the keys RFC 9901 reserves for the selective
-// disclosure machinery: a disclosure name "MUST NOT be _sd, ..., or a claim
-// name existing in the object as a permanently disclosed claim" (§4.2.1), and
-// §4.1.1 reserves _sd_alg for the top level of the payload.
+// checkClaimName refuses the keys RFC 9901 reserves. A disclosure name "MUST
+// NOT be _sd, ..., or a claim name existing in the object as a permanently
+// disclosed claim" (§4.2.1). §4.1.1 reserves _sd_alg for the top level.
 func checkClaimName(name string) error {
 	switch name {
 	case "_sd", "_sd_alg", "...":
@@ -229,10 +225,10 @@ func hideDigestOrder(digests []string) []string {
 	return sorted
 }
 
-// makeDisclosure handles nested structures, returning any sub-disclosures and
-// the value to use in the parent disclosure: the value as-is for plain values,
-// an object with _sd for maps, an array of {"...": digest} for slices.
-// Subclaims whose dotted path is in always are embedded plainly.
+// makeDisclosure returns the sub-disclosures and the value for the parent
+// disclosure. A plain value stays unchanged. A map becomes an object with _sd
+// and a slice becomes an array of {"...": digest}. Subclaims whose dotted path
+// is in always stay in plain text.
 func makeDisclosure(name string, value any, path string, always map[string]bool) (subDisclosures []string, transformedValue any, err error) {
 	switch v := value.(type) {
 	case map[string]any:

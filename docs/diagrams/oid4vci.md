@@ -1,6 +1,6 @@
 # OID4VCI Flows
 
-The OID4VCI flows `eudi-dev` implements when it acts as a wallet receiving a credential offer.
+This page shows the OID4VCI flows `eudi-dev` implements as a wallet that receives a credential offer.
 
 ## Flow Map
 
@@ -35,7 +35,7 @@ sequenceDiagram
 | `credential_offer` or `credential_offer_uri` | One of these starts the issuance flow. |
 | `credential_issuer` | Used to fetch `/.well-known/openid-credential-issuer` and resolve the token and credential endpoints. |
 | `credential_configuration_ids` | The first configuration ID resolves the format and, in the authorization code flow, the scope. |
-| Issuer metadata `nonce_endpoint` | The source of the challenge the key proof is signed over (OpenID4VCI 1.0 §8.2). The wallet calls it whenever the metadata advertises it. |
+| Issuer metadata `nonce_endpoint` | Provides the challenge that the key proof signs (OpenID4VCI 1.0 §8.2). The wallet calls it whenever the metadata advertises it. |
 | `authorization_details[].credential_identifiers` | When present in the token response, the wallet sends `credential_identifier` at the credential endpoint instead of `credential_configuration_id`. |
 | Issuer metadata `credential_response_encryption` support | When advertised, the wallet requests encrypted credential responses and decrypts compact JWE responses. |
 
@@ -79,7 +79,7 @@ sequenceDiagram
 | `grants.urn:ietf:params:oauth:grant-type:pre-authorized_code.pre-authorized_code` | Selects the pre-authorized code branch. |
 | `grants...tx_code` | Optional. When present, the issuer expects an out-of-band transaction code. Pass it with `wallet accept --tx-code ...`. |
 | `access_token` | Authorizes the credential endpoint call. |
-| `c_nonce` | Taken from the Nonce Endpoint. A `c_nonce` in the token response is a pre-1.0 parameter. Strict mode ignores it. Debug mode uses it when the issuer advertises no Nonce Endpoint, and reports the issuer as pre-1.0. A challenge the issuer rejects with `invalid_nonce` is fetched again and the request is retried once with rebuilt proofs (§8.3.1.2). |
+| `c_nonce` | Taken from the Nonce Endpoint. A `c_nonce` in the token response is a pre-1.0 parameter. Strict mode ignores it. Debug mode uses it when the issuer advertises no Nonce Endpoint, and reports the issuer as pre-1.0. When the issuer rejects the challenge with `invalid_nonce`, the wallet fetches a new one and retries once with rebuilt proofs (§8.3.1.2). |
 | `proofs` | One proof type, chosen from the configuration's `proof_types_supported`. Either `jwt` proofs (one per batch key, or a single holder-key proof carrying the key attestation when one is required) or the key attestation itself as the `attestation` proof (Appendix F.1 and F.3). |
 | `credential_identifier` vs `credential_configuration_id` | The wallet uses `credential_identifier` when the token response includes it. Otherwise the wallet uses the first `credential_configuration_id` from the offer. |
 
@@ -123,7 +123,7 @@ sequenceDiagram
 |-----------------|----------|
 | `eudi wallet serve --vci-client-id ...` | Overrides the client ID, which defaults to the wallet origin. |
 | `eudi wallet serve --vci-redirect-uri ...` | Overrides the callback URL, which defaults to the wallet origin plus `/callback`. Interactive authorization (below) can run without a redirect. |
-| OAuth metadata `pushed_authorization_request_endpoint` | Used when published (RFC 9126 makes publishing it a SHOULD). Otherwise the request goes straight to the authorization endpoint. `--haip` requires PAR unless the server publishes an `authorization_challenge_endpoint`. |
+| OAuth metadata `pushed_authorization_request_endpoint` | Used when published (publishing it is a SHOULD in RFC 9126). Otherwise the request goes straight to the authorization endpoint. `--haip` requires PAR unless the server publishes an `authorization_challenge_endpoint`. |
 | OAuth metadata `authorization_endpoint` | Required for the browser redirect. |
 | OAuth metadata DPoP support | Optional. The wallet binds its tokens with DPoP when the metadata advertises it and uses bearer tokens otherwise. Under `--haip`, advertising DPoP without `ES256` is a violation. |
 | `credential_configuration_ids[0] -> scope` | The scope comes from the selected credential configuration and goes into PAR. |
@@ -162,6 +162,6 @@ sequenceDiagram
 |-----------------|----------|
 | `eudi wallet serve --vci-version 1.1` | Selects the feature level. At `1.0` the redirect flow runs. |
 | OAuth metadata `authorization_challenge_endpoint` | Publishing it switches an offer to this flow. |
-| `interaction_types_supported` | The wallet always advertises `urn:openid:dcp:ia:openid4vp_presentation`, and `urn:openid:dcp:ia:auth_via_web` only when a redirect URI is configured and the metadata names an `authorization_endpoint`. |
+| `interaction_types_supported` | The wallet always advertises `urn:openid:dcp:ia:openid4vp_presentation`, and `urn:openid:dcp:ia:auth_via_web` only when a redirect URI is configured and the metadata includes an `authorization_endpoint`. |
 | `openid4vp_request` | The OpenID4VP request the presentation interaction answers, with response mode `ia_post` or `ia_post.jwt`. |
 | `auth_session` | Carries the authorization state across challenge requests and the browser redirect. |

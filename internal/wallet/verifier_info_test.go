@@ -129,7 +129,6 @@ func TestVerifierInfoPurposes(t *testing.T) {
 	})
 
 	t.Run("a JWT of another type is passed over", func(t *testing.T) {
-		// Ignore JWTs whose typ is not rc-wrp+jwt.
 		other, err := SignRequestObjectJWT(map[string]any{"purpose": "not a certificate"}, w.IssuerKey, nil)
 		if err != nil {
 			t.Fatalf("signing JWT: %v", err)
@@ -355,8 +354,8 @@ func TestOverAskingFindings(t *testing.T) {
 		t.Errorf("a registered parent path should cover a child, got %v", findings)
 	}
 
-	// Report an unregistered credential type once, regardless of how many claims were
-	// requested.
+	// An unregistered credential type is one finding however many claims it
+	// requests.
 	asksUnregisteredType := map[string]any{"credentials": []any{map[string]any{
 		"format": "dc+sd-jwt",
 		"meta":   map[string]any{"vct_values": []any{"urn:eudi:other:1"}},
@@ -393,7 +392,7 @@ func TestConsentPurposesWarnsOnMissingRegistrationCertificate(t *testing.T) {
 	}
 }
 
-// Group certificate findings into one activity log entry.
+// Several certificate findings share one activity log entry.
 func TestConsentPurposesSummarizesCertificateFindings(t *testing.T) {
 	w := generateTestWallet(t)
 	cert := signTestRegistrationCertificate(t, w, "Checking your ticket")

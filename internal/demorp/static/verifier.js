@@ -38,7 +38,9 @@ function renderResult(doc) {
   const label = document.getElementById("claims-label");
   if (doc.status === "verified" && doc.claims) {
     claims.innerHTML = Object.entries(doc.claims).map(([k, v]) =>
-      `<tr><td>${esc(k)}</td><td>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`
+      typeof v === "object" && v !== null
+        ? `<tr><td>${esc(k)}</td><td><div class="claim-json">${esc(JSON.stringify(v, null, 2))}</div></td></tr>`
+        : `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`
     ).join("");
     claims.hidden = false;
     label.hidden = false;

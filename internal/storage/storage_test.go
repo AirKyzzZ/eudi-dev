@@ -27,7 +27,7 @@ import (
 	"testing"
 )
 
-// Prefix test keys to isolate tests that share the Postgres table.
+// Tests share the Postgres table, so each uses its own key prefix.
 func backends(t *testing.T) map[string]Store {
 	t.Helper()
 	stores := map[string]Store{
@@ -84,8 +84,8 @@ func TestStore_ReadWriteDeleteRoundTrip(t *testing.T) {
 				t.Fatalf("Read after rewrite = %q", data)
 			}
 			// A rewrite with the same size still changes the stamp. The file
-			// backend relies on the modification time, which coarse
-			// filesystems round, so the server bounds that case by time.
+			// backend uses the modification time, which coarse filesystems
+			// round, so it is left out here.
 			if kind != KindFile {
 				if _, err := store.Write(key, []byte("SECOND"), 0o600); err != nil {
 					t.Fatal(err)
@@ -165,9 +165,9 @@ func TestStore_ReadAllReturnsEveryBlobUnderPrefix(t *testing.T) {
 	}
 }
 
-// WriteIf lets several openers share a counter: a write that lost the race
-// reports the conflict and leaves the winner's value in place. The file
-// backend takes no lock and is left out.
+// WriteIf lets several openers share a counter. A write that lost the race
+// reports the conflict and keeps the winner's value. The file backend takes
+// no lock and is left out.
 func TestStore_WriteIfRefusesAStaleVersion(t *testing.T) {
 	for kind, store := range backends(t) {
 		t.Run(kind, func(t *testing.T) {
@@ -248,8 +248,8 @@ func TestStore_WriteIfSerialisesConcurrentIncrements(t *testing.T) {
 }
 
 // A reader that sees a revision written after a row also sees that row. The
-// wallet's per-request reload relies on it: it checks the revision first and
-// reads the state after.
+// wallet's per-request reload checks the revision first and reads the state
+// after.
 func TestStore_ARowWrittenBeforeARevisionIsVisibleWithIt(t *testing.T) {
 	for kind, store := range backends(t) {
 		t.Run(kind, func(t *testing.T) {
@@ -387,7 +387,7 @@ func TestFile_LayoutMatchesTheWalletDirectory(t *testing.T) {
 	}
 }
 
-// Hide temporary files until the write completes.
+// List must hide temporary files until the write completes.
 func TestFile_ListHidesInFlightWrites(t *testing.T) {
 	root := t.TempDir()
 	store := NewFile(root)

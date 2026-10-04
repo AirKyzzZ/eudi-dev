@@ -20,7 +20,7 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/sdjwt"
 )
 
-// draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires dc+sd-jwt. The earlier vc+sd-jwt value
+// draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires dc+sd-jwt. A vc+sd-jwt token
 // decodes but fails validation.
 func TestCheckSDJWTType(t *testing.T) {
 	tests := []struct {
@@ -46,8 +46,8 @@ func TestCheckSDJWTType(t *testing.T) {
 	}
 }
 
-// RFC 9901 §4.2.4.2 permits only the ... key in a digest placeholder. Additional keys
-// invalidate the reference.
+// RFC 9901 §4.2.4.2 permits only the ... key in a digest placeholder. An extra
+// key makes the object no reference.
 func TestCheckSDJWTIntegrity_PlaceholderWithExtraKeyIsNoReference(t *testing.T) {
 	const digest = "X9yH0Ajrdm1Oij4tWso9UzzKJvPoDxwmuEcO3XAdRC0"
 

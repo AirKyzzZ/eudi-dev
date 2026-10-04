@@ -31,7 +31,7 @@ import (
 )
 
 // authorityChain returns a CA and a leaf it signed. The leaf carries an
-// authority key identifier, which is what an "aki" trusted authority names.
+// authority key identifier. An "aki" trusted authority matches on it.
 func authorityChain(t *testing.T) (ca, leaf *x509.Certificate, leafKey *ecdsa.PrivateKey, aki []byte) {
 	t.Helper()
 
@@ -150,8 +150,8 @@ func TestExtractX5CCertificates(t *testing.T) {
 	})
 }
 
-// COSE decoders hand back the x5chain label as int64 or uint64 depending on
-// the encoder, and a lone certificate is a bare byte string.
+// COSE decoders return the x5chain label as int64 or uint64, depending on the
+// encoder. A single certificate is a bare byte string.
 func TestExtractMDOCX5Chain(t *testing.T) {
 	caCert, leafCert, _, _ := authorityChain(t)
 	withHeader := func(h map[any]any) *mdoc.Document {
@@ -349,8 +349,7 @@ func mustGenerateKey(t *testing.T) *ecdsa.PrivateKey {
 	return key
 }
 
-// An etsi_tl entry pointing nowhere must refuse the credential rather than
-// treat an unreachable trust list as satisfied.
+// An etsi_tl entry with an unreachable trust list refuses the credential.
 func TestCheckETSITrustListWithAnUnreachableList(t *testing.T) {
 	caCert, leafCert, _, _ := authorityChain(t)
 	cred := mdocWithChain(t, leafCert, caCert)

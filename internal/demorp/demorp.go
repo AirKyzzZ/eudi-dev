@@ -37,11 +37,10 @@ import (
 )
 
 const (
-	// entryTTL bounds how long offers, tokens, and verification requests
-	// live. Everything is in-memory and demo-scoped.
+	// entryTTL is how long offers, tokens and verification requests stay valid.
 	entryTTL = 10 * time.Minute
-	// maxEntries caps each state map so anonymous visitors cannot grow
-	// memory without bound between TTL sweeps.
+	// maxEntries caps each state map. Anonymous visitors could otherwise grow
+	// memory without limit between TTL sweeps.
 	maxEntries   = 500
 	maxBodyBytes = 64 << 10
 )
@@ -49,38 +48,37 @@ const (
 type DemoRP struct {
 	wallet  *wallet.Wallet
 	baseURL func() string
-	// onWalletChange persists the wallet after the issuer changed it (reserving
-	// a status list index).
+	// onWalletChange persists the wallet after the issuer changes it, for
+	// example when it reserves a status list index.
 	onWalletChange func()
-	// clientAuth is what the demo authorization server demands of a wallet.
-	// The zero value is ClientAuthRequired.
+	// clientAuth is the client authentication the demo authorization server
+	// requires from a wallet. The zero value is ClientAuthRequired.
 	clientAuth ClientAuthMode
-	// Additional CAs allow the demo verifier to check credentials from external
-	// issuers, including conformance tests. The wallet CA is always trusted.
+	// verifierTrustAnchors lets the demo verifier accept credentials from other
+	// issuers, such as the conformance suite. The wallet CA is always trusted.
 	verifierTrustAnchors []*x509.Certificate
 
 	mu       sync.Mutex
 	offers   map[string]*offerState
 	tokens   map[string]*offerState
 	requests map[string]*requestState
-	// Authorization code flow state: pushed authorization requests by
-	// request_uri, and the codes issued from them once the user signed in.
+	// authRequests holds pushed authorization requests by request_uri. codes
+	// holds the codes issued from them after the user signs in.
 	authRequests map[string]*authRequestState
 	codes        map[string]*authRequestState
 	// interactive holds the Authorization Challenge conversations of
 	// OpenID4VCI 1.1 §6, keyed by auth_session.
 	interactive map[string]*interactiveSession
-	// Keep Nonce Endpoint challenges until expiry so a wallet can use one nonce for a
-	// batch of proofs.
+	// nonces keeps Nonce Endpoint challenges until they expire. A wallet can
+	// use one nonce for a whole batch of proofs.
 	nonces map[string]time.Time
-	// deferred holds issuances the credential endpoint accepted but did not
-	// hand over yet, keyed by the transaction id a wallet polls with.
+	// deferred holds accepted issuances that are not delivered yet. The key is
+	// the transaction id the wallet polls with.
 	deferred map[string]*deferredTicket
 }
 
-// New creates the demo issuer/verifier pair. baseURL returns the public
-// origin of the wallet server (no trailing slash), e.g. https://eudi-test.dev
-// or http://localhost:8085.
+// New creates the demo issuer and verifier. baseURL returns the public origin
+// of the wallet server, for example https://eudi-test.dev.
 func New(w *wallet.Wallet, baseURL func() string) *DemoRP {
 	return &DemoRP{
 		wallet:       w,
@@ -102,15 +100,15 @@ func (d *DemoRP) SetOnWalletChange(fn func()) {
 	d.onWalletChange = fn
 }
 
-// SetClientAuthMode decides what the demo authorization server demands of a
-// wallet at its pushed authorization request and token endpoints. Call before
-// serving: the mode is published in the authorization server metadata.
+// SetClientAuthMode sets the client authentication the demo authorization
+// server requires at its PAR and token endpoints. Call it before serving
+// because the authorization server metadata publishes the mode.
 func (d *DemoRP) SetClientAuthMode(mode ClientAuthMode) {
 	d.clientAuth = mode
 }
 
-// SetVerifierTrustAnchors sets the CAs the demo verifier accepts issuer
-// certificate chains under, next to the wallet's own CA. Call before serving.
+// SetVerifierTrustAnchors sets extra CAs for issuer certificate chains. The
+// demo verifier always trusts the wallet CA as well. Call it before serving.
 func (d *DemoRP) SetVerifierTrustAnchors(anchors []*x509.Certificate) {
 	d.verifierTrustAnchors = anchors
 }
@@ -174,8 +172,6 @@ func (d *DemoRP) pruneLocked() {
 	}
 }
 
-// compactJWT is a decoded compact JWT with the raw parts needed for
-// signature verification.
 type compactJWT struct {
 	header       map[string]any
 	payload      map[string]any
@@ -210,7 +206,7 @@ func parseCompactJWT(raw string) (*compactJWT, error) {
 	return jwt, nil
 }
 
-// Rebuild the compact JWT because the shared verifier expects its encoded form.
+// jws.Valid only accepts a compact JWT, so the signature is encoded again.
 func verifyES256(pub *ecdsa.PublicKey, signingInput string, sig []byte) bool {
 	if len(sig) != 64 {
 		return false

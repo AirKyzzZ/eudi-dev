@@ -8,7 +8,7 @@ Recognise the input and pass it to the flow. A scan also decodes an image into a
 
 ## Fetching offers and requests
 
-The shared flow fetches `credential_offer_uri` and `request_uri`. Some issuers consume a credential offer on the first read, and RFC 9126 §4 says "the client MUST only use a `request_uri` value once". An entry point that fetches it first consumes that read, and the flow gets a 404.
+The shared flow fetches `credential_offer_uri` and `request_uri`. Some issuers consume a credential offer on the first read, and RFC 9126 §4 says "the client MUST only use a `request_uri` value once". If an entry point fetches it first, the flow gets a 404.
 
 An entry point that already holds a copy of the offer passes it on in `OfferOptions.ResolvedOffer`, so the flow works with an issuer that serves the offer once.
 

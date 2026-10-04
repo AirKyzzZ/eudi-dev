@@ -36,8 +36,7 @@ type JWTConfig struct {
 	CertChain     []*x509.Certificate // optional: x5c certificate chain [leaf, CA]
 }
 
-// GenerateJWT creates a mock JWT VC credential with all claims directly in the payload.
-// Unlike SD-JWT, there are no disclosures, no _sd, and no _sd_alg.
+// GenerateJWT creates a mock JWT VC credential with all claims in the payload.
 func GenerateJWT(cfg JWTConfig) (string, error) {
 	if cfg.Key == nil {
 		return "", fmt.Errorf("signing key is required")

@@ -34,7 +34,7 @@ type ProxySettings struct {
 	NoProxy    string
 }
 
-// NewProxyFunc applies the proxy environment variables with the given overrides.
+// NewProxyFunc reads the proxy environment variables and applies the overrides.
 func NewProxyFunc(overrides ProxySettings) (ProxyFunc, error) {
 	cfg := httpproxy.FromEnvironment()
 	for _, o := range []struct {

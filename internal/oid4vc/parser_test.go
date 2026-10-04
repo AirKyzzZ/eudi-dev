@@ -417,7 +417,6 @@ func TestParseVPFullParams(t *testing.T) {
 }
 
 func TestParseVPJWTAutoDetectByResponseType(t *testing.T) {
-	// JWT with response_type but no client_id
 	payload := map[string]any{
 		"response_type": "vp_token",
 		"nonce":         "n1",
@@ -485,7 +484,6 @@ func TestParseWhitespace(t *testing.T) {
 }
 
 func TestParseJWTNoMarkers(t *testing.T) {
-	// JWT with neither credential_issuer nor client_id/response_type
 	payload := map[string]any{"sub": "user", "iss": "https://example.com"}
 	jwt := makeTestJWT(map[string]any{"alg": "ES256"}, payload)
 	_, _, err := Parse(jwt)
@@ -544,8 +542,7 @@ func makeTestJWT(header, payload map[string]any) string {
 // parameters in this Request Object, even if the same parameter was provided
 // in an Authorization Request query parameter."
 //
-// The query string is unsigned, so only the signed object may decide what the
-// wallet discloses.
+// The query string is unsigned.
 func TestParseVPQueryParametersNeverOutrankTheRequestObject(t *testing.T) {
 	signedQuery := map[string]any{
 		"credentials": []any{map[string]any{
@@ -631,14 +628,14 @@ func TestParseVPDropsQueryParametersTheRequestObjectOmits(t *testing.T) {
 	if ar.ClientMetadata != nil {
 		t.Errorf("client_metadata = %v, want it absent", ar.ClientMetadata)
 	}
-	// The transport is not a request parameter and still has to survive.
+	// The transport parameters are kept.
 	if ar.RequestObject == nil {
 		t.Error("the raw request object was dropped")
 	}
 }
 
-// A Request Object with no client_id is not identical to an outer one that
-// has a value, which §5.10.1 requires.
+// §5.10.1 requires the inner and outer client_id to be identical. A missing
+// inner client_id fails that check.
 func TestParseVPRejectsARequestObjectWithoutClientID(t *testing.T) {
 	jwt := makeTestJWT(map[string]any{"alg": "ES256"}, map[string]any{"response_type": "vp_token"})
 	uri := "openid4vp://?client_id=https://outer.example&request=" + url.QueryEscape(jwt)
@@ -648,7 +645,7 @@ func TestParseVPRejectsARequestObjectWithoutClientID(t *testing.T) {
 	}
 }
 
-// A request_uri-delivered object is the same rule: the fetched object decides.
+// The same rule applies to an object fetched from request_uri.
 func TestParseVPRequestURIObjectOutranksTheQueryString(t *testing.T) {
 	payload := map[string]any{
 		"client_id":     "https://verifier.example",

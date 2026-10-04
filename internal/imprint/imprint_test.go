@@ -64,8 +64,8 @@ func TestLoadRejectsNonHTMLAndEmpty(t *testing.T) {
 	}
 }
 
-// Use a plain href because the server's Content-Security-Policy blocks javascript:
-// links.
+// The server's Content-Security-Policy blocks javascript: links, so the page
+// must run no script.
 func TestLoadPageRunsNoScript(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "imprint.html")
 	if err := os.WriteFile(path, []byte("<h1>Imprint</h1>"), 0o644); err != nil {

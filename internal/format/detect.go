@@ -34,7 +34,7 @@ const (
 	FormatUnknown   CredentialFormat = "unknown"
 )
 
-// Detect checks JSON first because dots in its strings can resemble JWT separators.
+// Detect checks JSON first because dots in JSON strings can look like JWT separators.
 func Detect(input string) CredentialFormat {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -53,7 +53,7 @@ func Detect(input string) CredentialFormat {
 		if f := detectHTTPOID4(input); f != FormatUnknown {
 			return f
 		}
-		// Non-OID4 HTTP URLs. Return unknown (caller decides whether to fetch)
+		// The caller decides whether to fetch any other HTTP URL.
 		return FormatUnknown
 	}
 
@@ -178,11 +178,11 @@ func isHex(s string) bool {
 	return true
 }
 
-// isCBORStart checks if a byte looks like a CBOR map or tag start.
-// CBOR maps start with 0xa0-0xbf (major type 5), or tagged with 0xd8 (tag).
+// isCBORStart reports whether a byte can start a CBOR map, tag or array
+// (RFC 8949 §3.1 major types 5, 6 and 4).
 func isCBORStart(b byte) bool {
 	major := b >> 5
 	return major == 5 || // map
 		major == 6 || // tag (e.g. tag 24)
-		major == 4 // array (DeviceResponse is an array sometimes)
+		major == 4 // array
 }

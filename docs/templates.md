@@ -2,7 +2,7 @@
 
 A credential template gives test credentials a name, type (VCT or doc type) and default claims. It can also set an expiry and claims that are always disclosed. The CLI, HTTP API and wallet UI share the same templates.
 
-Four predefined templates ship with the binary:
+The binary includes four predefined templates:
 
 | Name | Format | Contents |
 |------|--------|----------|
@@ -24,13 +24,13 @@ The German mdoc PID uses two namespaces:
 
 Its doctype is `eu.europa.ec.eudi.pid.1`, like every PID. A claim key written as `namespace:element` selects that namespace. Other keys use the template's namespace. Recognized date attributes use ISO 18013-5 CBOR tags: full-date (1004) for a calendar day and tdate (0) for a timestamp. The namespace and attribute name determine the encoding. The German `raw_eid_birth_date` is encoded as a text string.
 
-Regenerating a PID replaces the mdoc PID with the same namespaces. An override of `german-pid-mdoc` needs at least one `eu.europa.ec.eudi.pid.de.1` element to remain distinguishable from `pid-mdoc`.
+Regenerating a PID replaces the existing mdoc PID with the same doctype and namespaces. So an override of `german-pid-mdoc` needs at least one `eu.europa.ec.eudi.pid.de.1` element to stay distinguishable from `pid-mdoc`.
 
-`issue ... --pid` uses these templates: the `pid-*` pair by default, the `german-pid-*` pair for `--vct urn:eudi:pid:de:1`. So do the deprecated `wallet generate-pid` and `POST /api/generate-pid`. Saving a user template under the same name overrides the predefined version everywhere. Delete the override to restore the original.
+`issue ... --pid`, the deprecated `wallet generate-pid` and `POST /api/generate-pid` use these templates. They use the `pid-*` pair by default and the `german-pid-*` pair for `--vct urn:eudi:pid:de:1`. A user template saved under the same name overrides the predefined one everywhere. Deleting the override restores the original.
 
 ## Template files and storage
 
-Predefined templates are compiled into the binary. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name comes from its `name` field, falling back to the file name without its extension.
+Predefined templates are compiled into the binary. User templates are JSON documents under the wallet's `templates/` prefix in the selected storage backend. With file storage, the default directory is `~/.eudi-dev/wallet/templates/`, or `<dir>/templates/` with `--wallet-dir <dir>`. Both `.json` and `.template` extensions are recognized. The template name is its `name` field. Without one, it is the file name without its extension.
 
 `--templates-dir` points the wallet, the issue commands, and the `templates` commands at another directory, for example a folder in your project or a container mount.
 
@@ -123,7 +123,7 @@ The CLI accepts `--display-name`, `--display-description`, `--background-color`,
 
 Every SD-JWT claim is selectively disclosable by default. The registered claims that SD-JWT VC §2.2.2.3 excludes from selective disclosure (`iss`, `nbf`, `exp`, `cnf`, `vct`, `vct#integrity`, `aka_vcts`, `status` and `iat`) are always embedded plainly. Claims listed in `always_disclosed` are embedded plainly too, so they cannot be withheld during presentation.
 
-Entries name top level claims (`issuing_country`) or nested subclaims with dotted paths (`address.country`). A top level entry embeds the whole claim value plainly. A dotted entry keeps the parent selectively disclosable but embeds that subclaim plainly inside the parent's disclosure. Entries that match no claim are ignored.
+Entries are top level claims (`issuing_country`) or nested subclaims as dotted paths (`address.country`). A top level entry embeds the whole claim value plainly. A dotted entry keeps the parent selectively disclosable but embeds that subclaim plainly inside the parent's disclosure. Entries that match no claim are ignored.
 
 JWT VCs carry all claims plainly, so the list is ignored there. mdoc issuance rejects it (every ISO 18013-5 element is selectively disclosable).
 
@@ -159,7 +159,7 @@ eudi templates show employee-card > share-me.json
 eudi templates delete employee-card
 ```
 
-All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`) list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
+All `templates` subcommands accept `--wallet-dir` to target a non-default wallet store. With `--remote <url>` (or after `wallet use <url>`), list, show, save, import, and delete operate on a remote instance's template store through its REST API. See [remote control](wallet/http-api.md#remote-control).
 
 ### `templates save`
 

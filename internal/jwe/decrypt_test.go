@@ -25,8 +25,8 @@ import (
 	"testing"
 )
 
-// Build the JWE independently so the decrypt test does not rely on its own
-// implementation to encrypt.
+// sealed builds a JWE with the standard library alone, so the test is
+// independent of the package under test.
 type sealed struct {
 	compact   string
 	recipient *ecdh.PrivateKey
@@ -93,8 +93,7 @@ func seal(t *testing.T, enc string, plaintext []byte, apu, apv []byte) sealed {
 	if _, err := rand.Read(iv); err != nil {
 		t.Fatal(err)
 	}
-	// The AAD is the ASCII of the encoded header, so a rewritten header fails
-	// to open.
+	// The AAD is the ASCII of the encoded header.
 	out := aead.Seal(nil, iv, plaintext, []byte(protected))
 	ciphertext, tag := out[:len(out)-16], out[len(out)-16:]
 
@@ -123,8 +122,7 @@ func TestDecryptRoundTrip(t *testing.T) {
 	}
 }
 
-// ISO 18013-7 includes apu and apv in key derivation. Ignoring them produces the wrong
-// decryption key.
+// ISO 18013-7 includes apu and apv in key derivation.
 func TestDecryptRoundTripWithAPUAndAPV(t *testing.T) {
 	want := []byte("mdoc response")
 	s := seal(t, "A256GCM", want, []byte("mdoc-generated-nonce"), []byte("verifier-nonce"))
@@ -155,8 +153,8 @@ func TestDecryptWithCEK(t *testing.T) {
 	}
 }
 
-// The tag authenticates the encoded header, so a verifier that rewrote it
-// after encrypting must not be believed.
+// The tag authenticates the encoded header. A header rewritten after
+// encryption must fail.
 func TestDecryptRejectsATamperedHeader(t *testing.T) {
 	s := seal(t, "A256GCM", []byte("payload"), nil, nil)
 	parts := strings.Split(s.compact, ".")
@@ -221,8 +219,7 @@ func TestDecryptErrors(t *testing.T) {
 		return b64(raw) + "..AAAA.AAAA.AAAA"
 	}
 
-	// A well-formed epk, so that a case aimed at a later check is not caught
-	// by epk parsing first.
+	// A well-formed epk lets each case reach the check it targets.
 	ephemeral, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -280,8 +277,7 @@ func TestDecryptErrors(t *testing.T) {
 	}
 }
 
-// A128CBC-HS256 has a key length but no decryption here, so it must be
-// refused rather than silently treated as GCM.
+// A128CBC-HS256 has a key length but no decryption here. It must be refused.
 func TestDecryptWithCEKRejectsUnsupportedEnc(t *testing.T) {
 	header, err := json.Marshal(map[string]any{"enc": "A128CBC-HS256"})
 	if err != nil {
@@ -350,8 +346,8 @@ func TestParseHeader(t *testing.T) {
 	}
 }
 
-// A malformed apu is documented as left empty rather than refused, so that
-// decryption fails on the derived key with a clearer error.
+// A malformed apu stays empty. Decryption then fails on the derived key with
+// a clearer error.
 func TestParseHeaderLeavesAMalformedAPUEmpty(t *testing.T) {
 	header, err := json.Marshal(map[string]any{"enc": "A256GCM", "apu": "!!!not base64!!!"})
 	if err != nil {
@@ -383,7 +379,7 @@ func TestOpenAESGCMDoesNotCorruptTheCallersBuffer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Room to spare, so an append would write into the caller's backing array.
+	// Spare capacity makes an append write into the caller's backing array.
 	roomy := make([]byte, len(ct), len(ct)+len(tag)+16)
 	copy(roomy, ct)
 	before := string(roomy)

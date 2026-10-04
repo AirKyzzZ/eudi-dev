@@ -39,9 +39,34 @@ func TestResolveCredentialIdentifier_FromAuthDetails(t *testing.T) {
 		},
 	}
 
-	got := resolveCredentialIdentifier(tokenResp)
-	if got != "cred-id-abc" {
+	got, other := resolveCredentialIdentifier(tokenResp, "pid-config")
+	if got != "cred-id-abc" || other != "" {
 		t.Errorf("expected cred-id-abc, got %s", got)
+	}
+}
+
+// The identifier comes from the entry for the offered configuration at any
+// position in the array.
+func TestResolveCredentialIdentifier_PrefersTheOfferedConfiguration(t *testing.T) {
+	tokenResp := map[string]any{
+		"authorization_details": []any{
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "sdjwt-pid", "credential_identifiers": []any{"sdjwt-id"}},
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "mdoc-pid", "credential_identifiers": []any{"mdoc-id"}},
+		},
+	}
+	if got, other := resolveCredentialIdentifier(tokenResp, "mdoc-pid"); got != "mdoc-id" || other != "" {
+		t.Errorf("got %q (other %q), want mdoc-id", got, other)
+	}
+}
+
+func TestResolveCredentialIdentifier_ReportsAnotherConfiguration(t *testing.T) {
+	tokenResp := map[string]any{
+		"authorization_details": []any{
+			map[string]any{"type": "openid_credential", "credential_configuration_id": "sdjwt-pid", "credential_identifiers": []any{"sdjwt-id"}},
+		},
+	}
+	if got, other := resolveCredentialIdentifier(tokenResp, "mdoc-pid"); got != "sdjwt-id" || other != "sdjwt-pid" {
+		t.Errorf("got %q (other %q), want sdjwt-id authorized for sdjwt-pid", got, other)
 	}
 }
 
@@ -50,7 +75,7 @@ func TestResolveCredentialIdentifier_FallbackToConfigID(t *testing.T) {
 		"access_token": "token123",
 	}
 
-	got := resolveCredentialIdentifier(tokenResp)
+	got, _ := resolveCredentialIdentifier(tokenResp, "")
 	if got != "" {
 		t.Errorf("expected empty string, got %s", got)
 	}
@@ -62,7 +87,7 @@ func TestResolveCredentialIdentifier_EmptyAuthDetails(t *testing.T) {
 		"authorization_details": []any{},
 	}
 
-	got := resolveCredentialIdentifier(tokenResp)
+	got, _ := resolveCredentialIdentifier(tokenResp, "")
 	if got != "" {
 		t.Errorf("expected empty string, got %s", got)
 	}
@@ -73,17 +98,16 @@ func TestResolveCredentialIdentifier_NoConfigIDs(t *testing.T) {
 		"access_token": "token123",
 	}
 
-	got := resolveCredentialIdentifier(tokenResp)
+	got, _ := resolveCredentialIdentifier(tokenResp, "")
 	if got != "" {
 		t.Errorf("expected empty string, got %s", got)
 	}
 }
 
-// OpenID4VCI 1.0 §8.3 defines one shape for issued credentials: a credentials
-// array whose "elements of the array MUST be objects", each with a credential
-// member. A top-level credential string and an array of bare strings are draft
-// shapes, and reading them lets a response the wallet's own batch and binding
-// checks were written against through unexamined.
+// OpenID4VCI 1.0 §8.3 defines one shape for issued credentials. It is a
+// credentials array whose "elements of the array MUST be objects", each with a
+// credential member. The wallet reads only this shape, so the batch and binding
+// checks see every credential it imports.
 func TestCredentialStringsFromResponse_CredentialsArray(t *testing.T) {
 	resp := map[string]any{
 		"credentials": []any{
@@ -176,9 +200,9 @@ func TestBuildCredentialResponseEncryptionRequest(t *testing.T) {
 
 // §8.2: "Credential Request encryption MUST be used if the
 // credential_response_encryption parameter is included, to prevent it being
-// substituted by an attacker." An issuer that publishes no way to encrypt the
-// request therefore gets no encryption request either, and one that demands an
-// encrypted response anyway cannot be served.
+// substituted by an attacker." An issuer without a request encryption key gets
+// no response encryption request. An issuer that also demands an encrypted
+// response cannot be served.
 func TestBuildCredentialResponseEncryptionRequest_NeedsRequestEncryption(t *testing.T) {
 	holderKey, err := mock.GenerateKey()
 	if err != nil {
@@ -361,8 +385,8 @@ func TestResolveCredentialEndpoint_FromMetadata(t *testing.T) {
 	}
 }
 
-// A required endpoint that the metadata omits or leaves empty is a deviation:
-// debug warns and works around it with the conventional path, strict refuses.
+// A required endpoint that the metadata omits or leaves empty is a deviation.
+// Debug mode warns and uses the conventional path. Strict mode refuses.
 func TestResolveEndpoint_MissingOrEmptyIsADeviation(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -527,9 +551,9 @@ func TestParseIssuerMetadataResponse_RejectsTamperedSignedJWT(t *testing.T) {
 
 // §12.2.3: "When requesting signed metadata, the Wallet MUST establish trust in
 // the signer of the metadata. Otherwise, the Wallet MUST reject the signed
-// metadata." A token with no x5c leaves nothing to establish trust from, and
-// accepting it lets whoever answered the request name the endpoints the rest of
-// the flow talks to.
+// metadata." A token with no x5c gives the wallet nothing to establish trust
+// from. Accepting it would let whoever answered the request choose the
+// endpoints for the rest of the flow.
 func TestParseIssuerMetadataResponse_SignedMetadataTrust(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example:8443"
@@ -557,7 +581,7 @@ func TestParseIssuerMetadataResponse_SignedMetadataTrust(t *testing.T) {
 		}
 	})
 
-	// Unknown signer CAs remain usable for testing, but the signature must still
+	// An unknown signer CA stays usable for testing. The signature must still
 	// verify and the missing trust must be reported.
 	t.Run("an x5c chain that anchors nowhere", func(t *testing.T) {
 		raw, err := signCredentialIssuerMetadataJWT(w, w.IssuerURL, time.Now().Add(time.Hour))
@@ -597,7 +621,7 @@ func TestParseIssuerMetadataResponse_RejectsSignedMetadataForAnotherIssuer(t *te
 	}
 	trustSignedIssuerMetadataFrom(t, w)
 
-	// Change sub only so the test isolates the issuer identity check.
+	// Only sub differs, so the test reaches the issuer identity check alone.
 	chain, err := w.DefaultSigningCertChain()
 	if err != nil {
 		t.Fatalf("building the signing chain: %v", err)
@@ -722,9 +746,9 @@ func TestSelectAuthorizationServer(t *testing.T) {
 	})
 }
 
-// token_endpoint is an authorization server metadata parameter (RFC 8414 §2),
-// and §12.2.4 defines none for the Credential Issuer, so the authorization
-// server document wins wherever the two disagree.
+// token_endpoint is an authorization server metadata parameter (RFC 8414 §2).
+// §12.2.4 defines none for the Credential Issuer, so the authorization server
+// document wins when the two disagree.
 func TestResolveTokenEndpoint_PrefersTheAuthorizationServerMetadata(t *testing.T) {
 	w := generateTestWallet(t)
 	metadata := map[string]any{"token_endpoint": "https://issuer.example/token"}
@@ -738,8 +762,8 @@ func TestResolveTokenEndpoint_PrefersTheAuthorizationServerMetadata(t *testing.T
 	}
 }
 
-// Omit nonce when no challenge was supplied. An empty string is still a nonce value
-// and can fail issuer checks.
+// A proof without a challenge has no nonce claim. An empty string is still a
+// nonce value and can fail issuer checks.
 func TestCreateProofJWT_OmitsEmptyNonce(t *testing.T) {
 	key := testKey(t)
 
@@ -762,10 +786,10 @@ func TestCreateProofJWT_OmitsEmptyNonce(t *testing.T) {
 	}
 }
 
-// The key proof names the client as iss when the wallet has one (OID4VCI 1.0
-// Appendix F.1), so an issuer that binds the access token to a client can match
-// it, and leaves it out for an anonymous flow, where naming an unbound client
-// would fail that check.
+// The key proof carries the client_id as iss when the wallet has one (OID4VCI
+// 1.0 Appendix F.1). An issuer that binds the access token to a client matches
+// it. An anonymous flow leaves iss out, because an unbound client would fail
+// that match.
 func TestCreateProofJWT_IssMatchesClientID(t *testing.T) {
 	key := testKey(t)
 

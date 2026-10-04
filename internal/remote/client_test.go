@@ -283,8 +283,8 @@ func TestClientEndpoints(t *testing.T) {
 	}
 }
 
-// A raw string body is sent as-is, so importing a credential does not arrive
-// JSON-quoted at the other end.
+// A raw string body must arrive unchanged, so an imported credential is not
+// JSON-quoted.
 func TestClientSendsARawStringBodyUnchanged(t *testing.T) {
 	rec := &recorder{}
 	client, closeFn := rec.server(t)
@@ -354,7 +354,7 @@ func TestClientErrorsOnNonJSONFailures(t *testing.T) {
 	})
 
 	t.Run("a wallet that is not listening", func(t *testing.T) {
-		// Port 1 on loopback refuses connections rather than hanging.
+		// Port 1 on loopback refuses connections at once.
 		_, err := NewClient("http://127.0.0.1:1").Version()
 		if err == nil || !strings.Contains(err.Error(), "calling") {
 			t.Errorf("error = %v, want it to name the call", err)
@@ -379,7 +379,7 @@ func TestNewClientTrimsTheBaseURL(t *testing.T) {
 	}
 }
 
-// A 204 with no body is a success, not a decode failure.
+// A 204 with no body is a success.
 func TestClientAcceptsAnEmptySuccessBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -402,7 +402,7 @@ func TestTrustListPath(t *testing.T) {
 		{name: "an id needing escaping", id: "a/b", want: "/api/trustlists/a%2Fb"},
 		{name: "by vct", vct: "urn:eudi:pid:1", want: "/api/trustlist?vct=urn%3Aeudi%3Apid%3A1"},
 		{name: "by doctype", docType: "eu.europa.ec.eudi.pid.1", want: "/api/trustlist?doctype=eu.europa.ec.eudi.pid.1"},
-		// An id wins: it names one list, so the filters have nothing to add.
+		// An id selects exactly one list, so it takes precedence over the filters.
 		{name: "id beats the filters", id: "pid-list", vct: "urn:x", want: "/api/trustlists/pid-list"},
 	}
 	for _, tt := range tests {
@@ -427,8 +427,7 @@ func TestClientTrustListSelectors(t *testing.T) {
 	}
 }
 
-// Decoding into a []byte hands back the raw bytes, which the PEM and JWT
-// endpoints need.
+// The PEM and JWT endpoints need the raw bytes when decoding into a []byte.
 func TestClientReturnsRawBytesUnparsed(t *testing.T) {
 	rec := &recorder{reply: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"}
 	client, closeFn := rec.server(t)

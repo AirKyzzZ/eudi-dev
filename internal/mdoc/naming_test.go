@@ -56,8 +56,8 @@ func TestNameCOSEHeaderKeepsAnUnknownAlgorithm(t *testing.T) {
 	}
 }
 
-// x509.CreateCertificate takes the issuer from the parent certificate, not the
-// template's Issuer field. Use a separate IACA to test distinct names.
+// x509.CreateCertificate takes the issuer from the parent certificate. A
+// separate IACA gives the leaf a distinct issuer name.
 func testCertDER(t *testing.T) []byte {
 	t.Helper()
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -99,7 +99,8 @@ func testCertDER(t *testing.T) []byte {
 	return der
 }
 
-// Show readable certificate details while retaining malformed chains for inspection.
+// Certificates show as readable details. A malformed chain stays visible for
+// inspection.
 func TestNameCOSEHeaderDescribesCertificates(t *testing.T) {
 	der := testCertDER(t)
 
@@ -281,7 +282,7 @@ func TestDigestHasher(t *testing.T) {
 		alg  string
 		want []byte
 	}{
-		// An MSO that names no algorithm means SHA-256.
+		// An MSO without an algorithm means SHA-256.
 		{"", sum256[:]},
 		{"SHA-256", sum256[:]},
 		{"SHA-384", sum384[:]},
@@ -304,8 +305,7 @@ func TestDigestHasher(t *testing.T) {
 	}
 }
 
-// CBOR decoders can use different Go integer types for the same value. Accept each
-// representation.
+// CBOR decoders can use different Go integer types for the same value.
 func TestCOSEInt(t *testing.T) {
 	tests := []struct {
 		name string

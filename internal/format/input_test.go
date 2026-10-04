@@ -164,10 +164,9 @@ func TestHTTPClientForURLHostDockerInternalFallback(t *testing.T) {
 }
 
 // A remote read that got no answer is tried again. OpenID4VP 1.0 §5.10.2 says
-// of the request_uri fetch that comes through here: "If the Verifier responds
-// with any HTTP error response, the Wallet MUST terminate the process." A
-// connection that never produced a response is not that, and a single moment
-// of unresponsiveness should not end a flow.
+// of the request_uri fetch: "If the Verifier responds with any HTTP error
+// response, the Wallet MUST terminate the process." A connection without a
+// response is no HTTP error response.
 func TestFetchURLRetriesWhenTheServerDoesNotAnswer(t *testing.T) {
 	previous := fetchRetryDelay
 	fetchRetryDelay = time.Millisecond
@@ -176,8 +175,7 @@ func TestFetchURLRetriesWhenTheServerDoesNotAnswer(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if calls.Add(1) == 1 {
-			// Close the connection without answering. To the client this
-			// looks like a request that timed out.
+			// The client sees a connection closed without an answer.
 			hj, ok := w.(http.Hijacker)
 			if !ok {
 				t.Error("test server does not support hijacking")
@@ -207,8 +205,7 @@ func TestFetchURLRetriesWhenTheServerDoesNotAnswer(t *testing.T) {
 	}
 }
 
-// An HTTP error is an answer, and §5.10.2 says to terminate on one rather than
-// ask again.
+// An HTTP error is an answer. §5.10.2 says to terminate on it.
 func TestFetchURLDoesNotRetryAnHTTPError(t *testing.T) {
 	previous := fetchRetryDelay
 	fetchRetryDelay = time.Millisecond
@@ -229,8 +226,7 @@ func TestFetchURLDoesNotRetryAnHTTPError(t *testing.T) {
 	}
 }
 
-// Allow longer timeouts for slow counterparties. Invalid values must retain the
-// default instead of disabling timeouts.
+// A slow peer may need a longer timeout. An invalid value must keep the default.
 func TestResolveRemoteTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		name string

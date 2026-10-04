@@ -47,8 +47,8 @@ func ecJWK(t *testing.T, key *ecdsa.PublicKey, crv string) []byte {
 	return out
 }
 
-// ecPrivateJWK is ecJWK with the private component, padded the same way: RFC
-// 7518 section 6.2.2.1 gives d the curve width too.
+// ecPrivateJWK is ecJWK with the private component. RFC 7518 section 6.2.2.1
+// gives d the curve width too.
 func ecPrivateJWK(t *testing.T, key *ecdsa.PrivateKey, crv string) []byte {
 	t.Helper()
 	x, y, err := format.ECPublicCoords(&key.PublicKey)
@@ -102,8 +102,8 @@ func TestParseJWK_ECCurves(t *testing.T) {
 	}
 }
 
-// A coordinate with a leading zero byte is where a parser that trims or
-// mispads silently produces a different key.
+// A parser that trims or mispads a coordinate with a leading zero byte
+// produces a different key.
 func TestParseJWK_ECLeadingZeroCoordinate(t *testing.T) {
 	for attempt := 0; attempt < 200; attempt++ {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -175,7 +175,7 @@ func TestParseJWK_Rejects(t *testing.T) {
 	}
 }
 
-// Parsing a private JWK must preserve its scalar so it signs with the original key.
+// A parsed private JWK must sign with the original key.
 func TestParseJWKPrivate_ECRoundTrip(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -290,8 +290,8 @@ func TestParseJWKLenient_StillRefusesRealErrors(t *testing.T) {
 	}
 }
 
-// A private scalar whose leading byte is zero encodes one byte short (about
-// one key in 256). The operator's own key file loads regardless.
+// A private scalar with a zero leading byte encodes one byte short (about one
+// key in 256). The operator's own key file must still load.
 func TestParseJWKPrivate_ShortScalarStillLoads(t *testing.T) {
 	for attempt := 0; attempt < 20000; attempt++ {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

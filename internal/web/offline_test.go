@@ -128,8 +128,8 @@ func TestHandleValidate_OfflineLeavesTheStatusListUnfetched(t *testing.T) {
 	}
 }
 
-// A credential without a status reference needs no network lookup for its status
-// result.
+// A credential without a status reference gets its status result without a
+// network lookup.
 func TestHandleValidate_OfflineAnswersStatusWithoutAReference(t *testing.T) {
 	credential := makeSDJWT(
 		map[string]any{

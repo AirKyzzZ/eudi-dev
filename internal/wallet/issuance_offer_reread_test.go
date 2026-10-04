@@ -21,12 +21,12 @@ import (
 	"testing"
 )
 
-// An interactive issuance reads a credential_offer_uri twice: once to tell
-// the consent dialog what is being offered, and once when the user approves.
-// OpenID4VCI 1.0 §4.1.3 allows both, since the wallet fetches "unless it is
-// already cached", but an issuer that consumes the offer on first read
-// answers the second with an error. The offer already resolved for the dialog
-// is what the user approved, so the flow continues with it and says so.
+// An interactive issuance reads a credential_offer_uri twice. The first read
+// fills the consent dialog. The second runs when the user approves. OpenID4VCI
+// 1.0 §4.1.3 allows this, since the wallet fetches "unless it is already
+// cached". An issuer that serves an offer once answers the second read with an
+// error. The user approved the offer shown in the dialog, so the flow continues
+// with it and logs a warning.
 func TestApprovingAnOfferSurvivesASingleUseOfferURI(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -63,8 +63,8 @@ func TestApprovingAnOfferSurvivesASingleUseOfferURI(t *testing.T) {
 		t.Errorf("the offer URI was read %d times, want the dialog's read and the approval's attempt", offerFetches)
 	}
 
-	// Log the failed second fetch so users can identify issuers that serve offers
-	// once.
+	// The log shows the failed second fetch so users can spot issuers that
+	// serve an offer once.
 	var warned bool
 	for _, entry := range w.GetLog() {
 		if entry.Severity == severityWarning && strings.Contains(entry.Detail, "credential_offer_uri") {
@@ -95,8 +95,8 @@ func TestAnUnreadableOfferURIStillFailsWithoutAResolvedOffer(t *testing.T) {
 	}
 }
 
-// The UI must complete issuance from its approved offer when the issuer refuses a
-// second fetch.
+// Approval in the UI completes issuance from the approved offer when the issuer
+// refuses a second fetch.
 func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -133,8 +133,8 @@ func TestApproveRequestCompletesWhenTheIssuerServesTheOfferOnce(t *testing.T) {
 	}
 }
 
-// Reject changes to the issuer after consent. Approval covered the original offer
-// only.
+// The user approved the original offer only. A changed offer in the second
+// fetch does not replace it.
 func TestASwappedOfferDoesNotReplaceTheApprovedOne(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -182,8 +182,8 @@ func TestASwappedOfferDoesNotReplaceTheApprovedOne(t *testing.T) {
 	}
 }
 
-// Treat an error body with HTTP 200 as a failed offer fetch and retain the approved
-// copy.
+// An error body with HTTP 200 counts as a failed offer fetch. The approved copy
+// is kept.
 func TestAnOfferRereadWithoutAnIssuerKeepsTheApprovedOne(t *testing.T) {
 	w := generateTestWallet(t)
 
@@ -223,8 +223,8 @@ func TestAnOfferRereadWithoutAnIssuerKeepsTheApprovedOne(t *testing.T) {
 	}
 }
 
-// Automatic and API flows have no approved fallback copy. A failed fetch must fail
-// issuance.
+// Automatic and API flows have no approved copy to fall back on. A failed fetch
+// fails issuance.
 func TestUnattendedIssuanceCarriesNoApprovedOffer(t *testing.T) {
 	w := generateTestWallet(t)
 	w.AutoAccept = true

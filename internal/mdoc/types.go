@@ -23,21 +23,21 @@ type Document struct {
 	NameSpaces   map[string][]IssuerSignedItem
 	IssuerAuth   *IssuerAuth
 	DeviceSigned *DeviceSigned
-	// ResponseVersion and ResponseStatus are the DeviceResponse members that
-	// sit outside the document itself.
+	// ResponseVersion and ResponseStatus are DeviceResponse members outside the
+	// document.
 	ResponseVersion  string
 	ResponseStatus   *uint64
 	IsDeviceResponse bool
-	// Deviations records parts the parser dropped because it could not read them
-	// (a malformed namespace, a repeated element). The rest of the document
-	// still displays, and strict mode turns a deviation into a rejection.
+	// Deviations records unreadable parts the parser dropped, such as a malformed
+	// namespace or a repeated element. The rest of the document still displays.
+	// Strict mode rejects a document with deviations.
 	Deviations []string
 }
 
 type DeviceSigned struct {
 	DeviceAuth map[string]any
-	// RawDeviceSignature is the deviceSignature COSE_Sign1 as it arrived,
-	// which is the only form its signature can be checked against.
+	// RawDeviceSignature is the deviceSignature COSE_Sign1 as it arrived. Only
+	// this form can be verified.
 	RawDeviceSignature []byte
 }
 
@@ -46,8 +46,8 @@ type IssuerSignedItem struct {
 	Random            []byte
 	ElementIdentifier string
 	ElementValue      any
-	// RawCBOR holds the original CBOR-encoded bytes (before Tag-24 unwrapping)
-	// used for digest verification against MSO ValueDigests.
+	// RawCBOR holds the original Tag-24 encoded bytes. Digest verification
+	// against MSO ValueDigests hashes them.
 	RawCBOR []byte
 }
 
@@ -68,10 +68,8 @@ type MSO struct {
 	ValueDigests    map[string]map[uint64][]byte
 	ValidityInfo    *ValidityInfo
 	DeviceKeyInfo   map[string]any
-	// DeviceKeyCBOR is the deviceKey COSE_Key as it was encoded. The decoded
-	// DeviceKeyInfo above has its integer labels turned into decimal strings
-	// for display, which no COSE library can read back, so the bytes are kept
-	// for DeviceKey to decode properly.
+	// DeviceKeyCBOR is the deviceKey COSE_Key as it was encoded. DeviceKeyInfo
+	// above has string labels for display, and no COSE library reads those.
 	DeviceKeyCBOR []byte
 	Status        map[string]any
 }

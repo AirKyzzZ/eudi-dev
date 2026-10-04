@@ -66,10 +66,9 @@ func foreignHolderKey(t *testing.T) *ecdsa.PublicKey {
 	return &key.PublicKey
 }
 
-// A credential bound to someone else's key can be stored and read, but the
-// wallet cannot sign a KB-JWT (RFC 9901 §4.3) or a DeviceSigned (ISO 18013-5
-// §9.1.3) for it, so the import says so instead of leaving the discovery to a
-// verifier refusing the presentation.
+// A credential bound to another party's key can be stored and read. The wallet
+// cannot sign a KB-JWT (RFC 9901 §4.3) or a DeviceSigned (ISO 18013-5 §9.1.3)
+// for it, so import warns before any presentation.
 func TestImportReportsACredentialBoundToAKeyTheWalletDoesNotHold(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -132,8 +131,8 @@ func TestImportStaysQuietForACredentialBoundToTheWalletKey(t *testing.T) {
 	}
 }
 
-// A credential without holder binding is presented without a KB-JWT at all,
-// so there is no key for the wallet to be missing.
+// A credential without holder binding is presented without a KB-JWT, so no key
+// can be missing.
 func TestImportStaysQuietForACredentialWithoutHolderBinding(t *testing.T) {
 	w := generateTestWallet(t)
 	imported, err := w.ImportCredential(sdJWTBoundTo(t, w, nil))
@@ -148,8 +147,7 @@ func TestImportStaysQuietForACredentialWithoutHolderBinding(t *testing.T) {
 	}
 }
 
-// An unsupported cnf key is still a binding, even though this wallet cannot compare or
-// use it.
+// An unsupported cnf key still counts as a holder binding.
 func TestHolderBindingOfAnUnreadableConfirmationKey(t *testing.T) {
 	for name, jwk := range map[string]confirmationJWK{
 		"another curve":  {Kty: "EC", Crv: "P-384", X: "AAAA", Y: "AAAA"},

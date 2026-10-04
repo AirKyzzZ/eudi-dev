@@ -34,9 +34,9 @@ import (
 const registrationCertificateTyp = "rc-wrp+jwt"
 
 // Read registered purposes from verifier_info for the consent dialog (OpenID4VP 1.0
-// §5.1). Only rc-wrp+jwt certificates with a valid signature against their x5c leaf
-// contribute purposes. Their sub identifies a legal entity and need not equal
-// client_id. The chain is not checked against a trust list. See SECURITY.md.
+// §5.1). Only rc-wrp+jwt certificates whose signature verifies against their own x5c
+// leaf contribute purposes. Their sub identifies a legal entity and may differ from
+// client_id.
 func verifierInfoPurposes(payload map[string]any) (purposes []string, findings []string) {
 	certs, findings := verifiedRegistrationCertificates(payload)
 	for _, cert := range certs {
@@ -80,8 +80,8 @@ func verifiedRegistrationCertificates(payload map[string]any) (certs []map[strin
 
 // Unsigned requests carry verifier_info as a parameter. Signed requests use only the
 // Request Object (OID4VP 1.0 §5.10.1). Certificate content checks follow ETSI TS 119
-// 475 and ARF RPRC_19. They remain warnings in every mode because strict validation
-// covers OpenID4VP and HAIP, not ARF rules.
+// 475 and ARF RPRC_19. They stay warnings in every mode because strict mode covers
+// only OpenID4VP and HAIP.
 func (w *Wallet) consentPurposes(scope string, authReq *AuthorizationRequestParams) []string {
 	if authReq == nil {
 		return nil

@@ -47,9 +47,9 @@ func cwtServer(t *testing.T, key *ecdsa.PrivateKey, bits int, bitstring []byte, 
 	})
 }
 
-// Section 5.2 defines the CWT representation of a Status List Token.
-// Resolving one means asking for it, parsing the COSE_Sign1 and reading the
-// integer-keyed claims.
+// Section 5.2 defines the CWT representation of a Status List Token. The
+// checker must request it, parse the COSE_Sign1 and read the integer-keyed
+// claims.
 func TestCheck_ResolvesACWTStatusListToken(t *testing.T) {
 	key := mustGenerateKey(t)
 	bitstring := make([]byte, 16)
@@ -80,8 +80,7 @@ func TestCheck_ResolvesACWTStatusListToken(t *testing.T) {
 	}
 }
 
-// The certificate chain in the x5chain header anchors a CWT status list the
-// same way x5c anchors the JWT one.
+// The x5chain header anchors a CWT status list like x5c anchors the JWT form.
 func TestCheck_AnchorsACWTStatusListInTheTrustList(t *testing.T) {
 	issuerKey, leafCert, caCert := testChain(t)
 	srv := cwtServer(t, issuerKey, 1, make([]byte, 16), []*x509.Certificate{leafCert, caCert})
@@ -107,8 +106,8 @@ func TestCheck_AnchorsACWTStatusListInTheTrustList(t *testing.T) {
 	}
 }
 
-// The CWT path enforces the same claim rules as the JWT one: the subject has
-// to be the URI the credential references and an expired token is refused.
+// The CWT form follows the JWT claim rules. The subject must equal the
+// credential's URI and an expired token must fail.
 func TestCheck_CWTClaimRules(t *testing.T) {
 	key := mustGenerateKey(t)
 
@@ -160,8 +159,7 @@ func TestCheck_CWTClaimRules(t *testing.T) {
 }
 
 // Section 5.2: "16 (type): REQUIRED. The type of the CWT MUST be
-// application/statuslist+cwt". A COSE_Sign1 without it is some other signed
-// object, and the wallet's own MSO is exactly such an object.
+// application/statuslist+cwt". An MSO is a COSE_Sign1 without it.
 func TestCheck_CWTRequiresTheTypeHeader(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, tc := range []struct {
@@ -208,7 +206,7 @@ func TestCheck_CWTRejectsTheCWTTag(t *testing.T) {
 }
 
 // The generated token must carry the tag, the type header and the claim keys
-// Section 5.2 names, or nothing else can read it.
+// of Section 5.2.
 func TestGenerateStatusListCWT_Structure(t *testing.T) {
 	key := mustGenerateKey(t)
 	token, err := GenerateStatusListCWT([]byte{0xb9, 0xa3}, key, StatusListConfig{
@@ -272,8 +270,7 @@ func TestGenerateStatusListCWT_Structure(t *testing.T) {
 	}
 }
 
-// The wallet's own CWT tokens must round trip through the checker at every
-// width the specification allows.
+// Generated CWT tokens must pass the checker at every allowed width.
 func TestCWTRoundTrip_EveryWidth(t *testing.T) {
 	key := mustGenerateKey(t)
 	for _, tc := range []struct {
@@ -341,9 +338,8 @@ func signCWTWithType(t *testing.T, key *ecdsa.PrivateKey, uri string, typ any) [
 }
 
 // specExampleCWT is the non-normative example of a Status List Token in CWT
-// format from Section 5.2, transcribed from the editor's copy. Reading it
-// pins the claim keys and the type header against the specification's own
-// bytes rather than against this package's encoder.
+// format from Section 5.2, transcribed from the editor's copy. It checks the
+// claim keys and the type header against the specification's bytes.
 const specExampleCWT = "d2845820a2012610781a6170706c69636174696f6e2f7374617475736c6973742b6377" +
 	"74a1044231325850a502782168747470733a2f2f6578616d706c652e636f6d2f73" +
 	"74617475736c697374732f31061a648c5bea041a8898dfea19fffe19a8c019fffda2" +

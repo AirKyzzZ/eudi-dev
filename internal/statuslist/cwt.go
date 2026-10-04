@@ -39,8 +39,7 @@ const (
 var cwtDecMode cbor.DecMode
 
 func init() {
-	// Decoding unsigned integers as signed keeps a CWT claim key from
-	// arriving as uint64 in one token and int64 in the next.
+	// Unsigned integers decode as signed, so a CWT claim key always has one Go type.
 	var err error
 	cwtDecMode, err = cbor.DecOptions{IntDec: cbor.IntDecConvertSigned}.DecMode()
 	if err != nil {
@@ -76,8 +75,6 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 
 	// Section 5.2: "16 (type): REQUIRED. The type of the CWT MUST be
 	// application/statuslist+cwt or the registered CoAP Content-Format ID".
-	// Without it any COSE_Sign1 a Relying Party already trusts can stand in
-	// for a status list.
 	typeWarning, err := cwtType(msg.Headers.Protected)
 	if err != nil {
 		return nil, err
@@ -98,8 +95,7 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		return nil, err
 	}
 
-	// A COSE kid is a byte string, and a Status Provider naming a DID puts
-	// its text there.
+	// A COSE kid is a byte string. A DID reference puts its text there.
 	kid, _ := msg.Headers.Protected[cose.HeaderLabelKeyID].([]byte)
 	candidates, err := resolveKeys(certs, nil, string(kid), opts)
 	if err != nil {
@@ -158,10 +154,8 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 		}
 		tok.bits = n
 	}
-	// Section 4.3: "lst: REQUIRED. CBOR Byte string (major type 2)". The JSON
-	// representation base64url-encodes the same bytes (the CBOR one carries
-	// them directly), so a text string here is the JSON encoding leaking into
-	// a CBOR list.
+	// Section 4.3: "lst: REQUIRED. CBOR Byte string (major type 2)". A text
+	// string here is the base64url form of the JSON representation.
 	if lst, present := sl["lst"]; present {
 		b, ok := lst.([]byte)
 		if !ok {
@@ -172,8 +166,8 @@ func parseCWTStatusListToken(body []byte, opts CheckOptions) (*statusListToken, 
 	return tok, nil
 }
 
-// cwtType checks the COSE type header (16) and returns a warning string when
-// the value is well-formed but not the media type name.
+// cwtType checks the COSE type header (16). It returns a warning when the
+// value is well-formed and differs from the media type name.
 func cwtType(protected cose.ProtectedHeader) (string, error) {
 	value, present := headerValue(protected, coseHeaderType)
 	if !present {
@@ -187,16 +181,15 @@ func cwtType(protected cose.ProtectedHeader) (string, error) {
 		return "", fmt.Errorf("the status list token has type %q, section 5.2 requires %q", v, MediaTypeCWT)
 	case int64, uint64, int:
 		// Section 14.8 requests a CoAP Content-Format ID for
-		// application/statuslist+cwt but the number is still TBD, so no
-		// integer can be checked against the registry yet.
+		// application/statuslist+cwt. The number is still TBD.
 		return fmt.Sprintf("the status list token names its type by CoAP Content-Format ID %v, which section 14.8 has not had assigned yet", v), nil
 	default:
 		return "", fmt.Errorf("the status list token's type header (16) is a %T, section 5.2 requires the media type name or a CoAP Content-Format ID", value)
 	}
 }
 
-// certsFromX5Chain reads the RFC 9360 x5chain header (33) from either the
-// protected or the unprotected bucket.
+// certsFromX5Chain reads the RFC 9360 x5chain header (33) from the protected
+// or the unprotected bucket.
 func certsFromX5Chain(headers cose.Headers) ([]*x509.Certificate, error) {
 	value, present := headerValue(map[any]any(headers.Protected), coseHeaderX5Chain)
 	if !present {
@@ -236,7 +229,7 @@ func certsFromX5Chain(headers cose.Headers) ([]*x509.Certificate, error) {
 }
 
 // headerValue looks up an integer-labelled COSE header. A label decodes as
-// int64 or uint64 depending on the encoder, so both are matched.
+// int64 or uint64 depending on the encoder.
 func headerValue(h map[any]any, label int64) (any, bool) {
 	for k, v := range h {
 		switch key := k.(type) {
@@ -264,7 +257,7 @@ func cwtClaim(claims map[any]any, key int64) any {
 
 // GenerateStatusListCWT creates a signed Status List Token in CWT format
 // (Section 5.2) from a bitstring. The result is the raw binary COSE_Sign1
-// that Section 8.2 has the response body carry.
+// for the response body of Section 8.2.
 func GenerateStatusListCWT(bitstring []byte, signingKey *ecdsa.PrivateKey, cfg StatusListConfig) ([]byte, error) {
 	if signingKey == nil {
 		return nil, fmt.Errorf("signing requires a private key")

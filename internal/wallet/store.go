@@ -56,13 +56,13 @@ type WalletStore struct {
 	seed mock.Seed
 
 	// Serialize snapshots and writes so an older snapshot cannot overwrite a newer
-	// save. This also protects log and demo issuer callbacks outside the server lock.
+	// save. Log and issuer callbacks save outside the server lock and rely on this.
 	saveMu sync.Mutex
 
 	// Tests use this hook to pause between taking a snapshot and writing it.
 	saveDelay func()
 
-	// Used to trim the entity log every logTrimEvery saves.
+	// Counts saves so the entity log is trimmed every logTrimEvery saves.
 	saves int
 }
 
@@ -84,8 +84,8 @@ type walletJSON struct {
 	LegacyPendingIssuances []DeferredIssuance `json:"pending_issuances,omitempty"`
 }
 
-// DefaultWalletDir uses ~/.eudi-dev/wallet, with a fallback to the former ~/.oid4vc-dev
-// location.
+// DefaultWalletDir returns the wallet directory under the config base directory
+// (~/.eudi-dev/wallet by default).
 func DefaultWalletDir() string {
 	return filepath.Join(config.BaseDir(), "wallet")
 }
@@ -136,8 +136,8 @@ func NewWalletStoreOn(dir string, backend storage.Store) *WalletStore {
 	return store
 }
 
-// SeedEnvVar accepts auto to seed memory storage while other backends generate random
-// keys.
+// SeedEnvVar sets the key seed. The value auto seeds memory storage only. Other
+// backends then generate random keys.
 const SeedEnvVar = "EUDI_DEV_SEED"
 
 // The built-in seed is public. It is used by the image and by auto on memory storage.
@@ -233,7 +233,7 @@ func (s *WalletStore) assetKey(name string) string {
 
 // Store images by their content hash and return an asset:<sha256>.<ext> reference.
 // Identical images share one immutable asset. Existing references and external URLs
-// pass through unchanged, allowing this conversion on every save.
+// pass through unchanged, so the conversion can run on every save.
 func (s *WalletStore) storeDisplayAsset(uri string) (ref string, converted bool) {
 	contentType, data, ok := dataURIImage(uri)
 	if !ok {
@@ -267,9 +267,9 @@ func (s *WalletStore) ReadDisplayAsset(ref string) (contentType string, data []b
 	return assetContentType(name), data, true
 }
 
-// PruneUnreferencedAssets reads current references under saveMu to avoid racing saves.
-// Demo resets use this to remove orphaned assets. Ignore errors because unused assets are
-// harmless.
+// PruneUnreferencedAssets removes assets that nothing references. It reads the
+// references under saveMu so it cannot race a save. Errors are ignored because an
+// unused asset is harmless.
 func (s *WalletStore) PruneUnreferencedAssets() {
 	s.saveMu.Lock()
 	defer s.saveMu.Unlock()
@@ -372,7 +372,7 @@ func (s *WalletStore) legacyTLSKeyPEM() string { return s.key("issuer-tls-key.pe
 
 func (s *WalletStore) logCleanMarkerKey() string { return s.key("wallet-log-cleaned-at") }
 
-// LoadOrCreate loads missing keys or generates them for a new wallet.
+// LoadOrCreate loads the stored wallet. It generates keys that are missing.
 func (s *WalletStore) LoadOrCreate() (*Wallet, error) {
 	holderKey, issuerKey, err := s.LoadOrCreateKeys()
 	if err != nil {
@@ -555,8 +555,8 @@ func (s *WalletStore) LoadOrCreateKeys() (*ecdsa.PrivateKey, *ecdsa.PrivateKey, 
 	return holderKey, issuerKey, nil
 }
 
-// LoadOrCreateSharedCA uses WriteIf so concurrent creators choose one CA key. The other
-// server waits for the matching certificate.
+// LoadOrCreateSharedCA uses WriteIf so concurrent creators agree on one CA key. The
+// other server waits for the matching certificate.
 func (s *WalletStore) LoadOrCreateSharedCA() (*ecdsa.PrivateKey, *x509.Certificate, error) {
 	for attempt := 0; ; attempt++ {
 		keyData, keyErr := s.backend.Read(s.sharedCAKeyPEM())

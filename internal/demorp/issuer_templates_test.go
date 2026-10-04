@@ -50,10 +50,9 @@ func TestIssuerMetadataListsTheTemplates(t *testing.T) {
 	}
 }
 
-// An offer names the configurations it covers, and the eudi-dev wallet
-// redeems a German PID offer into a German PID, in each format, signed by
-// the wallet's PID signer. One offer per format: the wallet redeems the
-// first configuration an offer names.
+// The eudi-dev wallet redeems a German PID offer into a German PID in each
+// format, signed by the wallet's PID signer. Each format gets its own offer
+// because the wallet redeems only the first configuration in an offer.
 func TestOfferOfTemplatesIssuesThem(t *testing.T) {
 	w := newIssuanceWallet(t)
 	_, ts := serveDemoStack(t, w)

@@ -100,8 +100,8 @@ func TestCredentialSummaryHolderBindingNone(t *testing.T) {
 	}
 }
 
-// A credential bound to an unavailable key can be decoded but cannot be presented by
-// this wallet.
+// A credential bound to a key the wallet does not hold is listed but not
+// presentable.
 func TestCredentialSummaryHolderBindingOtherKey(t *testing.T) {
 	w := generateTestWallet(t)
 	imported, err := w.ImportCredential(sdJWTBoundTo(t, w, foreignHolderKey(t)))

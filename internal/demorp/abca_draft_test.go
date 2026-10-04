@@ -79,7 +79,7 @@ func TestPreAuthTokenRequiresClientAuth(t *testing.T) {
 		d, _, _ := newDemoRP(t)
 		rec := postForm(t, d.IssuerHandler(), "/token", preAuthTokenForm(t, d))
 		// RFC 6749 §5.2: a token endpoint refusal is a 400 unless the client
-		// authenticated via the Authorization header, which these do not.
+		// authenticated via the Authorization header. These requests do not.
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 		}
@@ -199,9 +199,8 @@ func TestPreAuthTokenRequiresClientAuth(t *testing.T) {
 	})
 }
 
-// TestAttestationCnfPrivateKeyRejected enforces the validation rule every
-// supported ABCA draft states: the key in the attestation's cnf claim must
-// not be a private key.
+// TestAttestationCnfPrivateKeyRejected checks a rule of every supported ABCA
+// draft. The key in the attestation's cnf claim must not be a private key.
 func TestAttestationCnfPrivateKeyRejected(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	provider := foreignWalletProvider(t)
@@ -246,8 +245,8 @@ func TestAttestationCnfPrivateKeyRejected(t *testing.T) {
 	}
 }
 
-// TestDuplicateAttestationHeaderRejected enforces the "precisely one header
-// field" rule of the ABCA validation checklist, for both header fields.
+// TestDuplicateAttestationHeaderRejected checks the "precisely one header
+// field" rule of the ABCA validation checklist. It covers both header fields.
 func TestDuplicateAttestationHeaderRejected(t *testing.T) {
 	for _, doubled := range []string{"OAuth-Client-Attestation", "OAuth-Client-Attestation-PoP"} {
 		t.Run(doubled, func(t *testing.T) {
@@ -400,7 +399,8 @@ func postFormWithHeaders(t *testing.T, h http.Handler, target string, form url.V
 	return rec
 }
 
-// Accept messages valid under another supported ABCA draft and log the difference.
+// A message valid under another supported ABCA draft is accepted and the
+// difference is logged.
 // OpenID4VCI 1.0 pins draft-07, which requires iss in both JWTs. These helpers use the
 // draft-08 and draft-10 form without iss.
 func TestCrossDraftShapeWarnsButAccepts(t *testing.T) {

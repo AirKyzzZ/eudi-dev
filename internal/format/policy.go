@@ -26,14 +26,14 @@ import (
 )
 
 // FetchPolicy decides whether an outbound connection is allowed. It receives
-// the network ("tcp4"/"tcp6") and the resolved "ip:port" address, so DNS
-// tricks (rebinding, redirects to internal names) cannot bypass it.
+// the network ("tcp4" or "tcp6") and the resolved "ip:port" address, so DNS
+// rebinding and redirects to internal names cannot bypass it.
 type FetchPolicy func(network, address string) error
 
 var fetchPolicy atomic.Value // holds FetchPolicy
 
-// SetFetchPolicy installs a policy applied to every outbound connection made
-// by this package's HTTP clients. Pass nil to remove the policy.
+// SetFetchPolicy installs a policy for every outbound connection of this
+// package's HTTP clients. Nil removes the policy.
 func SetFetchPolicy(policy FetchPolicy) {
 	fetchPolicy.Store(policy)
 }
@@ -46,9 +46,9 @@ func dialControl(network, address string, _ syscall.RawConn) error {
 	return policy(network, address)
 }
 
-// AllowOwnOrigins permits demo requests to its configured issuer and verifier URLs.
-// Exceptions come from operator configuration and match the exact resolved address and
-// port. Other private destinations stay blocked.
+// AllowOwnOrigins permits requests to the configured issuer and verifier URLs. Each
+// exception comes from operator configuration and matches the exact resolved
+// address and port. Other private destinations stay blocked.
 func AllowOwnOrigins(next FetchPolicy, urls ...string) FetchPolicy {
 	allowed := make(map[string]bool)
 	for _, raw := range urls {
@@ -117,8 +117,8 @@ var extraBlockedPrefixes = []netip.Prefix{
 // BlockPrivateAddresses is a FetchPolicy that rejects connections to
 // loopback, private (RFC 1918), link-local (including cloud metadata
 // endpoints), CGNAT, unique-local, unspecified and multicast addresses.
-// Install it when visitor-supplied URLs are fetched from a host that can
-// reach internal networks.
+// A host that fetches visitor-supplied URLs and can reach internal networks
+// needs it.
 func BlockPrivateAddresses(network, address string) error {
 	addrPort, err := netip.ParseAddrPort(address)
 	if err != nil {

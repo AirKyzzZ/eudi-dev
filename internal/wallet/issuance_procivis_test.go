@@ -25,8 +25,8 @@ import (
 )
 
 // This issuer advertises none for client authentication and rejects attestation
-// headers. It advertises DPoP but returns Bearer tokens. Resolve the token endpoint
-// from its separate authorization server metadata.
+// headers. It advertises DPoP but returns Bearer tokens. Its token endpoint is
+// in separate authorization server metadata.
 func setupNoneAuthIssuer(t *testing.T, w *Wallet, gotAttestation *bool) (*httptest.Server, string) {
 	t.Helper()
 
@@ -119,15 +119,14 @@ func setupNoneAuthIssuer(t *testing.T, w *Wallet, gotAttestation *bool) (*httpte
 }
 
 // TestProcessCredentialOffer_HAIPAgainstNoneAuthIssuer covers an issuer whose
-// token endpoint advertises only the "none" auth method, where HAIP 1.0 §4.4.1
-// wants client authentication.
+// token endpoint advertises only the "none" auth method. HAIP 1.0 §4.4.1
+// requires client authentication.
 //
-//   - HAIP + debug (the public demo): the wallet notes the profile violation as
-//     a warning and proceeds without client authentication, so issuance
-//     completes.
-//   - HAIP + strict: the wallet still authenticates and the exchange fails at
-//     the token endpoint.
-//   - no HAIP: a plain request completes.
+//   - HAIP in debug mode: the wallet logs a warning and skips client
+//     authentication. Issuance completes.
+//   - HAIP in strict mode: the wallet still authenticates. The token request
+//     fails.
+//   - Without HAIP: a plain request completes.
 func TestProcessCredentialOffer_HAIPAgainstNoneAuthIssuer(t *testing.T) {
 	run := func(t *testing.T, mode ValidationMode, haip bool) (*IssuanceResult, *bool, *Wallet, error) {
 		t.Helper()

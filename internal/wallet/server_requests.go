@@ -88,7 +88,6 @@ func (s *Server) handleRequestStream(w http.ResponseWriter, r *http.Request) {
 			}
 			flusher.Flush()
 		case req := <-reqCh:
-			// Send consent details only to the browser that owns the request.
 			if !ownsRequest(owners, req, "") {
 				continue
 			}
@@ -272,8 +271,8 @@ func (s *Server) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "denied"})
 }
 
-// consentPick names the credentials picked for one query: a credential ID, or an
-// array of them for a query that sets multiple.
+// consentPick holds the credentials picked for one query. The JSON form is a single
+// credential ID, or an array of IDs when the query sets multiple.
 type consentPick []string
 
 func (p *consentPick) UnmarshalJSON(data []byte) error {

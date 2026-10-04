@@ -20,8 +20,8 @@ import (
 )
 
 // TestURIQueryValues_PlusStaysLiteral checks the RFC 3986 reading of a
-// request URI query: "+" is a plus sign, so a dcql_query naming the
-// dc+sd-jwt format survives even when the sender does not percent-encode it.
+// request URI query. "+" is a plus sign, so an unencoded dc+sd-jwt format in
+// a dcql_query survives.
 func TestURIQueryValues_PlusStaysLiteral(t *testing.T) {
 	u, err := url.Parse(`openid4vp://?dcql_query={"credentials":[{"format":"dc+sd-jwt"}]}&nonce=a%2Bb%20c`)
 	if err != nil {
@@ -37,8 +37,8 @@ func TestURIQueryValues_PlusStaysLiteral(t *testing.T) {
 }
 
 // TestParseVPURI_UnencodedPlusInDCQL checks the whole VP URI parse path with
-// an unencoded plus, the form the OIDF conformance suite's url_query request
-// method sends.
+// an unencoded plus. The OIDF conformance suite's url_query request method
+// sends this form.
 func TestParseVPURI_UnencodedPlusInDCQL(t *testing.T) {
 	raw := `openid4vp://?client_id=redirect_uri:https://verifier.example/cb&response_type=vp_token&response_mode=direct_post&nonce=n-0` +
 		`&response_uri=https://verifier.example/cb&dcql_query={"credentials":[{"id":"pid","format":"dc+sd-jwt","meta":{"vct_values":["urn:eudi:pid:1"]}}]}`
@@ -61,8 +61,8 @@ func TestParseVPURI_UnencodedPlusInDCQL(t *testing.T) {
 }
 
 // TestParseVPURI_ResponseURIDerivedFromRedirectURIClientID checks OID4VP 1.0
-// §5.9.3: with the redirect_uri client id prefix the prefix value is the
-// response endpoint, so a request omitting response_uri still names one.
+// §5.9.3. With the redirect_uri client id prefix the prefix value is the
+// response endpoint, so a request without response_uri still has one.
 func TestParseVPURI_ResponseURIDerivedFromRedirectURIClientID(t *testing.T) {
 	raw := `openid4vp://?client_id=redirect_uri:https://verifier.example/cb&response_type=vp_token&response_mode=direct_post.jwt&nonce=n-0` +
 		`&dcql_query={"credentials":[{"id":"pid","format":"dc+sd-jwt","meta":{"vct_values":["urn:eudi:pid:1"]}}]}`

@@ -48,8 +48,8 @@ func certB64(t *testing.T, commonName string) string {
 	return base64.StdEncoding.EncodeToString(der)
 }
 
-// trustListJWT assembles the ETSI TS 119 602 structure the parser reads. It is
-// unsigned: Parse decodes the list, and verifying it is a separate step.
+// trustListJWT builds an unsigned ETSI TS 119 602 list. Parse only decodes
+// the list. Signature verification is a separate step.
 func trustListJWT(t *testing.T, payload map[string]any) string {
 	t.Helper()
 	header, err := json.Marshal(map[string]any{"alg": "ES256", "typ": "JWT"})

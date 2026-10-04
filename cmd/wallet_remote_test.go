@@ -316,7 +316,7 @@ func withCLIVersion(t *testing.T, version string) {
 }
 
 // captureStdout collects what fn writes to os.Stdout. The instance listing
-// writes there directly rather than through cobra's output writer.
+// writes to os.Stdout directly and bypasses the cobra output writer.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	reader, writer, err := os.Pipe()
@@ -391,8 +391,8 @@ func TestRemoteShowImportLogsInfoViaCLI(t *testing.T) {
 		t.Fatalf("expected 1 remote credential: %v %v", creds, err)
 	}
 	id, _ := creds[0]["id"].(string)
-	// The listing carries no raw credential (an overview does not need it), so
-	// the raw string comes from the per-credential fetch.
+	// The listing carries no raw credential, so the raw string comes from the
+	// per-credential fetch.
 	one, err := client.Credential(id)
 	if err != nil {
 		t.Fatalf("fetch credential %s: %v", id, err)
@@ -644,7 +644,7 @@ func TestTrustListListsProfiles(t *testing.T) {
 		}
 	}
 
-	// A listing plus a selection is a contradiction, not a narrowed listing.
+	// Combining a listing with a selection is an error.
 	rootCmd.SetArgs([]string{"wallet", "trust-list", "--list", "--id", "pid", "--remote", url})
 	if err := rootCmd.Execute(); err == nil {
 		t.Error("--list with --id was accepted")
@@ -694,9 +694,8 @@ func TestCredStatusLabelMarksBatch(t *testing.T) {
 	}
 }
 
-// The display name and description reach the CLI from a remote wallet as a JSON
-// object and from a local wallet as the struct value, so the reader tolerates
-// both.
+// A remote wallet sends the display name and description as a JSON object.
+// A local wallet passes the struct value. The CLI must read both.
 func TestCredDisplayReadsMapAndStruct(t *testing.T) {
 	fromMap := map[string]any{"display": map[string]any{"name": "EUDI PID", "description": "a sample"}}
 	if got := credDisplayName(fromMap); got != "EUDI PID" {
@@ -724,8 +723,8 @@ func TestCredDisplayReadsMapAndStruct(t *testing.T) {
 
 // Distinguish an expired credential from one with no expiry claim.
 func TestCredentialValidityLabel(t *testing.T) {
-	// RFC 3339 carries whole seconds, and the label floors rather than
-	// overstating what is left, so the stamps get a second of slack.
+	// RFC 3339 carries whole seconds and the label rounds down, so the stamps
+	// get one second of slack.
 	stamp := func(d time.Duration) map[string]any {
 		return map[string]any{"expires_at": time.Now().Add(d + time.Second).UTC().Format(time.RFC3339)}
 	}

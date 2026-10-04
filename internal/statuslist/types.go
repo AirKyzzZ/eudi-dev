@@ -41,8 +41,7 @@ const (
 	FormatCWT = "cwt"
 )
 
-// CWT claim keys from Section 5.2. The Status List Token in CWT format keys
-// its claims by integer, so nothing here can be looked up by name.
+// CWT claim keys from Section 5.2. The CWT format keys its claims by integer.
 const (
 	cwtClaimIssuer     = 1
 	cwtClaimSubject    = 2
@@ -60,10 +59,8 @@ const (
 	coseHeaderX5Chain = 33
 )
 
-// StatusRef is a reference to a status list entry in a credential. Invalid is
-// set when the status_list object cannot be used: Section 6.2 makes idx and
-// uri REQUIRED, so a reference missing either is a broken credential rather
-// than one without status information.
+// StatusRef is a reference to a status list entry in a credential. Section 6.2
+// makes idx and uri REQUIRED. Invalid is set when either is missing.
 type StatusRef struct {
 	URI     string `json:"uri"`
 	Idx     int    `json:"idx"`
@@ -77,7 +74,7 @@ type StatusResult struct {
 	StatusName   string `json:"statusName"`
 	IsValid      bool   `json:"isValid"`
 	BitsPerEntry int    `json:"bitsPerEntry"`
-	// Format is "jwt" or "cwt", the representation the Status Provider served.
+	// Format is the representation the Status Provider served, "jwt" or "cwt".
 	Format string `json:"format"`
 	// Subject is the sub (or CWT claim 2) of the Status List Token.
 	Subject string `json:"subject,omitempty"`
@@ -85,8 +82,8 @@ type StatusResult struct {
 	// whose signature does not verify is reported as an error.
 	SignatureValid *bool `json:"signatureValid,omitempty"`
 	SignatureInfo  string
-	// TrustAnchored reports whether the signing key was chained to a
-	// caller-supplied trust anchor rather than taken from the token itself.
+	// TrustAnchored reports whether the signing key chains to a caller-supplied
+	// trust anchor.
 	TrustAnchored bool `json:"trustAnchored"`
 	// Warnings collect conformance problems that did not stop the check.
 	Warnings []string `json:"warnings,omitempty"`
@@ -95,15 +92,15 @@ type StatusResult struct {
 
 type CheckOptions struct {
 	HTTPClient *http.Client
-	// TrustListCerts are the CA certificates the token's chain must validate
-	// against. When empty the key comes from the token itself and the result
-	// is marked as not trust anchored, but the signature is still verified:
-	// "Relying Parties MUST reject JWTs with an invalid signature" (§5.1).
+	// TrustListCerts are the CA certificates for the token's chain. When empty
+	// the key comes from the token and the result is not trust anchored. The
+	// signature is still verified: "Relying Parties MUST reject JWTs with an
+	// invalid signature" (§5.1).
 	TrustListCerts []TrustCert
 
 	// Keys are public keys resolved out of band. Section 11.3 leaves key
-	// resolution to the ecosystem, so a caller that already knows the Status
-	// Issuer's key can supply it for a token that carries no key material.
+	// resolution to the ecosystem, so a caller can supply the Status Issuer's key
+	// for a token without key material.
 	Keys []crypto.PublicKey
 
 	// Now overrides the current time used for the exp check. The zero value
@@ -122,7 +119,7 @@ type TrustCert struct {
 	Raw []byte
 }
 
-// StatusName names a Status Type value from Section 7.1.
+// StatusName returns the name of a Status Type value from Section 7.1.
 func StatusName(value int) string {
 	switch {
 	case value == 0:

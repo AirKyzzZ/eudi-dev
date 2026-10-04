@@ -114,9 +114,9 @@ func TestVerifyClientID_X509SanDNS(t *testing.T) {
 	}
 }
 
-// x509_san_dns binds the response destination's FQDN to the client_id
-// (OID4VP 1.0 §5.9.1): a signed request from a valid certificate must not send
-// the response, and the disclosed claims, to another host. The DC API is
+// x509_san_dns binds the FQDN of the response destination to the client_id
+// (OID4VP 1.0 §5.9.1). A signed request with a valid certificate cannot send
+// the response and its disclosed claims to another host. The DC API is
 // origin-bound and exempt.
 func TestVerifyClientID_X509SanDNSResponseFQDN(t *testing.T) {
 	certB64, _ := testCertDER([]string{"example.com"})
@@ -500,11 +500,11 @@ func TestVerifyRequestObjectSignature(t *testing.T) {
 	}
 }
 
-// The x5c requirement applies only to the x509 client_id prefixes, whose
-// signing certificate travels in the x5c header. A signed Request Object under
-// verifier_attestation:/decentralized_identifier: takes its key from the
-// attestation JWT or the DID, so it carries no x5c and must not draw a finding.
-// An x509 prefix without x5c still must.
+// The x5c requirement applies only to the x509 client_id prefixes. Their
+// signing certificate travels in the x5c header. Under verifier_attestation:
+// and decentralized_identifier: the key comes from the attestation JWT or the
+// DID, so a missing x5c draws no finding there. An x509 prefix without x5c
+// draws one.
 func TestVerifyRequestObjectSignature_X5CScopedToX509Prefixes(t *testing.T) {
 	header := map[string]any{
 		"alg": "ES256",
@@ -580,9 +580,8 @@ func TestVerifyClientID_RedirectURIAllowsUnsignedRequestObject(t *testing.T) {
 }
 
 // OID4VP 1.0 §5.9.3 reserves the origin prefix: "The Wallet MUST NOT accept
-// this Client Identifier Prefix in requests." It names the audience of a
-// Digital Credentials API presentation, so a request carrying it is asking to
-// be audienced somewhere the wallet did not derive from the platform origin.
+// this Client Identifier Prefix in requests." The wallet derives that audience
+// from the platform origin, so a request cannot set it.
 func TestVerifyClientIDRejectsReservedAndUnsupportedPrefixes(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -605,10 +604,9 @@ func TestVerifyClientIDRejectsReservedAndUnsupportedPrefixes(t *testing.T) {
 	}
 }
 
-// A Client Identifier with no colon references a pre-registered client, which
-// §5.9.2 makes explicit: "If a : character is not present in the Client
-// Identifier, the Wallet MUST treat the Client Identifier as referencing a
-// pre-registered client."
+// §5.9.2: "If a : character is not present in the Client Identifier, the
+// Wallet MUST treat the Client Identifier as referencing a pre-registered
+// client."
 func TestBareClientIDIsPreRegisteredRatherThanUnknown(t *testing.T) {
 	if !hasKnownClientIDPrefix("example-client") {
 		t.Error("a bare client_id was reported as an unsupported prefix")
@@ -618,8 +616,8 @@ func TestBareClientIDIsPreRegisteredRatherThanUnknown(t *testing.T) {
 	}
 }
 
-// Name unsupported key resolution so an unverified request cannot appear verified
-// (ADR-0013).
+// The finding states which key resolution the wallet does not support, so an
+// unverified request never looks verified (ADR-0013).
 func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 	header := map[string]any{"alg": "ES256", "typ": "oauth-authz-req+jwt"}
 	payload := map[string]any{"response_type": "vp_token", "nonce": "n"}
@@ -650,7 +648,7 @@ func TestVerifyRequestObjectSignature_NamesWhatItCouldNotVerify(t *testing.T) {
 	}
 }
 
-// Avoid duplicate findings when another check already reports the unsigned or
+// No duplicate finding when another check already reports the unsigned or
 // improperly signed request.
 func TestVerifyRequestObjectSignature_QuietWhereAnotherCheckSpeaks(t *testing.T) {
 	header := map[string]any{"alg": "none", "typ": "oauth-authz-req+jwt"}

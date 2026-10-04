@@ -20,8 +20,8 @@ import (
 	"testing"
 )
 
-// A URL handed to the browser can come from a remote wallet, and the opener
-// launches more than web pages, so anything but http(s) has to be refused.
+// A URL handed to the browser can come from a remote wallet. The system
+// opener launches more than web pages, so only http and https are allowed.
 func TestIsWebURL(t *testing.T) {
 	for _, tc := range []struct {
 		url  string
@@ -72,8 +72,8 @@ func TestHasDesktopSession(t *testing.T) {
 	}
 }
 
-// OID4VP has the wallet return the user agent to the verifier, but a script
-// running presentations does not want browser windows appearing.
+// OpenID4VP has the wallet return the user agent to the verifier. A script
+// that runs presentations must not open browser windows.
 func TestFollowVerifierRedirectPrintsTheURL(t *testing.T) {
 	t.Cleanup(func() { noOpen = false })
 	noOpen = true

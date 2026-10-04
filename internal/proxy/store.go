@@ -64,8 +64,7 @@ func (s *Store) Add(entry *TrafficEntry) {
 	if len(s.entries) >= s.maxSize {
 		evicted := s.entries[0]
 		s.entries = s.entries[1:]
-		// Remove evicted correlation keys to bound memory use during long proxy
-		// sessions.
+		// Evicted correlation keys are removed to bound memory in long proxy sessions.
 		for _, key := range ExtractCorrelationKeys(evicted) {
 			delete(s.flows, key)
 		}
@@ -77,12 +76,12 @@ func (s *Store) Add(entry *TrafficEntry) {
 	}
 	s.mu.Unlock()
 
-	// Notify outside of lock to avoid blocking
+	// Notification runs outside the lock, so a slow subscriber blocks nothing.
 	for _, ch := range subs {
 		select {
 		case ch <- entry:
 		default:
-			// subscriber too slow, skip
+			// A slow subscriber misses the entry.
 		}
 	}
 }

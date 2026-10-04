@@ -29,8 +29,8 @@ import (
 	"github.com/gofrs/flock"
 )
 
-// tempPrefix marks an in-flight write. No key the wallet writes starts with
-// it, so List can hide such files.
+// tempPrefix marks an in-flight write. No wallet key starts with it, so List
+// can hide such files.
 const tempPrefix = ".tmp-"
 
 type fileStore struct {
@@ -58,10 +58,9 @@ func (s *fileStore) Read(key string) ([]byte, error) {
 	return os.ReadFile(s.path(key))
 }
 
-// Write creates the file's directory when it is missing: 0755 for a
-// world-readable blob, 0700 otherwise. The file is created with perm under
-// the process umask, written beside the target and renamed into place, so a
-// concurrent reader or a crash never sees a partial file.
+// Write creates a missing directory with 0755 for a world-readable blob and
+// 0700 otherwise. The file is written beside the target and renamed into
+// place, so a concurrent reader or a crash never sees a partial file.
 func (s *fileStore) Write(key string, data []byte, perm fs.FileMode) (Stamp, error) {
 	lock, err := s.writeLock()
 	if err != nil {

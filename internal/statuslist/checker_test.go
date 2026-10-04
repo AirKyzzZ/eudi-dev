@@ -51,7 +51,7 @@ func testChain(t *testing.T) (*ecdsa.PrivateKey, *x509.Certificate, *x509.Certif
 	return issuerKey, leafCert, caCert
 }
 
-// Start the server before generating the token so sub can name its actual URL.
+// The server starts before the token exists, so sub can hold its actual URL.
 func statusListServer(t *testing.T, gen func(uri string) (string, []byte)) *httptest.Server {
 	t.Helper()
 	var srv *httptest.Server
@@ -174,7 +174,7 @@ func TestExtractStatusRef(t *testing.T) {
 }
 
 func TestExtractStatus(t *testing.T) {
-	// Build a bitstring: byte 0 = 0b00000101 (idx 0 = 1, idx 1 = 0, idx 2 = 1)
+	// byte 0 = 0b00000101 (idx 0 = 1, idx 1 = 0, idx 2 = 1)
 	bitstring := []byte{0x05, 0x00}
 
 	tests := []struct {
@@ -381,8 +381,8 @@ func TestZlibDecompress(t *testing.T) {
 	}
 }
 
-// Both idx and bits are untrusted. Reject invalid values without panicking or
-// returning a fabricated status.
+// idx and bits are untrusted. An invalid value must fail without a panic or a
+// made-up status.
 func TestExtractStatus_RefusesHostileParameters(t *testing.T) {
 	bitstring := []byte{0xFF, 0x00, 0xAA}
 
@@ -434,8 +434,7 @@ func TestExtractStatus_ReadsEveryAllowedWidth(t *testing.T) {
 	}
 }
 
-// Limit decompression because credentials can point to attacker-controlled status
-// lists.
+// A credential can point to an attacker-controlled status list.
 func TestZlibDecompress_RefusesABomb(t *testing.T) {
 	var buf bytes.Buffer
 	w := zlib.NewWriter(&buf)

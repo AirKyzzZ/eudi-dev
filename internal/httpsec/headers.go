@@ -13,15 +13,14 @@
 // limitations under the License.
 
 // Package httpsec applies browser security headers to pages that display untrusted
-// credentials, metadata and protocol messages. The headers limit the impact of an
-// escaping defect.
+// credentials, metadata and protocol messages. The headers limit the damage of an
+// escaping bug.
 package httpsec
 
 import "net/http"
 
-// ContentSecurityPolicy restricts scripts and styles to this origin. Blocking inline
-// scripts prevents injected event handlers from running. Other directives restrict
-// plugins, framing, forms, fetches and images.
+// ContentSecurityPolicy restricts scripts and styles to this origin. With inline
+// scripts blocked, injected event handlers cannot run.
 const ContentSecurityPolicy = "default-src 'self'; " +
 	"script-src 'self'; " +
 	"style-src 'self' 'unsafe-inline'; " +
@@ -33,10 +32,9 @@ const ContentSecurityPolicy = "default-src 'self'; " +
 	"form-action 'self'; " +
 	"frame-ancestors 'none'"
 
-// Headers wraps a handler with the browser security headers: the policy
-// above, no MIME sniffing (a stored credential served as JSON must never be
-// interpreted as HTML), no framing, and no referrer leaking URLs to a
-// verifier or issuer.
+// Headers wraps a handler with the browser security headers. A stored
+// credential served as JSON must never be sniffed as HTML. The referrer must
+// not leak URLs to a verifier or issuer.
 func Headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()

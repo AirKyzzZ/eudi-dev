@@ -65,8 +65,7 @@ func FromMDOC(doc *mdoc.Document) *Query {
 	var claims []ClaimQuery
 	namespaces := sortedKeys(doc.NameSpaces)
 	for _, ns := range namespaces {
-		// Copy before sorting: sorting doc.NameSpaces[ns] in place would reorder
-		// the caller's document.
+		// Sorting doc.NameSpaces[ns] in place reorders the caller's document.
 		items := append([]mdoc.IssuerSignedItem(nil), doc.NameSpaces[ns]...)
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].ElementIdentifier < items[j].ElementIdentifier
@@ -91,7 +90,7 @@ func FromMDOC(doc *mdoc.Document) *Query {
 	return &Query{Credentials: []CredentialQuery{cq}}
 }
 
-// skipClaims are standard JWT claims that shouldn't be in DCQL queries.
+// skipClaims are JWT protocol claims that a DCQL query never requests.
 var skipClaims = map[string]bool{
 	"iss": true, "sub": true, "aud": true, "exp": true,
 	"nbf": true, "iat": true, "jti": true, "vct": true,
@@ -126,7 +125,7 @@ func extractPaths(prefix []any, v any) []ClaimQuery {
 			result = append(result, extractPaths(path, val[k])...)
 		}
 		if len(result) == 0 {
-			// Object with only _sd entries (all sub-claims undisclosed). Request the object itself
+			// An object with only _sd entries has no visible sub-claims, so the query requests the object.
 			return []ClaimQuery{{Path: prefix}}
 		}
 		return result
@@ -141,9 +140,8 @@ func extractPaths(prefix []any, v any) []ClaimQuery {
 // sanitizeID turns a credential type into a Credential Query id.
 //
 // OID4VP 1.0 Section 6.1: the id "MUST be a non-empty string consisting of
-// alphanumeric, underscore (_), or hyphen (-) characters", so every other
-// character becomes an underscore. A vct is a URN and a doctype is a reverse
-// domain name, and both carry separators no id may contain.
+// alphanumeric, underscore (_), or hyphen (-) characters". Every other
+// character becomes an underscore.
 func sanitizeID(s string) string {
 	var b strings.Builder
 	for _, r := range s {

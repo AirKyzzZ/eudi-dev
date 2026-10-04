@@ -114,8 +114,7 @@ func TestVerifyErrors(t *testing.T) {
 	}
 }
 
-// "none" is deliberately absent from the supported algorithms, so a token
-// that declares it must not be parsed into something that verifies.
+// A token with alg "none" must never verify.
 func TestVerifyRefusesTheNoneAlgorithm(t *testing.T) {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"attacker"}`))
@@ -126,9 +125,8 @@ func TestVerifyRefusesTheNoneAlgorithm(t *testing.T) {
 	}
 }
 
-// The algorithm list is passed to the parser rather than taken from the
-// token, so an HMAC token cannot ask to be checked as an HMAC against a key
-// the caller believes is a public key.
+// An HMAC token must not be checked as an HMAC against a key the caller
+// treats as a public key.
 func TestVerifyRefusesASymmetricAlgorithm(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	signer, err := josev4.NewSigner(josev4.SigningKey{Algorithm: josev4.HS256, Key: secret}, nil)

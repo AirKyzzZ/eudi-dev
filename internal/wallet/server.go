@@ -48,11 +48,11 @@ type Server struct {
 	issuerTLSCert    *tls.Certificate
 	issuerPort       int
 	parseOpts        oid4vc.ParseOptions
-	// routeRoots holds the first path segment of every route and static file, for
-	// CheckBasePath.
+	// routeRoots holds the first path segment of every route and static file.
+	// CheckBasePath tests --base-url against it.
 	routeRoots map[string]bool
-	// store is read without storeSyncMu: the log sink runs inside mutations
-	// that hold it.
+	// Read store without storeSyncMu. The log sink runs inside mutations that
+	// already hold it.
 	store       atomic.Pointer[WalletStore]
 	storeSyncMu sync.Mutex
 	// Skip reparsing unchanged files. Periodic reloads also catch writes that leave
@@ -77,7 +77,7 @@ type Server struct {
 	tlsMu       sync.RWMutex
 	version     string
 	imprintHTML []byte
-	// ShutdownFunc runs after POST /api/shutdown responded. The serve command
+	// ShutdownFunc runs after POST /api/shutdown has responded. The serve command
 	// sets it to deregister the instance and exit. When nil the process exits
 	// directly.
 	ShutdownFunc func()
@@ -516,8 +516,8 @@ func (s *Server) saveIssuedCredential(result *IssuanceResult) {
 		if _, ok := s.wallet.GetCredential(result.Imported.ID); !ok {
 			s.wallet.RestoreCredential(*result.Imported)
 		}
-		// A reload may also remove the credential's local status entry. Adoption is
-		// idempotent, so restoring it here is safe.
+		// A reload may also have removed the credential's local status entry.
+		// Adoption is idempotent.
 		s.wallet.adoptOwnStatusEntry(result.Imported)
 		if s.onSave != nil {
 			s.onSave()

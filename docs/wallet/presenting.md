@@ -19,7 +19,7 @@ In interactive mode (the default), OID4VP requests start a temporary consent UI 
 
 When a verifier responds to a presentation with a `redirect_uri`, the wallet prints the URL and opens it in a browser (a same-device flow returns to the verifier's site). A scripted run, or a host without a desktop, only prints it. `--no-open` disables opening.
 
-`debug` mode matches DCQL queries loosely, which helps troubleshoot verifier queries. A credential that matches the requested format and metadata and at least one requested claim counts as a match with a warning, even when other required claim paths are missing. `strict` mode requires every claim path.
+`debug` mode matches DCQL queries loosely to help troubleshoot verifier queries. A credential that matches the requested format and metadata and at least one requested claim counts as a match with a warning, even when other required claim paths are missing. `strict` mode requires every claim path.
 
 ```bash
 eudi wallet accept 'openid4vp://authorize?...' --auto-accept
@@ -134,7 +134,13 @@ PKCE and DPoP metadata is checked when present. A server advertising PKCE withou
 
 For pre-authorized offers, only the HTTPS transport rule applies to this part of validation. HAIP §4 requires support for authorization code issuance but scopes PAR to use of the authorization endpoint.
 
-The prefix rule comes from the profile. §5 allows only `x509_hash` for signed requests, so `x509_san_dns` is refused even though OpenID4VP defines it. An unsigned request is one that arrives over the Digital Credentials API without a Request Object. Appendix A.2 of OpenID4VP says such a request carries no `client_id` and a wallet ignores one that is present. The caller is identified by the origin the platform reports. §7 requires at least ES256, and this wallet advertises ES256 in `request_object_signing_alg_values_supported`. As a client the wallet always follows the profile (PAR, PKCE S256, DPoP, wallet attestation when advertised, ES256 proofs, key attestation), so `--haip` only affects how it validates issuers and verifiers.
+§5 of the profile allows only `x509_hash` for signed requests. The wallet therefore refuses `x509_san_dns`, although OpenID4VP defines it.
+
+An unsigned request arrives over the Digital Credentials API without a Request Object. Appendix A.2 of OpenID4VP says such a request carries no `client_id`, and a wallet ignores one that is present. The origin reported by the platform identifies the caller.
+
+§7 requires at least ES256. The wallet advertises ES256 in `request_object_signing_alg_values_supported`.
+
+As a client the wallet always follows the profile (PAR, PKCE S256, DPoP, wallet attestation when advertised, ES256 proofs, key attestation). `--haip` only changes how it validates issuers and verifiers.
 
 ```bash
 eudi wallet serve --haip --auto-accept --pid

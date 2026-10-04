@@ -102,9 +102,8 @@ func TestParse_BasicSDJWT(t *testing.T) {
 	}
 }
 
-// RFC 9901 §4 requires the tilde after the last disclosure. An SD-JWT that
-// drops it is still parsed (the last component is read as a disclosure), and
-// Parse records a warning.
+// RFC 9901 §4 requires the tilde after the last disclosure. Without it the
+// last component is read as a disclosure, and Parse records a warning.
 func TestParse_MissingTrailingTilde(t *testing.T) {
 	payload := map[string]any{
 		"iss":     "https://issuer.example",
@@ -202,8 +201,8 @@ func TestSDAlgFromPayload(t *testing.T) {
 	}
 }
 
-// The KB-JWT sd_hash follows the credential's _sd_alg, so a credential issued
-// under SHA-384 must hash with SHA-384, not the SHA-256 default.
+// The KB-JWT sd_hash follows the credential's _sd_alg. A credential issued
+// under SHA-384 hashes with SHA-384.
 func TestSDHash_FollowsSDAlg(t *testing.T) {
 	h256, err := SDHash("data~", "sha-256")
 	if err != nil {
@@ -256,7 +255,7 @@ func TestComputeDigest_Unsupported(t *testing.T) {
 }
 
 func TestParse_ArrayDisclosure(t *testing.T) {
-	// Array element disclosure: [salt, value] (2 elements)
+	// An array element disclosure is [salt, value].
 	arrDisc, digest := disclosureOf(t, "saltyy", "array-value")
 	raw := assembleSDJWT(t, map[string]any{
 		"iss":    "test",

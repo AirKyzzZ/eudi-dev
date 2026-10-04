@@ -48,7 +48,7 @@ func generateForTest(t *testing.T, cfg SDJWTConfig) string {
 
 // SD-JWT VC §2.2.2.5: "An SD-JWT VC MAY have no selectively disclosable
 // claims. In that case, the SD-JWT VC MUST NOT contain the _sd claim in the
-// JWT body. It also MUST NOT have any Disclosures." RFC 9901 §4's ABNF also
+// JWT body. It also MUST NOT have any Disclosures." RFC 9901 §4's ABNF
 // permits no empty component, so the serialization ends in a single tilde.
 func TestGenerateSDJWT_WithoutDisclosures(t *testing.T) {
 	raw := generateForTest(t, SDJWTConfig{
@@ -80,8 +80,7 @@ func TestGenerateSDJWT_WithoutDisclosures(t *testing.T) {
 
 // SD-JWT VC §2.2.2.3: iss, nbf, exp, cnf, vct, vct#integrity, aka_vcts and
 // status "MUST NOT be included in the Disclosures, i.e., cannot be
-// selectively disclosed". A Disclosure named vct would also shadow the signed
-// vct, which RFC 9901 §7.1 step 3.c.ii.3 rejects.
+// selectively disclosed".
 func TestGenerateSDJWT_ReservedClaimsStayInThePayload(t *testing.T) {
 	raw := generateForTest(t, SDJWTConfig{
 		VCT: "urn:eudi:pid:1",
@@ -150,7 +149,7 @@ func TestGenerateSDJWT_RejectsReservedClaimNames(t *testing.T) {
 // RFC 9901 §4.2.4.1: "The Issuer MUST hide the original order of the claims in
 // the array. To ensure this, it is RECOMMENDED to shuffle the array of hashes,
 // e.g., by sorting it alphanumerically or randomly, after potentially adding
-// decoy digests". Go's map iteration order is not that guarantee.
+// decoy digests".
 func TestGenerateSDJWT_SDArrayHidesClaimOrder(t *testing.T) {
 	raw := generateForTest(t, SDJWTConfig{
 		Claims: map[string]any{

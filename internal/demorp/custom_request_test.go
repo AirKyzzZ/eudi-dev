@@ -34,8 +34,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/wallet"
 )
 
-// customTestWallet is a demo wallet holding the default PID, with neither HAIP
-// nor strict validation, so both signed and unsigned custom requests present.
+// customTestWallet is a demo wallet holding the default PID. HAIP and strict
+// validation are off, so it answers both signed and unsigned custom requests.
 func customTestWallet(t *testing.T) *wallet.Wallet {
 	t.Helper()
 	holderKey, err := mock.GenerateKey()
@@ -95,10 +95,9 @@ func createCustom(t *testing.T, ts *httptest.Server, body string) string {
 	return id
 }
 
-// A custom request whose path names an array of selectively disclosable
-// elements but neither null nor an index discloses the array with no elements
-// (OpenID4VP 1.0 §7.1). The wallet discloses correctly, so the verifier sees
-// an empty array.
+// OpenID4VP 1.0 §7.1: a path that ends at an array of selectively disclosable
+// elements, without null or an index, discloses none of the elements. The
+// verifier sees an empty array.
 func TestVerifierCustomRequestBareArrayDisclosesEmpty(t *testing.T) {
 	w := customTestWallet(t)
 	_, ts := serveDemoStack(t, w)
@@ -113,8 +112,8 @@ func TestVerifierCustomRequestBareArrayDisclosesEmpty(t *testing.T) {
 	}
 }
 
-// Ending the path with null selects every element, so the same request built
-// with a null path discloses the elements.
+// A path that ends with null selects every element, so the wallet discloses
+// all of them.
 func TestVerifierCustomRequestNullArrayDisclosesElements(t *testing.T) {
 	w := customTestWallet(t)
 	_, ts := serveDemoStack(t, w)
@@ -179,9 +178,9 @@ func signingKeyPEM(t *testing.T) string {
 		string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 }
 
-// A caller-supplied signing key (an EC key and its certificate as PEM) signs the
-// request object, and the client id is derived from that certificate rather than
-// the demo's own. A malformed bundle is a client error.
+// A caller-supplied EC key and certificate (as PEM) sign the request object.
+// The client id is derived from that certificate. A malformed bundle is a
+// client error.
 func TestVerifierCustomRequestSigningKey(t *testing.T) {
 	w := customTestWallet(t)
 	_, ts := serveDemoStack(t, w)

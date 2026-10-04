@@ -1,16 +1,16 @@
 # Spec conformance is checked before and after every change
 
-Developers use this tool to check whether issuers, verifiers and wallets follow the specifications. Incorrect checks or documentation can lead them to change conformant code.
+Developers use this tool to check whether issuers, verifiers and wallets follow the specifications. A wrong check or wrong documentation can lead them to change code that was already conformant.
 
-Conformance takes priority over features and convenience. Before each change, confirm what the specification requires. Afterwards, verify the result against it.
+Conformance takes priority over features and convenience. Before each change, confirm what the specification requires. After the change, verify the result against it.
 
 ## What checking means
 
 Read the published document. A summary or a claim in the surrounding code does not count.
 
-A citation names the document, its version or date, and the section. Anything in quotation marks is verbatim from that section.
+A citation gives the document, its version or date, and the section. Anything in quotation marks is verbatim from that section.
 
-Specifications change. A profile can defer a rule to another document. A later version of that document can drop the rule while the profile still references it. Follow such a citation to the document that defines the rule, and cite that one.
+Specifications change. A profile can defer a rule to another document, and a later version of that document can drop the rule while the profile still references it. Follow the citation to the document that defines the rule, and cite that one.
 
 ## Before
 
@@ -24,11 +24,11 @@ Confirm every citation the change touches is verbatim and correctly attributed, 
 
 ## Executable checks follow the applicable specification
 
-The versioned specifications and their applicable regulatory adaptations define the requirements. Executable tests provide evidence for the requirements and scenarios they exercise. Each claim needs its specification basis and an appropriate check.
+The versioned specifications and their applicable regulatory adaptations define the requirements. An executable test covers only the requirements and scenarios it runs. Each claim needs a specification reference and a matching check.
 
 The OpenID Foundation conformance suite tests selected OpenID4VP 1.0, OpenID4VCI 1.0 and HAIP 1.0 plans and variants. The wallet plans test this wallet ([runbook](../conformance-run.md)). The issuer and verifier plans test the demo issuer and verifier ([runbook](../conformance-run-demorp.md)). [Conformance results](../conformance-results.md) record those runs and their limits. Passing these plans does not establish conformance to the full EUDI specification set.
 
-[ADR-0013](0013-only-the-eudi-stack-is-supported.md) bounds the specification set to what the ARF references. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements need checks against their own versioned sources. The toolkit's validations and tests cover implemented rules, including registration certificates and over-asking. [Spec compliance](../spec-compliance.md) lists the remaining gaps.
+[ADR-0013](0013-only-the-eudi-stack-is-supported.md) limits the specification set to what the ARF references. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements need checks against their own versioned sources. The toolkit's validations and tests cover implemented rules, including registration certificates and over-asking. [Spec compliance](../spec-compliance.md) lists the remaining gaps.
 
 ## Watched sources
 
@@ -42,8 +42,8 @@ The repository uses the OIDF suite for executable conformance tests. Check these
 
 ## Consequences
 
-Remove checks that have no specification basis. They can reject conformant input.
+Remove checks that have no specification reference. They can reject conformant input.
 
-Behaviour kept for interoperability with implementations built against an older rule may stay, as long as the code says so and does not call it a requirement. For this reason, the wallet includes the issuer in the subject alternative names of its signing leaf certificates.
+Behaviour kept for interoperability with implementations of an older rule may stay. The code must say so and must not call it a requirement. For example, the wallet includes the issuer in the subject alternative names of its signing leaf certificates.
 
 Documentation is held to the same standard as code. `docs/spec-compliance.md`, `docs/wallet.md` and `docs/validate.md` state what is checked and why. When a rule changes, update all of them together.

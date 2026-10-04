@@ -12,32 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package credtype names the EUDI credential types this tool knows and models
+// Package credtype lists the EUDI credential types this tool knows and models
 // the inheritance between them.
 //
-// A national PID extends the country-independent one by requirement: ARF
-// v3.0.0 Annex 2, PID_14 says the vct "SHALL be urn:eudi:pid:1 for the type
-// defined in this document or a domestic type that extends it". So a verifier
-// asking for the general type is answered by the national credential, which
-// Answers decides.
+// ARF v3.0.0 Annex 2, PID_14 says the vct "SHALL be urn:eudi:pid:1 for the
+// type defined in this document or a domestic type that extends it". A
+// national PID therefore answers a request for the general PID type.
 //
-// The ARF does not say how that relationship is discovered. Type Metadata with
-// extends (draft-ietf-oauth-sd-jwt-vc-19 §5.4) is only something ARB_31 "SHOULD
-// consider defining" and needs a retrievable document, which a URN vct is not.
-// Extends therefore applies PID_14 directly. The aka_vcts claim (§2.2.2.2)
-// puts the statement in the credential itself, and Chain reads it.
+// Type Metadata with extends (draft-ietf-oauth-sd-jwt-vc-19 §5.4) needs a
+// retrievable document, and a URN vct has none. Extends applies PID_14
+// directly. The aka_vcts claim (§2.2.2.2) states further types in the
+// credential itself, and Chain reads it.
 //
-// Inheritance says what a credential is, never who may issue it (§6.6:
-// "Verifiers and Holders MUST NOT assume that any issuer who issues a
-// credential extending a known type is authorized to do so").
+// Inheritance grants no issuing authority (§6.6: "Verifiers and Holders MUST
+// NOT assume that any issuer who issues a credential extending a known type is
+// authorized to do so").
 package credtype
 
 import "strings"
 
-// The EUDI PID, country-independent and German. The German PID is a distinct
-// SD-JWT VC type but not a distinct mdoc document type: PID_05 fixes the
-// doctype at eu.europa.ec.eudi.pid.1 for every PID, and PID_06 puts national
-// elements in a domestic namespace (eu.europa.ec.eudi.pid.de.1).
+// The EUDI PID, country-independent and German. PID_05 fixes the mdoc doctype
+// at eu.europa.ec.eudi.pid.1 for every PID. PID_06 puts national elements in a
+// domestic namespace (eu.europa.ec.eudi.pid.de.1). Only the SD-JWT VC type is
+// German specific.
 const (
 	PIDVCT             = "urn:eudi:pid:1"
 	GermanPIDVCT       = "urn:eudi:pid:de:1"
@@ -46,8 +43,8 @@ const (
 	GermanPIDNamespace = "eu.europa.ec.eudi.pid.de.1"
 )
 
-// AkaVCTsClaim is the SD-JWT VC claim naming the further types a credential
-// is also of (draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.2).
+// AkaVCTsClaim is the SD-JWT VC claim that lists further types of a credential
+// (draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.2).
 const AkaVCTsClaim = "aka_vcts"
 
 const PIDVCTPrefix = "urn:eudi:pid:"
@@ -76,9 +73,9 @@ func isNumber(s string) bool {
 	return s != ""
 }
 
-// Chain returns every type a credential of type vct is also of, vct first:
-// the types its aka_vcts claim lists, then the types vct is known to extend.
-// Duplicates are dropped and an empty vct yields an empty chain.
+// Chain returns every type of a credential with type vct. The list starts with
+// vct, then the types in aka_vcts, then the types vct extends. It has no
+// duplicates. An empty vct yields an empty chain.
 func Chain(vct string, akaVCTs []string) []string {
 	if vct == "" {
 		return nil
@@ -95,8 +92,7 @@ func Chain(vct string, akaVCTs []string) []string {
 	for _, aka := range akaVCTs {
 		add(aka)
 	}
-	// Walk each parent's ancestry so a credential can match indirect base types. The
-	// seen set stops cycles.
+	// A credential also matches indirect base types. The seen set stops cycles.
 	for i := 0; i < len(chain); i++ {
 		if parent, ok := Extends(chain[i]); ok {
 			add(parent)

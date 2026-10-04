@@ -125,7 +125,7 @@ rg -n \
   "$OIDF_RUN_DIR/runner.log"
 ```
 
-When updating [Current conformance results](./conformance-results.md), include the suite tag, suite revision, wallet mode, run directory, runner log path, result matrix, and any targeted rerun evidence used to refine a failure.
+When updating [Current conformance results](./conformance-results.md), include the suite tag, suite revision, wallet mode, run directory, runner log path, result matrix, and any targeted rerun evidence that narrows down a failure.
 
 ## Outbound TLS
 
@@ -187,7 +187,7 @@ OIDF_REQUEST_TIMEOUT=60 \
   scripts/oidf-wallet-conformance.sh
 ```
 
-The wrapper starts no wallet of its own. It drives the tunneled instance over its API, including the per-module conformance switch. `OIDF_VCI_ALIAS` must match the redirect URI the deployed wallet was started with (the compose file sets `oid4vc-dev-vci-strict`). The wallet CA is fetched from the wallet's `/api/certificates/ca`. Deploy the release under certification before the run.
+The wrapper starts no wallet of its own. It drives the tunneled instance over its API, including the per-module conformance switch. `OIDF_VCI_ALIAS` must match the redirect URI the deployed wallet was started with (the compose file sets `oid4vc-dev-vci-strict`). The wrapper fetches the wallet CA from the wallet's `/api/certificates/ca`. Deploy the release under certification before the run.
 
 ### Against a local wallet through a tunnel
 

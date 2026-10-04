@@ -219,10 +219,10 @@ func parseMultiSignedBrowserAuthorizationRequest(requestObject map[string]any, o
 	return nil, fmt.Errorf("multisigned browser request did not contain a parseable signature")
 }
 
-// dcAPIData shapes an unencrypted authorization response for the data property
-// of a Digital Credentials API result. An error is cut down to its code:
-// Appendix A.4 gives the object "a single property with the name error", and
-// state is not a DC API parameter at all (Appendix A.2).
+// dcAPIData builds the data property of a Digital Credentials API result from
+// an unencrypted authorization response. An error keeps only its code. Appendix
+// A.4 gives the object "a single property with the name error". Appendix A.2
+// does not list state as a DC API parameter.
 func dcAPIData(plain map[string]any) any {
 	errorCode, isError := plain["error"].(string)
 	if !isError {
@@ -238,9 +238,9 @@ func BuildBrowserAPIResult(protocol string, response *AuthorizationResponseEnvel
 
 	switch response.ResponseMode {
 	case "dc_api.jwt":
-		// An error is carried plainly even under the encrypted response mode:
-		// Appendix A.4 defines it as "an object within the data property"
-		// with "a single property with the name error".
+		// An error stays unencrypted under dc_api.jwt too. Appendix A.4 defines
+		// it as "an object within the data property" with "a single property
+		// with the name error".
 		if response.ResponseJWT == "" && response.Plain != nil {
 			return &BrowserAPIResult{
 				Protocol: protocol,

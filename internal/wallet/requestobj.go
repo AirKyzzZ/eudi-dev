@@ -54,10 +54,10 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 				"deviceauth_alg_values": []int{-7},
 			},
 		},
-		// OID4VP 1.0 §10.1 defaults to pre-registered when this field is absent. List
-		// the supported prefixes explicitly to allow x509_hash. The wallet cannot
-		// verify verifier_attestation or decentralized_identifier requests, so it
-		// omits those prefixes.
+		// OID4VP 1.0 §10.1 defaults to pre-registered when this field is absent.
+		// Listing the prefixes allows x509_hash. The wallet cannot verify
+		// verifier_attestation or decentralized_identifier requests, so it leaves
+		// those out.
 		"client_id_prefixes_supported": []string{
 			"pre-registered",
 			"redirect_uri",
@@ -67,8 +67,8 @@ func BuildWalletMetadata(w *Wallet, clientID string) map[string]any {
 		// OID4VP 1.0 §10 uses RFC 8414 metadata, which requires
 		// response_types_supported. OpenID4VP returns vp_token (§5.6).
 		"response_types_supported": []string{"vp_token"},
-		// RFC 8414 defaults to query and fragment. Explicit response modes are needed
-		// to describe this wallet.
+		// RFC 8414 defaults to query and fragment, so the wallet lists its own
+		// response modes.
 		"response_modes_supported": []string{"direct_post", "direct_post.jwt", "dc_api", "dc_api.jwt"},
 		// OID4VP 1.0 §10 advertises response encryption for direct_post.jwt and
 		// dc_api.jwt. ECDH-ES with P-256 is the baseline. HAIP requires both A128GCM
@@ -336,7 +336,7 @@ func responseLogResult(statusCode int, details map[string]any) map[string]any {
 	return details
 }
 
-// Validates the media type required by OID4VP 1.0 §5.10.1.
+// validateRequestURIResponse checks the media type required by OID4VP 1.0 §5.10.1.
 func validateRequestURIResponse(contentType string) error {
 	if contentType == "" {
 		return fmt.Errorf("OID4VP 1.0 §5.10.1: the request_uri response is missing the Content-Type application/oauth-authz-req+jwt")

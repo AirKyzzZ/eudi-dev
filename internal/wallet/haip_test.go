@@ -32,8 +32,8 @@ import (
 	"github.com/dominikschlosser/eudi-dev/v2/internal/oid4vc"
 )
 
-// Use a real signed request with x509_hash and a CA-issued leaf. A fixture that merely
-// resembles a signed request would not exercise signature and certificate-hash checks.
+// The fixture is a real signed request with x509_hash and a CA-issued leaf, so
+// the signature and certificate hash checks run against it.
 func haipCompliantParams(t *testing.T) (*AuthorizationRequestParams, *oid4vc.RequestObjectJWT) {
 	t.Helper()
 
@@ -104,8 +104,7 @@ func TestValidateHAIPCompliance(t *testing.T) {
 			wantContain:    "Client Identifier Prefix",
 		},
 		{
-			// HAIP permits only x509_hash for signed requests, even though OpenID4VP
-			// also defines x509_san_dns.
+			// HAIP §5 permits only x509_hash for signed requests.
 			name:           "x509_san_dns is not a HAIP prefix",
 			modifyParams:   func(p *AuthorizationRequestParams) { p.ClientID = "x509_san_dns:verifier.example" },
 			wantViolations: 1,
@@ -113,8 +112,8 @@ func TestValidateHAIPCompliance(t *testing.T) {
 		},
 		{
 			// Over the redirect flow a missing Request Object is a violation.
-			// Over the Digital Credentials API it is a legitimate unsigned
-			// request, which is a separate case below.
+			// Over the Digital Credentials API it is a valid unsigned request
+			// (see the next case).
 			name: "missing request object (JAR) on the redirect flow",
 			modifyParams: func(p *AuthorizationRequestParams) {
 				p.ResponseMode = "direct_post.jwt"
@@ -132,8 +131,8 @@ func TestValidateHAIPCompliance(t *testing.T) {
 		},
 		{
 			// HAIP §5.2: "The Wallet MUST support unsigned, signed, and
-			// multi-signed requests." An unsigned one carries no client_id,
-			// and the origin the platform reports identifies the caller.
+			// multi-signed requests." An unsigned one carries no client_id.
+			// The origin the platform reports identifies the caller.
 			name: "unsigned Digital Credentials API request",
 			modifyParams: func(p *AuthorizationRequestParams) {
 				p.ClientID = ""
@@ -148,8 +147,8 @@ func TestValidateHAIPCompliance(t *testing.T) {
 		{
 			// Appendix A.2 of OID4VP: expected_origins "is not for use in
 			// unsigned requests and therefore a Wallet MUST ignore this
-			// parameter if it is present in an unsigned request", so one that
-			// names somebody else must not turn into a violation.
+			// parameter if it is present in an unsigned request". A foreign
+			// origin in it is no violation.
 			name: "unsigned request carrying expected_origins it does not match",
 			modifyParams: func(p *AuthorizationRequestParams) {
 				p.ClientID = ""
@@ -264,9 +263,8 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 			wantSub: "must be an https URL",
 		},
 		{
-			// The obligation is to offer PAR. Neither HAIP nor FAPI 2.0 asks
-			// the server to advertise require_pushed_authorization_requests,
-			// so its absence is not a violation and is covered below.
+			// HAIP requires the server to offer PAR. It does not require the
+			// server to advertise require_pushed_authorization_requests.
 			name: "no PAR endpoint for an authorization code offer",
 			mutate: func(_ *oid4vc.CredentialOffer, m map[string]any) {
 				delete(m, "pushed_authorization_request_endpoint")
@@ -274,9 +272,9 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 			wantSub: "must support pushed authorization requests",
 		},
 		{
-			// §4 scopes PAR to "when using the Authorization Endpoint", which
-			// a pre-authorized code offer never reaches. The same goes for
-			// PKCE and the flow-support advertisement.
+			// §4 scopes PAR to "when using the Authorization Endpoint". A
+			// pre-authorized code offer never reaches it. The same holds for
+			// PKCE and the authorization code flow support.
 			name: "pre-authorized code offer is judged on transport only",
 			mutate: func(o *oid4vc.CredentialOffer, m map[string]any) {
 				o.Grants = oid4vc.OfferGrants{PreAuthorizedCode: "code"}
@@ -348,8 +346,8 @@ func TestValidateHAIPIssuanceCompliance(t *testing.T) {
 	}
 }
 
-// A local demo instance serves plain http on loopback, and rejecting it for
-// that alone would make the profile untestable locally.
+// A local instance serves plain http on loopback. The profile must stay
+// testable against it.
 func TestHAIPIssuanceAllowsLoopbackHTTP(t *testing.T) {
 	for _, issuer := range []string{"http://localhost:8085/issuer", "http://127.0.0.1:8085/issuer", "https://eudi-test.dev/issuer"} {
 		offer, meta := haipCompliantIssuance()
@@ -366,9 +364,9 @@ func TestHAIPIssuanceAllowsLoopbackHTTP(t *testing.T) {
 }
 
 // A pre-authorized code offer from an issuer that meets the profile must be
-// accepted. HAIP 1.0 §4 requires support for the authorization code flow. It
-// neither requires nor forbids the pre-authorized code flow, and scopes PAR
-// to "when using the Authorization Endpoint", which this offer never reaches.
+// accepted. HAIP 1.0 §4 requires support for the authorization code flow and
+// has no rule for the pre-authorized code flow. It scopes PAR to "when using
+// the Authorization Endpoint", which this offer never reaches.
 func TestHAIPIssuanceAcceptsCompliantPreAuthorizedOffer(t *testing.T) {
 	offer := &oid4vc.CredentialOffer{
 		CredentialIssuer: "https://issuer.example",
@@ -385,8 +383,8 @@ func TestHAIPIssuanceAcceptsCompliantPreAuthorizedOffer(t *testing.T) {
 	}
 }
 
-// HAIP requires client authentication but does not require its advertisement in
-// metadata. Missing metadata alone is not a violation.
+// HAIP requires client authentication. It does not require metadata to
+// advertise it, so missing metadata is no violation.
 func TestValidateHAIPIssuanceCompliance_SilentClientAuthIsNotAViolation(t *testing.T) {
 	offer := &oid4vc.CredentialOffer{
 		CredentialIssuer: "https://issuer.example",
@@ -405,19 +403,16 @@ func TestValidateHAIPIssuanceCompliance_SilentClientAuthIsNotAViolation(t *testi
 	}
 }
 
-// An issuer that supports PAR and does not advertise
-// require_pushed_authorization_requests is conformant: RFC 9126 makes the
-// parameter optional and defaults it to false. HAIP 1.0 §4 scopes PAR to
-// "when using the Authorization Endpoint" and otherwise defers to FAPI 2.0,
-// which obliges the server to reject non-PAR authorization requests rather
-// than to declare anything in metadata.
+// An issuer that supports PAR without advertising
+// require_pushed_authorization_requests conforms to HAIP 1.0 §4. RFC 9126
+// makes the parameter optional with a default of false.
 func TestHAIPIssuanceAcceptsPARWithoutTheRequireFlag(t *testing.T) {
 	offer := &oid4vc.CredentialOffer{
 		CredentialIssuer: "https://issuer.eudiw.dev",
 		Grants:           oid4vc.OfferGrants{IssuerState: "abc"},
 	}
 	// The authorization server metadata of an ecosystem reference issuer,
-	// copied rather than summarised.
+	// copied verbatim.
 	meta := map[string]any{
 		"issuer":                                "https://issuer.eudiw.dev",
 		"authorization_endpoint":                "https://issuer.eudiw.dev/authorize",
@@ -431,8 +426,7 @@ func TestHAIPIssuanceAcceptsPARWithoutTheRequireFlag(t *testing.T) {
 			"RS256", "RS384", "RS512", "ES256", "ES384", "ES512",
 			"HS256", "HS384", "HS512", "PS256", "PS384", "PS512",
 		},
-		// No require_pushed_authorization_requests, which RFC 9126 makes
-		// optional and this server does not publish.
+		// No require_pushed_authorization_requests (optional in RFC 9126).
 	}
 
 	if violations := ValidateHAIPIssuanceCompliance(offer, meta); len(violations) > 0 {
@@ -529,9 +523,8 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 			"response_mode": "dc_api.jwt",
 			"nonce":         "n",
 		}
-		// Built by hand: SignRequestObjectJWT strips a self-signed anchor from
-		// the chain it builds, which is the behaviour HAIP asks for, so the
-		// forbidden shape has to be assembled directly to test the check.
+		// SignRequestObjectJWT strips a self-signed anchor from the chain, as
+		// HAIP requires. The test builds the forbidden chain by hand.
 		raw, err := jws.Sign(map[string]any{
 			"alg": "ES256",
 			"typ": "oauth-authz-req+jwt",
@@ -567,8 +560,7 @@ func TestHAIPRejectsSelfSignedAndAnchoredChains(t *testing.T) {
 	})
 }
 
-// HAIP §5.3.1 and §5.3.2 name mso_mdoc and dc+sd-jwt. The profile covers those
-// two formats and no others.
+// HAIP §5.3.1 and §5.3.2 profile only mso_mdoc and dc+sd-jwt.
 func TestHAIPRejectsCredentialFormatsOutsideTheProfile(t *testing.T) {
 	params, reqObj := haipCompliantParams(t)
 	params.DCQLQuery = map[string]any{"credentials": []any{
@@ -583,9 +575,9 @@ func TestHAIPRejectsCredentialFormatsOutsideTheProfile(t *testing.T) {
 
 // HAIP §5: "Verifiers MUST list both A128GCM and A256GCM in
 // encrypted_response_enc_values_supported in their client metadata." A
-// Verifier listing one of them is reported in every mode and the exchange
-// goes on with the algorithm it names, since a wallet needs only one. A
-// Verifier listing neither is refused in strict mode.
+// Verifier listing one of them gets a warning in every mode, and the wallet
+// encrypts with that one. A Verifier listing neither is refused in strict
+// mode.
 func TestHAIPContentEncryptionAlgorithmsListing(t *testing.T) {
 	for _, listed := range []any{[]any{"A128GCM"}, []any{"A256GCM"}} {
 		params, reqObj := haipCompliantParams(t)
@@ -655,7 +647,8 @@ func selfSignedCert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
 	return cert, key
 }
 
-// HAIP selects checks. Validation mode decides whether their findings stop the flow.
+// HAIP checks run in every mode. The validation mode decides whether a
+// finding stops the flow.
 func TestHAIPChecksRunInBothModesAndTheModeDecidesSeverity(t *testing.T) {
 	violating := func(t *testing.T) *AuthorizationRequestParams {
 		t.Helper()

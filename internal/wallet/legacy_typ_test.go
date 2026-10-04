@@ -54,8 +54,8 @@ func legacyTypeCredential(t *testing.T, w *Wallet) string {
 }
 
 // draft-ietf-oauth-sd-jwt-vc-19 §2.2.1 requires the typ dc+sd-jwt. Debug mode
-// keeps a credential on the earlier vc+sd-jwt typ and records the deviation,
-// strict mode refuses it.
+// keeps a credential with the earlier vc+sd-jwt typ and records the deviation.
+// Strict mode refuses it.
 func TestImportSDJWT_LegacyType(t *testing.T) {
 	t.Run("debug keeps it", func(t *testing.T) {
 		w := generateTestWallet(t)

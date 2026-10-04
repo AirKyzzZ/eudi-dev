@@ -130,11 +130,9 @@ func TestGenerateSDJWT_DefaultClaims(t *testing.T) {
 	}
 }
 
-// The German PID states the country-independent type it is also of in
-// aka_vcts, and that claim has to be readable without a Disclosure: a
-// verifier decides whether the credential answers its request before the
-// holder has agreed to disclose anything (SD-JWT VC §2.2.2.3 forbids
-// disclosing it).
+// The German PID lists the country-independent type in aka_vcts. SD-JWT VC
+// §2.2.2.3 forbids disclosing it, and a verifier matches its request before
+// the holder discloses anything.
 func TestGenerateSDJWT_GermanPIDCarriesAkaVCTsPlainly(t *testing.T) {
 	key, err := GenerateKey()
 	if err != nil {
@@ -194,8 +192,7 @@ func TestGenerateSDJWT_PIDClaims(t *testing.T) {
 		t.Fatalf("sdjwt.Parse: %v", err)
 	}
 
-	// SD-JWT PID claims: one disclosure per top-level claim plus disclosures for
-	// nested object properties and array elements.
+	// One disclosure per top-level claim, plus one per nested property and array element.
 	expectedTotal := len(SDJWTPIDClaims)
 	for _, value := range SDJWTPIDClaims {
 		switch v := value.(type) {
@@ -688,8 +685,7 @@ func TestGenerateSDJWT_AlwaysDisclosedNestedPath(t *testing.T) {
 		t.Error("address must not be plainly in the payload")
 	}
 
-	// Inside the address disclosure value, country is plain and locality is a
-	// sub-disclosure: exactly address + locality disclosures exist.
+	// country stays plain in the address value, so only address and locality are disclosures.
 	if len(token.Disclosures) != 2 {
 		t.Fatalf("expected 2 disclosures (address, locality), got %d", len(token.Disclosures))
 	}

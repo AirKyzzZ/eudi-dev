@@ -84,9 +84,9 @@ func TestEvaluateDCQL_BothPIDTypesHeld(t *testing.T) {
 	}
 }
 
-// A credential of a type this tool knows nothing about still answers for the
-// types its aka_vcts claim names (draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.2),
-// which is how an issuer states inheritance without retrievable Type Metadata.
+// A credential of an unknown type still matches the types in its aka_vcts
+// claim (draft-ietf-oauth-sd-jwt-vc-19 §2.2.2.2). This lets an issuer state
+// inheritance without retrievable Type Metadata.
 func TestEvaluateDCQL_AkaVCTsFromAnUnknownType(t *testing.T) {
 	w := generateTestWallet(t)
 	w.Credentials = append(w.Credentials, StoredCredential{
@@ -108,9 +108,9 @@ func TestEvaluateDCQL_AkaVCTsFromAnUnknownType(t *testing.T) {
 	}
 }
 
-// The mdoc PIDs share a doctype, because ISO/IEC 18013-5 has no inheritance
-// between document types: a doctype request reaches both, and the German
-// elements are addressable in their own namespace.
+// The mdoc PIDs share a doctype because ISO/IEC 18013-5 has no inheritance
+// between document types. A doctype request reaches both. The German elements
+// live in their own namespace.
 func TestEvaluateDCQL_MDocPIDsShareTheirDoctype(t *testing.T) {
 	w := generateTestWallet(t)
 	if err := w.GenerateProtectedDefaults(); err != nil {

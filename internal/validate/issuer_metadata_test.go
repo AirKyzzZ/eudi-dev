@@ -96,7 +96,8 @@ func TestVerifyJWTSignature_UsesIssuerMetadata(t *testing.T) {
 	}
 }
 
-// Use an unreachable issuer to prove verification uses the embedded chain offline.
+// newX5CToken uses an unreachable issuer, so a pass proves offline verification
+// with the embedded chain.
 func newX5CToken(t *testing.T) (*sdjwt.Token, []trustlist.CertInfo) {
 	t.Helper()
 	caCert, caKey, caDER := generateCACert(t)
@@ -154,9 +155,8 @@ func TestVerifyJWTSignature_X5CChainOutranksLeaf(t *testing.T) {
 func TestVerifyJWTSignature_UnmatchedTrustListDoesNotFallBackToLeaf(t *testing.T) {
 	token, _ := newX5CToken(t)
 
-	// An explicit trust list that does not anchor the chain must not be
-	// silently downgraded to a leaf-only pass. The issuer is unreachable, so
-	// verification errors instead.
+	// A trust list that does not anchor the chain must fail verification. The
+	// leaf-only check applies only without a trust list.
 	otherCA, _, otherDER := generateCACert(t)
 	foreign := []trustlist.CertInfo{{PublicKey: otherCA.PublicKey, Raw: otherDER}}
 

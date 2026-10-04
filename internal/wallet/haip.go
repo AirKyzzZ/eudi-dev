@@ -27,8 +27,8 @@ import (
 )
 
 // ValidateHAIPCompliance checks an authorization request against HAIP 1.0 and
-// returns the violations, empty when the request conforms. Every finding is a
-// MUST in the profile. The validation mode decides what a violation does.
+// returns the violations. Every finding is a MUST in the profile. The
+// validation mode decides what a violation does.
 func ValidateHAIPCompliance(params *AuthorizationRequestParams, reqObj *oid4vc.RequestObjectJWT) []string {
 	var violations []string
 	if params == nil {
@@ -40,11 +40,9 @@ func ValidateHAIPCompliance(params *AuthorizationRequestParams, reqObj *oid4vc.R
 	// identifies the caller instead.
 	unsigned := params.UnsignedDCAPI || (reqObj == nil && isDCAPIResponseMode(params.ResponseMode))
 
-	// A presentation made during Interactive Authorization (OpenID4VCI 1.1
-	// §6.2.1.1) is a step inside an issuance flow, whose response mode,
-	// delivery and binding that specification fixes itself. HAIP 1.0 profiles
-	// the two channels a Verifier sends an Authorization Request over, so its
-	// channel rules do not apply here. What it asks of the query still does.
+	// OpenID4VCI 1.1 §6.2.1.1 defines response mode, delivery and binding for a
+	// presentation during Interactive Authorization. The HAIP 1.0 channel rules
+	// do not apply to it. The HAIP 1.0 query rules still do.
 	interactive := isInteractiveAuthorizationResponseMode(params.ResponseMode)
 
 	// §5: "The Response type MUST be vp_token."
@@ -71,11 +69,10 @@ func ValidateHAIPCompliance(params *AuthorizationRequestParams, reqObj *oid4vc.R
 		if reqObj == nil || reqObj.Header == nil {
 			violations = append(violations, "HAIP 1.0 §5.1: signed Request Object (JAR) MUST be used")
 		}
-		// §5.1 asks for more than a signature: "Signed Authorization Requests
-		// MUST be used by utilizing JWT-Secured Authorization Request (JAR)
-		// [RFC9101] with the request_uri parameter." A request object handed
-		// over inline meets the first half only. The Digital Credentials API
-		// has no request_uri.
+		// §5.1: "Signed Authorization Requests MUST be used by utilizing
+		// JWT-Secured Authorization Request (JAR) [RFC9101] with the
+		// request_uri parameter." An inline request object is signed but has no
+		// request_uri. The Digital Credentials API has no request_uri at all.
 		if reqObj != nil && !isDCAPIResponseMode(params.ResponseMode) && params.RequestURI == "" {
 			violations = append(violations, "HAIP 1.0 §5.1: the signed Request Object MUST be delivered through the request_uri parameter")
 		}
@@ -98,9 +95,8 @@ func ValidateHAIPCompliance(params *AuthorizationRequestParams, reqObj *oid4vc.R
 }
 
 // haipEncryptionKeyViolations checks §5's requirement that the response is
-// encrypted with ECDH-ES to the Verifier's key on the P-256 curve.
-// findEncryptionJWK returns the key the response path uses (EC is preferred
-// over RSA).
+// encrypted with ECDH-ES to the Verifier's key on the P-256 curve. It checks
+// the key that findEncryptionJWK picks for the response.
 func haipEncryptionKeyViolations(reqObj *oid4vc.RequestObjectJWT, clientMetadata map[string]any) []string {
 	jwk := findEncryptionJWK(reqObj, clientMetadata)
 	if jwk == nil {
@@ -129,9 +125,9 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 	// the x5c JOSE header of the signed request. The X.509 certificate
 	// signing the request MUST NOT be self-signed."
 	//
-	// Which certificate is the anchor depends on what the checking party
-	// trusts, and this wallet holds no such list, so the finding reports the
-	// visible fact: a self-signed certificate.
+	// The trust anchor depends on what the checking party trusts. This wallet
+	// holds no trust list, so it reports what it can see: a self-signed
+	// certificate.
 	certs, _ := extractCertChain(reqObj)
 	if len(certs) > 0 {
 		leaf := certs[0]
@@ -153,8 +149,8 @@ func haipSignedRequestViolations(reqObj *oid4vc.RequestObjectJWT) []string {
 
 // haipCredentialFormatViolations checks the credential formats a DCQL query
 // asks for. §5.3.1: "The Credential Format identifier MUST be mso_mdoc."
-// §5.3.2: "The Credential Format identifier MUST be dc+sd-jwt." The profile
-// covers those two and no others.
+// §5.3.2: "The Credential Format identifier MUST be dc+sd-jwt." HAIP 1.0
+// profiles only these two formats.
 func haipCredentialFormatViolations(query map[string]any) []string {
 	credentials, _ := query["credentials"].([]any)
 	var violations []string
@@ -172,7 +168,8 @@ func haipCredentialFormatViolations(query map[string]any) []string {
 	return violations
 }
 
-// Report missing usable response encryption algorithms under HAIP 1.0 §5.
+// haipClientMetadataViolations reports client metadata that lists neither of
+// the encryption algorithms HAIP 1.0 §5 requires.
 func haipClientMetadataViolations(metadata map[string]any) []string {
 	if metadata == nil {
 		return nil
@@ -183,9 +180,9 @@ func haipClientMetadataViolations(metadata map[string]any) []string {
 	return nil
 }
 
-// HAIPAdvisories reports encryption metadata that omits A128GCM or A256GCM, both required
-// by HAIP 1.0 §5. If only one is advertised, warn in every mode and use it to encrypt the
-// response.
+// HAIPAdvisories reports client metadata that lists only one of A128GCM and
+// A256GCM. HAIP 1.0 §5 requires both. This is a warning in every mode, and the
+// wallet encrypts the response with the listed one.
 func HAIPAdvisories(params *AuthorizationRequestParams) []string {
 	if params == nil || params.ClientMetadata == nil || isInteractiveAuthorizationResponseMode(params.ResponseMode) {
 		return nil
@@ -226,10 +223,9 @@ func originAllowedByExpectedOrigins(payload map[string]any, origin string) bool 
 // ValidateHAIPIssuanceCompliance checks a credential offer and the issuer's
 // metadata against the HAIP 1.0 profile of OpenID4VCI.
 //
-// The checks follow the flow the offer drives. §4 requires an issuer to
-// support the authorization code flow but says nothing about the
-// pre-authorized one, and scopes PAR to "when using the Authorization
-// Endpoint":
+// The checks depend on the flow of the offer. §4 requires an issuer to
+// support the authorization code flow. It has no rule for the pre-authorized
+// code flow and scopes PAR to "when using the Authorization Endpoint":
 //
 //   - always: the credential issuer MUST be an https origin
 //   - authorization code offers: the authorization server MUST support the
@@ -257,33 +253,32 @@ func ValidateHAIPIssuanceCompliance(offer *oid4vc.CredentialOffer, oauthMeta map
 	if !supportsAuthorizationCodeFlow(oauthMeta) {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server must support the authorization code flow")
 	}
-	// Pushed authorization requests belong to the authorization endpoint,
-	// which an Interactive Authorization exchange never reaches (the request
-	// goes to the Authorization Challenge Endpoint, and §4 scopes PAR to "when
-	// using the Authorization Endpoint").
+	// §4 scopes PAR to "when using the Authorization Endpoint". Interactive
+	// Authorization sends its request to the Authorization Challenge Endpoint
+	// instead, so PAR does not apply there.
 	//
-	// Only the endpoint's presence is checkable: require_pushed_authorization_requests
-	// is optional in RFC 9126, and FAPI 2.0 puts the obligation on behaviour.
+	// Only the endpoint is checkable. RFC 9126 makes
+	// require_pushed_authorization_requests optional.
 	_, hasPAR := oauthMeta["pushed_authorization_request_endpoint"].(string)
 	if !hasPAR && interactiveAuthorizationEndpoint(oauthMeta) == "" {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server must support pushed authorization requests")
 	}
-	// PKCE and DPoP are behavioural requirements that no profile obliges a
-	// server to advertise (both metadata fields are optional), so absence is
-	// no evidence. A list that is present and lacks them is a violation.
+	// Both metadata fields are optional, so a missing list says nothing about
+	// PKCE or DPoP support. A list that is present and lacks them is a
+	// violation.
 	if _, declared := oauthMeta["code_challenge_methods_supported"]; declared &&
 		!metadataListContains(oauthMeta, "code_challenge_methods_supported", "S256") {
 		violations = append(violations, "HAIP 1.0 §4: the authorization server advertises PKCE without S256")
 	}
-	// ES256 specifically: §7 requires every party to support it at a minimum,
-	// and this wallet signs DPoP proofs with it.
+	// §7 requires every party to support ES256 at a minimum. This wallet signs
+	// DPoP proofs with it.
 	if _, declared := oauthMeta["dpop_signing_alg_values_supported"]; declared &&
 		!metadataListContains(oauthMeta, "dpop_signing_alg_values_supported", "ES256") {
 		violations = append(violations, "HAIP 1.0 §7: the authorization server advertises DPoP without ES256")
 	}
-	// Client authentication is not checked: §4.4.1 requires the
-	// issuer to require it, but advertising it is only a SHOULD (§10.1 of the
-	// attestation draft). The wallet finds out by authenticating.
+	// §4.4.1 requires the issuer to require client authentication. Advertising
+	// it is only a SHOULD (§10.1 of the attestation draft), so the wallet learns
+	// it by authenticating.
 
 	return violations
 }
@@ -306,10 +301,8 @@ func supportsAuthorizationCodeFlow(oauthMeta map[string]any) bool {
 	if _, declared := oauthMeta["grant_types_supported"]; declared {
 		return metadataListContains(oauthMeta, "grant_types_supported", "authorization_code")
 	}
-	// Undeclared, so it is read off the endpoints that can issue a code: the
-	// authorization endpoint, or the Authorization Challenge Endpoint that
-	// replaces it under Interactive Authorization, where the grant is still
-	// authorization_code.
+	// The Authorization Challenge Endpoint of Interactive Authorization also
+	// issues an authorization_code grant.
 	if interactiveAuthorizationEndpoint(oauthMeta) != "" {
 		return true
 	}
@@ -352,9 +345,9 @@ func metadataListContains(meta map[string]any, key, want string) bool {
 	return false
 }
 
-// haipCredentialViolations holds a received credential to §6.1.1. A credential
-// in another format, or one this wallet cannot parse, is left to the checks
-// that own it: the section is the IETF SD-JWT VC profile.
+// haipCredentialViolations checks a received credential against §6.1.1. That
+// section profiles IETF SD-JWT VC, so other formats and credentials the wallet
+// cannot parse get no findings here.
 func (w *Wallet) haipCredentialViolations(raw string) []string {
 	token, err := sdjwt.ParseLenient(strings.TrimSpace(raw))
 	if err != nil {

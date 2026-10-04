@@ -102,10 +102,9 @@ func spawnDetachedServe(cmd *cobra.Command, port int, register, noRegister bool)
 			if !ok {
 				continue
 			}
-			// A wallet already listening on this port answers the probe while
-			// our child is still starting (or has just failed to bind). When the
-			// server reports its pid (every non-demo server does), require it to
-			// be our child before declaring the detached server ready.
+			// Another wallet on this port can answer the probe while the child is still
+			// starting or has failed to bind. When the server reports a pid, it must be
+			// the child's pid before the detached server counts as ready.
 			if identity.PID != 0 && identity.PID != child.Process.Pid {
 				continue
 			}

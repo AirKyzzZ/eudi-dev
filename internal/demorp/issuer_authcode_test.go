@@ -57,9 +57,8 @@ func TestPushedAuthorizationRequestRejections(t *testing.T) {
 		wantError  string
 	}{
 		{
-			// Without a DPoP proof the request is judged on client
-			// authentication alone, and a client that presents none is refused
-			// for that.
+			// Without a DPoP proof only client authentication is checked. A
+			// client that presents none is refused.
 			name: "no client authentication",
 			form: url.Values{
 				"client_id":             {"wallet"},
@@ -86,9 +85,8 @@ func TestPushedAuthorizationRequestRejections(t *testing.T) {
 	}
 }
 
-// A request_uri nobody pushed cannot be resolved, and the error stays on the
-// authorization endpoint rather than being redirected to a URL the caller
-// supplied.
+// A request_uri nobody pushed cannot be resolved. The error is shown on the
+// authorization endpoint because the caller supplied the redirect URL.
 func TestAuthorizeRejectsAnUnknownRequestURI(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 
@@ -247,11 +245,10 @@ func pushAuthorizationRequest(t *testing.T, h http.Handler, clientID string, dpo
 	return rec
 }
 
-// Binding the authorization code to a DPoP key is the client's choice: RFC
-// 9449 §10 makes dpop_jkt OPTIONAL, and §10.1 offers the DPoP header at the
-// PAR endpoint as an alternative the client MAY use. A wallet that
-// authenticates with an attestation and a PoP JWT and binds no code is
-// complete, so the pushed request is accepted without a DPoP proof.
+// RFC 9449 §10 makes dpop_jkt OPTIONAL, and §10.1 lets the client send a DPoP
+// header at the PAR endpoint. Binding the code to a DPoP key is the client's
+// choice, so a pushed request with an attestation and a PoP JWT is accepted
+// without a DPoP proof.
 func TestPushedAuthorizationRequestWithoutDPoP(t *testing.T) {
 	d, _, _ := newDemoRP(t)
 	provider := foreignWalletProvider(t)
@@ -290,10 +287,9 @@ func TestPushedAuthorizationRequestAcceptsAnUntrustedAttester(t *testing.T) {
 	}
 }
 
-// The DPoP-combined method of draft -10 §5.2: the request carries the
-// attestation and a DPoP proof signed by the attested key, and no separate PoP
-// JWT. The key is what ties the two together, so a DPoP proof from any other
-// key proves nothing about the attestation.
+// ABCA draft -10 §5.2 defines the DPoP-combined method. The request carries
+// the attestation and a DPoP proof signed by the attested key, with no
+// separate PoP JWT. A DPoP proof from any other key is refused.
 func TestPushedAuthorizationRequestAcceptsADPoPCombinedProof(t *testing.T) {
 	provider := foreignWalletProvider(t)
 	clientKey, err := mock.GenerateKey()
@@ -451,7 +447,7 @@ func TestTokenEndpointRefusesABrokenAttestationWith400(t *testing.T) {
 // RFC 6749 §4.1.3 has it "REQUIRED, if the client is not authenticating with
 // the authorization server", and the server ensures "that the authorization
 // code was issued to the authenticated confidential client". The attestation's
-// sub names the client, so the code check runs against it.
+// sub identifies the client, so the code check runs against it.
 func TestAuthorizationCodeTokenExchangeWithoutClientIDParameter(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	h := d.IssuerHandler()
@@ -606,8 +602,8 @@ func TestAuthorizationCodeFlowWithoutClientAuthentication(t *testing.T) {
 	}
 }
 
-// RFC 9126 §4 gives a client one use of a request_uri, which is how this
-// issuer catches a wallet that resolves one pushed request twice.
+// RFC 9126 §4 gives a client one use of a request_uri. A second authorization
+// request with the same request_uri fails.
 func TestAuthorizeSpendsTheRequestURI(t *testing.T) {
 	d, _, holderKey := newDemoRP(t)
 	d.SetClientAuthMode(ClientAuthOptional)
@@ -646,7 +642,8 @@ func TestAuthorizeSpendsTheRequestURI(t *testing.T) {
 		t.Errorf("body = %s, want it to say the request_uri is spent", second.Body.String())
 	}
 
-	// The login form carries the same value back, as the issuer's own step.
+	// The issuer's own login form posts the request_uri again. That post is
+	// allowed.
 	login := postForm(t, h, "/authorize", url.Values{
 		"request_uri": {requestURI},
 		"username":    {demoAccountUsername},

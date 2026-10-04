@@ -29,8 +29,8 @@ type CheckResult struct {
 	Name   string `json:"name"`
 	Status string `json:"status"` // "pass", "fail", "skipped"
 	Detail string `json:"detail"`
-	// Marks skipped checks that require a network lookup so the UI can request them
-	// after offline decoding.
+	// NeedsNetwork marks a skipped check that needs a network lookup. The UI
+	// requests it after offline decoding.
 	NeedsNetwork bool `json:"needsNetwork,omitempty"`
 }
 
@@ -77,8 +77,8 @@ func CheckSDJWTIntegrity(token *sdjwt.Token) CheckResult {
 
 // CheckSDJWTType verifies the typ header parameter of the Issuer-signed JWT.
 // draft-ietf-oauth-sd-jwt-vc-19 §2.2.1: "The Issuer MUST include the typ
-// header parameter in the SD-JWT. The typ value MUST use dc+sd-jwt". The
-// earlier vc+sd-jwt decodes but fails this check.
+// header parameter in the SD-JWT. The typ value MUST use dc+sd-jwt". A
+// vc+sd-jwt token decodes but fails this check.
 func CheckSDJWTType(token *sdjwt.Token) CheckResult {
 	if err := sdjwt.ValidateVCType(token.Header); err != nil {
 		return CheckResult{
@@ -134,8 +134,8 @@ func collectDigestsRecursive(val any, result map[string]bool) {
 	}
 }
 
-// CheckMDOCIntegrity hashes complete IssuerSignedItem encodings and compares them with
-// MSO.ValueDigests.
+// CheckMDOCIntegrity hashes the complete IssuerSignedItem encodings and compares them
+// with MSO.ValueDigests.
 func CheckMDOCIntegrity(doc *mdoc.Document) CheckResult {
 	if doc.IssuerAuth == nil || doc.IssuerAuth.MSO == nil {
 		return CheckResult{

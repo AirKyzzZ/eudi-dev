@@ -58,7 +58,7 @@ func TestDailyScheduleNext(t *testing.T) {
 		t.Errorf("at midnight: %v", got)
 	}
 	// Across the spring DST switch the local time stays 00:00, so the gap is
-	// 23 hours rather than 24.
+	// 23 hours.
 	now = time.Date(2026, 3, 28, 12, 0, 0, 0, berlin)
 	next := s.Next(now)
 	if next.Hour() != 0 || next.Day() != 29 {

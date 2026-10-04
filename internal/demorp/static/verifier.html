@@ -51,16 +51,19 @@
     .check .fail { color: var(--red); }
     .check .warn { color: var(--yellow, #e0af68); }
     table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
-    td { border: 1px solid var(--border); padding: 4px 8px; }
-    td:first-child { color: var(--text-dim); }
+    td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
+    td:first-child { color: var(--text-dim); white-space: nowrap; }
+    td:last-child { overflow-wrap: anywhere; }
+    .claim-json { white-space: pre-wrap; }
     /* A row sets its own display, which outranks the hidden attribute. */
     [hidden] { display: none !important; }
     .format-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
     .format-label { font-size: 11px; color: var(--text-dim); }
-    .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    /* The 1px gap shows the border color between options, also when they wrap. */
+    .toggle { display: inline-flex; flex-wrap: wrap; gap: 1px; max-width: 100%; background: var(--border);
+      border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
     .toggle-option { font: inherit; font-size: 12px; padding: 6px 12px; border: 0; background: var(--bg);
-      color: var(--text-dim); cursor: pointer; }
-    .toggle-option + .toggle-option { border-left: 1px solid var(--border); }
+      color: var(--text-dim); cursor: pointer; flex-grow: 1; }
     .toggle-option.selected { background: var(--accent); color: #fff; }
     .format-hint { font-size: 11px; margin-bottom: 12px; }
     #custom-panel { margin-bottom: 12px; }
@@ -70,7 +73,7 @@
       font: inherit; font-size: 11px; background: var(--bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; }
     .cred .type-input, #client-id-input { flex: 1; min-width: 160px; }
-    .multiple-option { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+    .multiple-option { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 12px; }
     .claim-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .claim-row input { flex: 1; }
     .btn.small { font-size: 11px; padding: 4px 8px; margin: 0; }

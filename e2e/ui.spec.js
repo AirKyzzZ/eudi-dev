@@ -503,7 +503,7 @@ test.describe("Timestamp hover", () => {
   });
 
   test("timestamps in claim lists carry the tooltip too", async ({ page }) => {
-    // TEST_SDJWT expires at the tooltip sanity limit, so use an earlier timestamp here.
+    // TEST_SDJWT expires at the tooltip sanity limit, so this test uses an earlier timestamp.
     const sdjwt = makeSDJWT(
       { iss: "https://issuer.example", _sd_alg: "sha-256", exp: 4102444799 },
       [["salt1", "given_name", "Erika"]]
@@ -579,8 +579,7 @@ test.describe("Decoding does not wait on the issuer", () => {
   test("output renders while the checks that need the network are still running", async ({
     page,
   }) => {
-    // Port 1 refuses the status request promptly, keeping the test independent of a remote
-    // server.
+    // Port 1 refuses the status request at once, so the test needs no remote server.
     const sdjwt = makeSDJWT(
       {
         iss: "https://issuer.example",
@@ -646,7 +645,7 @@ test.describe("Decoding does not wait on the issuer", () => {
     await page.keyboard.press("ControlOrMeta+V");
 
     await expect(page.locator("#format-badge")).toHaveText("SD-JWT", { timeout: 3000 });
-    // A paste emits both paste and input events, but should trigger one decode.
+    // A paste emits a paste and an input event. It must trigger one decode.
     await page.waitForTimeout(1500);
     expect(onlinePasses).toBe(1);
   });

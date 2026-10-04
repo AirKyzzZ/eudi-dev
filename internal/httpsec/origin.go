@@ -20,18 +20,17 @@ import (
 	"strings"
 )
 
-// GuardAPI protects unauthenticated local APIs from requests made by foreign browser
-// pages. CORS alone only blocks reading the response, so a malicious page could still
-// trigger a presentation. Reject foreign Origin headers under /api/. CLI tools without
-// Origin remain allowed.  ownOrigins adds public origins for proxies that rewrite Host.
-// Protocol endpoints remain open to external callers.
+// GuardAPI rejects requests under /api/ that carry a foreign Origin. CORS only
+// blocks reading the response, so a foreign page could still trigger a
+// presentation. CLI tools send no Origin and pass. ownOrigins adds public
+// origins for proxies that rewrite Host. Protocol endpoints stay open.
 func GuardAPI(next http.Handler, ownOrigins ...string) http.Handler {
 	return GuardAPIExcept(next, nil, ownOrigins...)
 }
 
-// GuardAPIExcept allows selected protocol endpoints to receive requests from other
-// origins. The Digital Credentials API identifies unsigned callers by their origin and
-// asks for consent, so the general origin guard must exempt it.
+// GuardAPIExcept lets selected endpoints receive requests from other origins. The
+// Digital Credentials API identifies unsigned callers by their origin and asks
+// for consent.
 func GuardAPIExcept(next http.Handler, crossOriginByContract []string, ownOrigins ...string) http.Handler {
 	allowed := hostSet(ownOrigins)
 	exempt := make(map[string]bool, len(crossOriginByContract))
@@ -56,13 +55,11 @@ func isCrossOrigin(r *http.Request, allowed map[string]bool) bool {
 	}
 	u, err := url.Parse(origin)
 	if err != nil || u.Host == "" {
-		// Includes the literal "null" a sandboxed frame or a file:// page
-		// sends, which is nobody's own origin.
+		// A sandboxed frame or a file:// page sends the literal "null".
 		return true
 	}
 	host := strings.ToLower(u.Host)
-	// Compare hosts because a TLS terminator can forward HTTPS requests to this server
-	// over HTTP.
+	// A TLS terminator can forward HTTPS requests over HTTP, so only hosts are compared.
 	if host == strings.ToLower(r.Host) {
 		return false
 	}

@@ -1,6 +1,6 @@
 # OID4VP Flows
 
-The OID4VP presentation flows `eudi-dev` implements when it acts as a wallet.
+This page shows the OID4VP presentation flows `eudi-dev` implements as a wallet.
 
 ## Flow Map
 
@@ -35,14 +35,14 @@ sequenceDiagram
 
 | Field / setting | Why it matters in `eudi-dev` |
 |-----------------|--------------------------------|
-| `client_id` | Required except in an unsigned Digital Credentials API request, which OpenID4VP Appendix A.2 says must carry none. The wallet validates the Client Identifier Prefix (see the prefix table below). |
+| `client_id` | Required except in an unsigned Digital Credentials API request. That request carries no `client_id` (OpenID4VP Appendix A.2). The wallet validates the Client Identifier Prefix (see the prefix table below). |
 | `response_type` | Supports `vp_token`, `vp_token id_token`, and `id_token`. |
 | `response_mode` | Selects the response branch: `direct_post`, `direct_post.jwt`, `fragment`, `dc_api`, or `dc_api.jwt`. |
 | `nonce` | Bound into SD-JWT key binding JWTs and self-issued `id_token`s. |
 | `state` | Reflected in the authorization response when present. |
 | `response_uri` | Required for `direct_post` and `direct_post.jwt`. |
 | `redirect_uri` | Used for `fragment`. When absent, the wallet uses `response_uri`. |
-| `dcql_query` | How the wallet matches stored credentials. |
+| `dcql_query` | The query the wallet matches stored credentials against. |
 | `request` or `request_uri` | A request object sent directly or by reference. |
 | `client_metadata` | Controls format negotiation. Mandatory for encrypted response modes, because `client_metadata.jwks` carries the verifier encryption key. |
 
@@ -161,5 +161,5 @@ sequenceDiagram
 | No prefix (no `:` in the value) | Treated as a pre-registered client (OpenID4VP §5.9.2). The wallet registers no clients, so a signed request object under it is reported as not verified. |
 | `origin:` | Refused. §5.9.3 reserves it and forbids a wallet to accept it in a request. |
 | `openid_federation:` | Refused. Trust chain resolution is outside the supported EUDI stack (ADR-0013). |
-| `--haip` | Requires HAIP 1.0 from the counterparty: `response_type=vp_token`, encrypted response modes, the `x509_hash` prefix with a verified request signature and certificate rules, JAR through `request_uri`, DCQL, the `mso_mdoc` and `dc+sd-jwt` formats, `A128GCM` plus `A256GCM` in the verifier's client metadata, and ES256. What a violation does follows the wallet mode. Strict refuses the request, debug reports it and continues. |
+| `--haip` | Requires HAIP 1.0 from the counterparty: `response_type=vp_token`, encrypted response modes, the `x509_hash` prefix with a verified request signature and certificate rules, JAR through `request_uri`, DCQL, the `mso_mdoc` and `dc+sd-jwt` formats, `A128GCM` plus `A256GCM` in the verifier's client metadata, and ES256. The wallet mode decides what happens on a violation. `strict` refuses the request. `debug` reports it and continues. |
 | Wallet mode `debug` vs `strict` | Both collect request findings. `debug` reports them, keeps partially matching DCQL credentials and continues. `strict` refuses the request on the same findings. |

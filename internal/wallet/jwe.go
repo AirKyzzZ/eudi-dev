@@ -43,8 +43,8 @@ func EncryptJWEWithContentType(payload []byte, recipientKey *ecdsa.PublicKey, ki
 	return encryptJWE(payload, recipientKey, kid, alg, enc, cty, apu, apv)
 }
 
-// encryptJWE encrypts payload as a compact JWE using ECDH-ES with AES-GCM or
-// AES-CBC-HS, to the verifier's public key. It returns the compact
+// encryptJWE encrypts payload to the verifier's public key as a compact JWE
+// using ECDH-ES with AES-GCM or AES-CBC-HS. It returns the compact
 // serialization and the derived content encryption key.
 func encryptJWE(payload []byte, recipientKey *ecdsa.PublicKey, kid string, alg string, enc string, cty string, apu, apv []byte) (string, []byte, error) {
 	keyBitLen, err := jwe.EncKeyBitLen(enc)
@@ -113,8 +113,7 @@ func encryptJWE(payload []byte, recipientKey *ecdsa.PublicKey, kid string, alg s
 		return "", nil, err
 	}
 
-	// Compact serialization: header.encryptedKey.iv.ciphertext.tag
-	// ECDH-ES has no encrypted key (empty string)
+	// ECDH-ES has no encrypted key, so that part of the compact serialization is empty.
 	jweStr := headerB64 + ".." +
 		format.EncodeBase64URL(iv) + "." +
 		format.EncodeBase64URL(ciphertext) + "." +
@@ -122,12 +121,10 @@ func encryptJWE(payload []byte, recipientKey *ecdsa.PublicKey, kid string, alg s
 	return jweStr, derivedKey, nil
 }
 
-// EncryptJWERSA encrypts payload as a compact JWE using RSA-OAEP key wrapping
-// with AES-GCM or AES-CBC-HS content encryption, to the verifier's RSA public
-// key. A random content encryption key is wrapped with RSA-OAEP (RFC 7518 §4.2,
-// SHA-1) or RSA-OAEP-256 (§4.3, SHA-256). It returns the compact serialization
-// and the content encryption key. RSA-OAEP is an OID4VP option. HAIP requires
-// ECDH-ES (see the HAIP checks).
+// EncryptJWERSA encrypts payload to the verifier's RSA public key as a compact
+// JWE with AES-GCM or AES-CBC-HS. It wraps a random content encryption key with
+// RSA-OAEP (RFC 7518 §4.2) or RSA-OAEP-256 (§4.3) and returns the compact
+// serialization and that key. OID4VP allows RSA-OAEP. HAIP requires ECDH-ES.
 func EncryptJWERSA(payload []byte, recipientKey *rsa.PublicKey, kid, alg, enc string) (string, []byte, error) {
 	keyBitLen, err := jwe.EncKeyBitLen(enc)
 	if err != nil {
@@ -173,7 +170,6 @@ func EncryptJWERSA(payload []byte, recipientKey *rsa.PublicKey, kid, alg, enc st
 		return "", nil, err
 	}
 
-	// Compact serialization: header.encryptedKey.iv.ciphertext.tag
 	jweStr := headerB64 + "." +
 		format.EncodeBase64URL(encryptedKey) + "." +
 		format.EncodeBase64URL(iv) + "." +
@@ -285,10 +281,9 @@ func unmarshalECDHPublicKey(pub *ecdh.PublicKey) (x, y []byte) {
 	return raw[1 : 1+coordLen], raw[1+coordLen:]
 }
 
-// ecdsaPublicKeyFromJWK reads a peer's P-256 encryption key from a JWK. mode
-// decides what happens to a coordinate narrower than the curve, which RFC 7518
-// does not allow: strict refuses it, debug repairs it and reports the
-// violation as a finding.
+// ecdsaPublicKeyFromJWK reads a peer's P-256 encryption key from a JWK. RFC 7518
+// does not allow a coordinate shorter than the curve size. Strict mode refuses
+// such a key. Debug mode pads the coordinate and reports a finding.
 func ecdsaPublicKeyFromJWK(mode ValidationMode, xB64, yB64 string) (*ecdsa.PublicKey, string, error) {
 	doc, err := json.Marshal(map[string]string{
 		"kty": "EC", "crv": "P-256", "x": xB64, "y": yB64,

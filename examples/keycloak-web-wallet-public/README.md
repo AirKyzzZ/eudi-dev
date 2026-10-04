@@ -29,8 +29,8 @@ Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 
 - **Shared data.** All visitors can see and delete the credentials you issue. Periodic resets remove them. Use test data only.
 - **Browser consent.** Approve in the browser that started the flow. The `eudi_session` cookie routes the dialog to that browser. Credentials and activity logs remain shared.
-- **Interactive flows.** Use the demo UI and approve consent in the browser. The public wallet requires this for browser flows, so the API approval used by `demo-issuance.py` and `demo-verification.py` cannot complete them.
-- **Trust setup.** Keycloak's default TLS truststore can reach the public wallet. The setup script configures `trustListUrl` as `https://eudi-test.dev/api/trustlist` so the verifier can validate wallet-issued credentials. No local CA export is needed.
+- **Interactive flows.** Use the demo UI and approve consent in the browser. The public wallet requires browser consent for browser flows. The API approval in `demo-issuance.py` and `demo-verification.py` cannot complete them.
+- **Trust setup.** Keycloak's default TLS truststore already trusts the public wallet's certificate. The setup script configures `trustListUrl` as `https://eudi-test.dev/api/trustlist` so the verifier can validate wallet-issued credentials. No local CA export is needed.
 
 ## Configuration
 
@@ -41,4 +41,4 @@ Stop everything with `docker compose down` and `kill $(cat .ngrok.pid)`.
 | `NGROK_DOMAIN` | none | Reserved ngrok domain for a stable tunnel URL |
 | `KEYCLOAK_PORT` / `APP_PORT` | `9080` / `9090` | Local ports, next free port is picked automatically |
 
-Restarting this example does not reset the public wallet. It follows its own reset schedule.
+The public wallet resets on its own schedule. Restarting this example does not reset it.

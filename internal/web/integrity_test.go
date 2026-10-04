@@ -266,8 +266,7 @@ func TestCheckSDJWTIntegrity_ArrayElementDisclosure(t *testing.T) {
 }
 
 func TestCheckMDOCIntegrity_Tag24EncodedRawCBOR(t *testing.T) {
-	// RawCBOR holds the full Tag-24 encoding (#6.24(bstr)), and MSO
-	// ValueDigests hash over that.
+	// MSO ValueDigests hash the full Tag-24 encoding (#6.24(bstr)).
 	innerCBOR := []byte{0xa4, 0x01, 0x02, 0x03, 0x04}
 
 	// Tag 24 with 5-byte content: 0xd8 0x18 0x45 <5 bytes>
@@ -300,7 +299,7 @@ func TestCheckMDOCIntegrity_Tag24EncodedRawCBOR(t *testing.T) {
 }
 
 func TestCheckMDOCIntegrity_Tag24FailsWithInnerBytesDigest(t *testing.T) {
-	// Hashing only the inner bytes does not match the complete Tag-24 encoding.
+	// A digest over only the inner bytes must fail.
 	innerCBOR := []byte{0xa4, 0x01, 0x02, 0x03, 0x04}
 	tag24Bytes := append([]byte{0xd8, 0x18, 0x45}, innerCBOR...)
 
@@ -527,7 +526,7 @@ func TestHandleValidate_SDJWTStatusCheckedWhenPresent(t *testing.T) {
 	bitstring := make([]byte, 16)
 	var statusSrv *httptest.Server
 	statusSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The status token's sub must match the URL referenced by the credential.
+		// The status token's sub must match the URL in the credential.
 		jwt, err := statuslist.GenerateStatusListJWT(bitstring, key, statuslist.StatusListConfig{
 			URI: statusSrv.URL,
 		})
@@ -589,8 +588,7 @@ func TestHandleValidate_SDJWTStatusCheckedWhenPresent(t *testing.T) {
 }
 
 func TestValidate_MDOCStatusWrapping(t *testing.T) {
-	// MSO.Status is the inner {"status_list": ...} object, which
-	// checkMDOCStatus wraps before ExtractStatusRef sees it.
+	// MSO.Status is the inner {"status_list": ...} object.
 	doc := &mdoc.Document{
 		IssuerAuth: &mdoc.IssuerAuth{
 			MSO: &mdoc.MSO{
@@ -750,8 +748,8 @@ func TestValidate_SignatureUsesLocalWalletFallback(t *testing.T) {
 }
 
 func TestHandleValidate_VerifyFormAlwaysPresent(t *testing.T) {
-	// Return all checks even when signature verification fails so the UI can still
-	// display the verification form.
+	// A failed signature check must still return all checks, so the UI can show
+	// the verification form.
 	jwt := makeSDJWT(
 		map[string]any{
 			"iss":     "https://issuer.example",

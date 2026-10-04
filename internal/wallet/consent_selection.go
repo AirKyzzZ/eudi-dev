@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Consent overrides select an offered option per credential set and the credentials
-// per query (one, or several for a query that sets multiple). Validate selections before approval, then rebuild presentation matches from
-// the accepted choices.
+// The consent dialog can choose one option per credential set and the
+// credentials for each query. A query that sets multiple takes several.
 
 package wallet
 
@@ -82,12 +81,13 @@ func ValidateConsentSelection(options *ConsentCredentialOptions, picks map[strin
 	return nil
 }
 
-// ApplyConsentSelection preserves automatic selection without overrides so unchanged
-// consent and auto-accept agree.
+// ApplyConsentSelection returns the matches for the user's choices. Without
+// overrides it returns the automatic selection, so an unchanged consent gives
+// the same result as auto-accept.
 func ApplyConsentSelection(options *ConsentCredentialOptions, matches []CredentialMatch, result ConsentResult) []CredentialMatch {
 	if options == nil || (len(result.Picks) == 0 && len(result.SetChoices) == 0) {
-		// Copy matches before filtering claims. ConsentRequest can still be marshalled
-		// concurrently.
+		// Return a copy. Claims are filtered later while the ConsentRequest can
+		// still be marshalled concurrently.
 		return append([]CredentialMatch(nil), matches...)
 	}
 
@@ -134,8 +134,9 @@ func ApplyConsentSelection(options *ConsentCredentialOptions, matches []Credenti
 	return out
 }
 
-// pickedCandidates returns the picked candidates in candidate order, or the
-// default: every candidate of a query that sets multiple, the first of any other.
+// pickedCandidates returns the picked candidates in candidate order. Without a
+// valid pick it returns every candidate of a query that sets multiple and the
+// first candidate of any other query.
 func pickedCandidates(query *ConsentQueryOptions, credIDs []string) []CredentialMatch {
 	var picked []CredentialMatch
 	for _, c := range query.Candidates {

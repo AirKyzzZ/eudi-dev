@@ -125,7 +125,7 @@ func TestDeferredCollectionInFlightGuard(t *testing.T) {
 	}
 }
 
-// Collect a deferred credential in the background once the issuer makes it available.
+// The poller collects a deferred credential once the issuer makes it available.
 func TestDeferredPoller_CollectsWhenReady(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -176,11 +176,10 @@ func TestDeferredPoller_CollectsWhenReady(t *testing.T) {
 	assertWalletLogEvent(t, w.GetLog(), "credential_imported")
 }
 
-// TestDeferredPoller_NotifiesAfterCollecting covers the acknowledgement a
-// collected deferred credential owes its issuer. OpenID4VCI 1.0 §8.3 lets the
-// Deferred Credential Response carry a notification_id of its own, so the
-// wallet reports the credential it just stored the same way it does for one
-// handed over immediately.
+// TestDeferredPoller_NotifiesAfterCollecting covers the notification for a
+// collected deferred credential. OpenID4VCI 1.0 §8.3 lets the Deferred
+// Credential Response carry its own notification_id. The wallet notifies the
+// issuer the same way as for an immediately issued credential.
 func TestDeferredPoller_NotifiesAfterCollecting(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -240,7 +239,7 @@ func TestDeferredPoller_NotifiesAfterCollecting(t *testing.T) {
 	}
 }
 
-// Stop polling after final errors and record the reason.
+// Polling stops after a final error and the record keeps the reason.
 func TestDeferredPoller_GivesUpOnFatalAnswers(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -303,8 +302,8 @@ func TestDeferredPoller_DropsExpiredRecords(t *testing.T) {
 	}
 }
 
-// Persist both the deferred transaction and its proof keys so collection can resume
-// after restart.
+// The deferred transaction and its proof keys are saved, so collection resumes
+// after a restart.
 func TestDeferredIssuance_SurvivesAStoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewWalletStore(dir)
@@ -459,8 +458,8 @@ func TestAbandonDeferredNow(t *testing.T) {
 	}
 }
 
-// Exercise server startup because calling the sweep directly cannot prove the
-// background loop starts.
+// This test starts the server, since calling the sweep directly cannot show
+// that the background loop starts.
 func TestDeferredPollerRunsFromTheServer(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -492,8 +491,8 @@ func TestDeferredPollerRunsFromTheServer(t *testing.T) {
 	}
 }
 
-// Label deferred credentials from issuer metadata because offers name configurations
-// only.
+// Deferred records take their credential type from issuer metadata, since
+// offers carry only configuration IDs.
 func TestDeferredIssuanceRecordsTheCredentialType(t *testing.T) {
 	metadata := map[string]any{
 		"credential_configurations_supported": map[string]any{
@@ -526,8 +525,8 @@ func TestDeferredIssuanceRecordsTheCredentialType(t *testing.T) {
 	}
 }
 
-// Stop retrying expired authorization when it cannot be refreshed. Deferred collection
-// may outlast an access token by hours.
+// A rejected token that cannot be refreshed ends collection. Collection may
+// outlast an access token by hours.
 func TestDeferredGivesUpOnARejectedToken(t *testing.T) {
 	for _, status := range []string{"HTTP 401", "HTTP 403"} {
 		if isRetryableDeferredError(fmt.Errorf("deferred credential request: %s: ", status)) {
@@ -541,7 +540,7 @@ func TestDeferredGivesUpOnARejectedToken(t *testing.T) {
 	}
 }
 
-// Refresh an expired access token before collecting a deferred credential.
+// An expired access token is refreshed before collecting a deferred credential.
 func TestDeferredCollectionRefreshesAnExpiredToken(t *testing.T) {
 	w := generateTestWallet(t)
 	credRaw := generateTestCredential(t, w)
@@ -607,7 +606,7 @@ func TestDeferredCollectionRefreshesAnExpiredToken(t *testing.T) {
 	}
 }
 
-// Keep other background tasks running when one fails.
+// A panic in one background task leaves the other tasks running.
 func TestBackgroundTaskPanicDoesNotStopTheLoop(t *testing.T) {
 	w := generateTestWallet(t)
 	server := NewServer(w, 0, nil)
@@ -663,8 +662,8 @@ func TestBackgroundTasksRunOffTheRequestPath(t *testing.T) {
 	}
 }
 
-// Retry failures on the next tick, then log and abandon a task after repeated
-// failures.
+// A failed task runs again on the next tick. After repeated failures it is
+// logged and abandoned.
 func TestFailingBackgroundTaskIsRetriedThenAbandoned(t *testing.T) {
 	w := generateTestWallet(t)
 	server := NewServer(w, 0, nil)
@@ -679,7 +678,7 @@ func TestFailingBackgroundTaskIsRetriedThenAbandoned(t *testing.T) {
 		return fmt.Errorf("nope")
 	}}
 
-	// Exercise the scheduler directly to isolate retry behavior from ticker timing.
+	// Calling the scheduler directly keeps ticker timing out of the test.
 	state := taskState{}
 	now := time.Now()
 	for range maxTaskFailures + 3 {

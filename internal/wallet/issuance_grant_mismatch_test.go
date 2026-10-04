@@ -25,13 +25,13 @@ import (
 	"testing"
 )
 
-// Advertise three authorization servers to test fallback: one unreachable, one
-// supporting pre-authorized codes and one limited to authorization_code. The offer
-// names the limited server. Its refusal uses HTTP status text plus a separate message
-// field.
+// grantMismatchIssuer advertises three authorization servers. One is
+// unreachable, one supports pre-authorized codes and one only takes
+// authorization_code. The offer points at the limited server. Its refusal puts
+// the HTTP status text in error and the reason in a separate message field.
 //
-// The flags control whether servers advertise their grant support, distinguishing an
-// absent claim from an explicit incompatibility.
+// The flags control whether the servers state their grant support. This
+// separates a missing claim from a stated incompatibility.
 func grantMismatchIssuer(t *testing.T, w *Wallet, limitedNamesGrants, ownStatesPreAuth bool) (*httptest.Server, string, *atomic.Int32, *atomic.Int32) {
 	t.Helper()
 
@@ -53,8 +53,8 @@ func grantMismatchIssuer(t *testing.T, w *Wallet, limitedNamesGrants, ownStatesP
 			json.NewEncoder(rw).Encode(map[string]any{
 				"credential_issuer":   serverURL,
 				"credential_endpoint": serverURL + "/credential",
-				// The unreachable server sits first, so the fallback has to
-				// skip past it to reach the issuer's own.
+				// The unreachable server comes first, so the fallback has to
+				// skip it to reach the issuer's own.
 				"authorization_servers": []any{serverURL + "/down", serverURL, serverURL + "/limited"},
 				"credential_configurations_supported": map[string]any{
 					"test-config": map[string]any{
@@ -93,8 +93,8 @@ func grantMismatchIssuer(t *testing.T, w *Wallet, limitedNamesGrants, ownStatesP
 				issueToken(rw)
 				return
 			}
-			// Not an OAuth 2.0 error response: error carries the HTTP status
-			// text and the reason is in a field of the server's own.
+			// This is no OAuth 2.0 error response. error holds the HTTP status
+			// text and the reason is in a custom field.
 			rw.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(rw).Encode(map[string]any{
 				"statusCode": 400,
@@ -140,11 +140,10 @@ func findLogEntry(entries []LogEntry, event string) *LogEntry {
 }
 
 // TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant covers an
-// offer naming an authorization server that says it does not support the
-// grant the offer carries. §4.1.1 defines authorization_server as the one to
-// use "with this grant type", and §12.2.4 has the wallet read
-// grant_types_supported for exactly this. In debug mode the wallet then
-// moves to an advertised server that states support for the grant.
+// offer whose authorization server says it does not support the offer's
+// grant. §4.1.1 defines authorization_server as the one to use "with this
+// grant type". §12.2.4 has the wallet read grant_types_supported for this. In
+// debug mode the wallet moves to an advertised server that supports the grant.
 func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T) {
 	t.Run("debug falls back to an advertised server that states the grant", func(t *testing.T) {
 		w := generateTestWallet(t)
@@ -255,8 +254,8 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 		if !strings.Contains(body, "Invalid grant_type") {
 			t.Errorf("response_body does not carry the server's reason: %q", body)
 		}
-		// Include the server's explanation in the headline and keep remaining response
-		// fields in details.
+		// The headline includes the server's explanation. The other response
+		// fields stay in details.
 		msg, _ := response.Details["error"].(string)
 		if !strings.HasPrefix(msg, "Bad Request: ") || !strings.Contains(msg, "Invalid grant_type") {
 			t.Errorf("error = %q, want the refusal code and the server's reason", msg)
@@ -310,8 +309,8 @@ func TestProcessCredentialOffer_AuthorizationServerCannotTakeGrant(t *testing.T)
 	})
 }
 
-// With only the selected server advertised, no fallback exists. Report that and keep
-// the current server.
+// With only the selected server advertised there is no fallback. The wallet
+// reports that and keeps the current server.
 func TestFallbackAuthorizationServer_SingleAdvertisedServer(t *testing.T) {
 	w := generateTestWallet(t)
 	metadata := map[string]any{"authorization_servers": []any{"https://as.example"}}

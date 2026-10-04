@@ -33,8 +33,7 @@ func docWithDigest(raw []byte, signed []byte) *Document {
 	}
 }
 
-// Reject every digest mismatch, including different lengths, so altered claim values
-// cannot pass.
+// Every digest mismatch must fail, including a different length.
 func TestVerifyValueDigests(t *testing.T) {
 	raw := []byte("the encoded item")
 	correct := sha256.Sum256(raw)
@@ -49,8 +48,7 @@ func TestVerifyValueDigests(t *testing.T) {
 	}{
 		{name: "the digest the issuer signed", signed: correct[:], wantOK: true},
 		{name: "a different digest", signed: differs[:], wantOK: false},
-		// A prefix of the right digest: shorter than the hash, and equal for
-		// every byte it has. Comparing only those bytes would accept it.
+		// A prefix of the right digest matches every byte it has.
 		{name: "a truncated digest", signed: correct[:16], wantOK: false},
 		{name: "an empty digest", signed: []byte{}, wantOK: false},
 		{name: "a digest with trailing bytes", signed: append(correct[:], 0x00), wantOK: false},

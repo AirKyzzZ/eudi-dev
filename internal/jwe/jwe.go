@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package jwe decrypts ECDH-ES compact JWEs for the wallet and proxy. Both use the
-// same key derivation to avoid incompatible implementations.
+// Package jwe decrypts ECDH-ES compact JWEs for the wallet and the proxy.
 package jwe
 
 import (
@@ -60,8 +59,8 @@ func ParseHeader(compact string) (Header, error) {
 		return Header{}, fmt.Errorf("missing enc in JWE header")
 	}
 	h.EPK, _ = raw["epk"].(map[string]any)
-	// A malformed apu or apv is left empty rather than refused: it changes the
-	// derived key, so decryption fails on its own with a clearer error.
+	// A malformed apu or apv stays empty. It changes the derived key, so
+	// decryption fails with a clearer error.
 	if b64, ok := raw["apu"].(string); ok {
 		h.APU, _ = format.DecodeBase64URL(b64)
 	}
@@ -97,8 +96,8 @@ func Decrypt(compact string, key *ecdh.PrivateKey) ([]byte, error) {
 	return DecryptWithCEK(compact, ConcatKDF(z, header.Enc, header.APU, header.APV, keyBitLen))
 }
 
-// DecryptWithCEK decrypts a compact JWE whose content encryption key is
-// already known, which is how the proxy reads traffic from a key log.
+// DecryptWithCEK decrypts a compact JWE with a known content encryption key.
+// The proxy uses it to read traffic from a key log.
 func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 	parts := strings.Split(compact, ".")
 	if len(parts) != 5 {
@@ -126,7 +125,7 @@ func DecryptWithCEK(compact string, cek []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decoding tag: %w", err)
 	}
-	// The AAD is the ASCII of the encoded protected header, not its bytes.
+	// The AAD is the ASCII of the encoded protected header (RFC 7516 §5.1).
 	return OpenAESGCM(cek, iv, ciphertext, tag, []byte(parts[0]))
 }
 
@@ -141,14 +140,11 @@ func OpenAESGCM(key, iv, ciphertext, tag, aad []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating GCM: %w", err)
 	}
-	// aead.Open panics on a wrong-length nonce, and the IV comes straight from
-	// an attacker-supplied compact JWE, so reject it as an error instead.
+	// aead.Open panics on a wrong-length nonce. The IV comes from an untrusted JWE.
 	if len(iv) != aead.NonceSize() {
 		return nil, fmt.Errorf("AES-GCM IV must be %d bytes, got %d", aead.NonceSize(), len(iv))
 	}
-	// Concatenated into a new slice: appending to ciphertext would write the
-	// tag into its backing array when it has the capacity, corrupting the
-	// caller's buffer.
+	// Appending to ciphertext can write the tag into the caller's backing array.
 	plaintext, err := aead.Open(nil, iv, slices.Concat(ciphertext, tag), aad)
 	if err != nil {
 		return nil, fmt.Errorf("AES-GCM decryption failed: %w", err)
@@ -156,12 +152,11 @@ func OpenAESGCM(key, iv, ciphertext, tag, aad []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// ConcatKDF derives a content encryption key the way JWA specifies for
-// ECDH-ES (NIST SP 800-56A, one round of SHA-256).
+// ConcatKDF derives a content encryption key for ECDH-ES as JWA specifies
+// (NIST SP 800-56A, one round of SHA-256).
 func ConcatKDF(z []byte, enc string, apu, apv []byte, keyBitLen int) []byte {
 	h := sha256.New()
 
-	// round = 0x00000001
 	var round [4]byte
 	binary.BigEndian.PutUint32(round[:], 1)
 	h.Write(round[:])
@@ -201,9 +196,9 @@ func EncKeyBitLen(enc string) (int, error) {
 	}
 }
 
-// ParsePublicKeyJWK reads a P-256 public key from a JWK map, as carried in an
-// epk header. The decoding is shared with the rest of the toolkit, including
-// the off-curve check go-jose makes.
+// ParsePublicKeyJWK reads a P-256 public key from a JWK map, such as an epk
+// header. It uses the toolkit's JWK decoding, which includes the go-jose
+// off-curve check.
 func ParsePublicKeyJWK(m map[string]any) (*ecdh.PublicKey, error) {
 	if crv, _ := m["crv"].(string); crv != "P-256" {
 		return nil, fmt.Errorf("unsupported curve: %s", crv)

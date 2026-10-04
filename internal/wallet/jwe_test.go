@@ -224,9 +224,8 @@ func TestEcdsaPublicKeyFromJWK(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Full-width coordinates, which RFC 7518 §6.2.1.2 requires ("The length of
-	// this octet string MUST be the full size of a coordinate for the curve")
-	// and strict mode enforces.
+	// RFC 7518 §6.2.1.2: "The length of this octet string MUST be the full size
+	// of a coordinate for the curve". Strict mode enforces this.
 	xRaw, yRaw, err := format.ECPublicCoords(&key.PublicKey)
 	if err != nil {
 		t.Fatal(err)
@@ -358,8 +357,7 @@ func TestEncryptionJWKShortCoordinate_StrictRefusesDebugReports(t *testing.T) {
 	t.Fatal("no key with a short X coordinate generated in 20000 attempts")
 }
 
-// Debug mode reads past a short coordinate and reports the repair in the
-// activity log, so the disagreement with strict mode is visible.
+// Debug mode accepts a short coordinate and reports the repair in the activity log.
 func TestShortCoordinateIsReportedInTheActivityLog(t *testing.T) {
 	var shortX, fullY string
 	var holder *ecdsa.PublicKey

@@ -77,7 +77,7 @@ func TestDashboardClientEntries(t *testing.T) {
 	}
 }
 
-// Connection failures must report an error instead of empty history.
+// A connection failure must report an error.
 func TestDashboardClientReportsAnUnreachableProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nope", http.StatusNotFound)
@@ -90,8 +90,8 @@ func TestDashboardClientReportsAnUnreachableProxy(t *testing.T) {
 	}
 }
 
-// The subscription is in place when Stream returns, so a client can read the
-// recorded traffic afterwards without missing what arrives in between.
+// The subscription is active when Stream returns. A client that reads the
+// recorded traffic afterwards misses no entry.
 func TestDashboardClientStreamSubscribesBeforeItReturns(t *testing.T) {
 	store := NewStore(10)
 	srv := httptest.NewServer(NewDashboard(store, 0).Handler())
@@ -121,7 +121,7 @@ func TestDashboardClientStreamSubscribesBeforeItReturns(t *testing.T) {
 	}
 }
 
-// Skip keepalive comments without treating them as malformed events.
+// Keepalive comments and malformed events are skipped.
 func TestEntryStreamSkipsKeepalivesAndMalformedEvents(t *testing.T) {
 	body := ": keepalive\n\n" +
 		"data: not json\n\n" +
@@ -144,8 +144,8 @@ func TestEntryStreamSkipsKeepalivesAndMalformedEvents(t *testing.T) {
 	}
 }
 
-// An idle stream keeps sending keepalives, which is what stops a connection
-// through a proxy or load balancer from being dropped as dead.
+// An idle stream sends keepalives, so a proxy or load balancer keeps the
+// connection open.
 func TestDashboardStreamSendsKeepalives(t *testing.T) {
 	original := streamKeepaliveInterval
 	streamKeepaliveInterval = 10 * time.Millisecond

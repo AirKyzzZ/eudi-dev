@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package remote lets the CLI manage a running oid4vc-dev wallet server over
-// its REST API instead of the local file store. It holds the REST client, the
-// persisted active remote target, and discovery of wallet instances running
-// on the local system.
+// Package remote lets the CLI manage a running wallet server over its REST API.
+// It holds the REST client, the saved active remote target and the discovery of
+// local wallet instances.
 package remote
 
 import (
@@ -37,8 +36,8 @@ import (
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
-	// owner is the browser this client submits on behalf of, set when it
-	// opened a wallet UI page for the flow it is about to start.
+	// owner is the browser this client submits on behalf of. It is set when the
+	// client opened a wallet UI page for the flow it starts.
 	owner string
 }
 
@@ -53,9 +52,9 @@ func (c *Client) do(method, path string, body any, out any) error {
 	return c.doWithTimeout(0, method, path, body, out)
 }
 
-// doWithTimeout is do with a per-request deadline for calls that outlast a
-// normal round trip, such as accepting an offer whose issuer defers the
-// credential. A zero timeout keeps the client's own default.
+// doWithTimeout is do with a per-request deadline. Some calls outlast a normal
+// round trip, such as accepting an offer whose issuer defers the credential. A
+// zero timeout keeps the client's default.
 func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body any, out any) error {
 	var reader io.Reader
 	contentType := ""
@@ -79,8 +78,7 @@ func (c *Client) doWithTimeout(timeout time.Duration, method, path string, body 
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	// Report the CLI version so the server can recognize older clients that need
-	// compatibility handling.
+	// The server recognizes older clients that need compatibility handling.
 	req.Header.Set(config.ClientHeader, "eudi-cli/"+version)
 	if c.owner != "" {
 		req.Header.Set(config.OwnerHeader, c.owner)
@@ -239,12 +237,12 @@ func (c *Client) Certificate(kind, format string) ([]byte, error) {
 	return out, err
 }
 
-// Allow time for consent and the protocol exchange that follows it.
+// The timeout covers consent and the protocol exchange after it.
 const interactiveTimeout = config.ConsentTimeout + config.SlowRequestTimeout
 
 // Present sends a presentation request URI to the remote wallet. With
 // interactive set, the wallet shows its consent dialog and holds the response
-// until the user decides, instead of auto-accepting the request.
+// until the user decides.
 func (c *Client) Present(uri string, interactive bool) (map[string]any, error) {
 	var out map[string]any
 	body := map[string]any{"uri": uri}
@@ -257,19 +255,17 @@ func (c *Client) Present(uri string, interactive bool) (map[string]any, error) {
 	return out, err
 }
 
-// AcceptOffer sends a credential offer URI to the remote wallet. An offer
-// whose pre-authorized grant requires a transaction code needs txCode. An
-// empty one is left out so the wallet keeps whatever it already holds. With
-// interactive set, the wallet shows its consent dialog rather than importing
-// the credential silently.
+// AcceptOffer sends a credential offer URI to the remote wallet. A
+// pre-authorized grant with a transaction code needs txCode. An empty txCode
+// is omitted so the wallet keeps the code it already holds. With interactive
+// set, the wallet shows its consent dialog.
 func (c *Client) AcceptOffer(uri, txCode string, interactive bool) (map[string]any, error) {
 	var out map[string]any
 	body := map[string]any{"uri": uri}
 	if txCode != "" {
 		body["tx_code"] = txCode
 	}
-	// Use the server's timeout for issuance requests that can outlast an ordinary API
-	// call.
+	// Issuance requests can outlast an ordinary API call.
 	timeout := config.SlowRequestTimeout
 	if interactive {
 		body["interactive"] = true
@@ -280,7 +276,7 @@ func (c *Client) AcceptOffer(uri, txCode string, interactive bool) (map[string]a
 }
 
 // TrustList fetches an ETSI trust list JWT from the remote wallet. Without a
-// selector this is the same default list as /api/trustlist.
+// selector it returns the default list of /api/trustlist.
 func (c *Client) TrustList(id, vct, docType string) (string, error) {
 	var out []byte
 	if err := c.do(http.MethodGet, TrustListPath(id, vct, docType), nil, &out); err != nil {
@@ -289,8 +285,8 @@ func (c *Client) TrustList(id, vct, docType string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// TrustListPath maps a trust list selection to its endpoint. The CLI prints
-// this path as well as fetching it, so the mapping lives in one place.
+// TrustListPath maps a trust list selection to its endpoint. The CLI both
+// prints and fetches this path.
 func TrustListPath(id, vct, docType string) string {
 	if id != "" {
 		return "/api/trustlists/" + url.PathEscape(id)
@@ -318,9 +314,8 @@ func (c *Client) TrustLists() ([]map[string]any, error) {
 	return out.TrustLists, nil
 }
 
-// OfferStatus reports how an offer that paused for an interactive sign-in
-// ended. The id comes from the offer_id of the authorization_required
-// response.
+// OfferStatus reports the outcome of an offer that paused for an interactive
+// sign-in. The id is the offer_id of the authorization_required response.
 func (c *Client) OfferStatus(id string) (map[string]any, error) {
 	var out map[string]any
 	err := c.do(http.MethodGet, "/api/offers/"+id, nil, &out)
@@ -355,7 +350,7 @@ func (c *Client) Shutdown() error {
 	return c.do(http.MethodPost, "/api/shutdown", nil, nil)
 }
 
-// version is the release this binary was built as, set by the cmd package.
+// version is the release of this binary. The cmd package sets it.
 var version = "dev"
 
 func SetVersion(v string) {

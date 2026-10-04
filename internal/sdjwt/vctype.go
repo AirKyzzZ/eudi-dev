@@ -22,8 +22,8 @@ const (
 	// header parameter in the SD-JWT. The typ value MUST use dc+sd-jwt."
 	TypeSDJWTVC = "dc+sd-jwt"
 
-	// TypeSDJWTVCLegacy is the typ value earlier SD-JWT VC drafts used. Reading
-	// accepts it and reports a deviation, issuance never uses it.
+	// TypeSDJWTVCLegacy is the typ value of earlier SD-JWT VC drafts. Reading
+	// accepts it and reports a deviation. Issuance never uses it.
 	TypeSDJWTVCLegacy = "vc+sd-jwt"
 )
 
@@ -31,17 +31,15 @@ func AcceptedVCTypes() []string {
 	return []string{TypeSDJWTVC, TypeSDJWTVCLegacy}
 }
 
-// IsAcceptedVCType reports whether typ names an SD-JWT VC. The comparison is
-// case-sensitive, as media type parameters carried in JOSE headers are
-// matched verbatim.
+// IsAcceptedVCType reports whether typ is an SD-JWT VC type. JOSE headers
+// match media types verbatim, so the comparison is case-sensitive.
 func IsAcceptedVCType(typ string) bool {
 	return typ == TypeSDJWTVC || typ == TypeSDJWTVCLegacy
 }
 
 // ValidateVCType checks the typ header parameter of an Issuer-signed JWT
-// against the two accepted values. A credential that omits typ, or names
-// something else, is not an SD-JWT VC per draft-ietf-oauth-sd-jwt-vc-19
-// §2.2.1.
+// against the two accepted values. Without one of them a credential is no
+// SD-JWT VC per draft-ietf-oauth-sd-jwt-vc-19 §2.2.1.
 func ValidateVCType(header map[string]any) error {
 	raw, present := header["typ"]
 	if !present {

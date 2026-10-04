@@ -205,7 +205,7 @@ func walletProviderTrustListProfile() trustListProfile {
 }
 
 // Always publish the wallet provider list, even before credential issuance. It uses
-// the shared CA but gives issuers a separate list for verifying attestations.
+// the shared CA. Issuers verify wallet attestations against this separate list.
 func withWalletProviderGroup(groups []TrustListGroup) []TrustListGroup {
 	profile := walletProviderTrustListProfile()
 	id := trustListGroupID(profile)

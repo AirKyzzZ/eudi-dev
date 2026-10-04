@@ -119,8 +119,7 @@ func TestParseDeviceResponse(t *testing.T) {
 	}
 }
 
-// A status reported as a negative CBOR integer decodes as int64 rather than
-// uint64, and it still has to be read.
+// The status decodes as int64 when the decoder reads integers as signed.
 func TestParseDeviceResponseReadsAnInt64Status(t *testing.T) {
 	resp := fullDeviceResponse(t)
 	resp["status"] = int64(10)
@@ -148,8 +147,7 @@ func TestParseDeviceResponseWithoutDeviceSigned(t *testing.T) {
 	}
 }
 
-// deviceAuth carrying a MAC rather than a signature must parse without
-// inventing a signature to verify.
+// A deviceAuth with a deviceMac must parse with no device signature.
 func TestParseDeviceResponseWithADeviceMac(t *testing.T) {
 	resp := fullDeviceResponse(t)
 	docs := resp["documents"].([]any)
@@ -171,8 +169,8 @@ func TestParseDeviceResponseWithADeviceMac(t *testing.T) {
 	}
 }
 
-// Anything that is not a DeviceResponse falls through to being read as a bare
-// IssuerSigned, so a malformed response must not be reported as one.
+// Input that is no DeviceResponse is read as a bare IssuerSigned. A malformed
+// response must fail.
 func TestParseDeviceResponseRejectsMalformedResponses(t *testing.T) {
 	tests := []struct {
 		name string

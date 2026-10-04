@@ -25,8 +25,8 @@ import (
 
 const testBatchVCT = "urn:example:batch-pid"
 
-// Store the holder copy first and attach copies with separate keys, as issuance does.
-// keys[0] must be the wallet holder key.
+// storeTestBatch stores the holder copy first and attaches copies with separate
+// keys, as issuance does. keys[0] must be the wallet holder key.
 func storeTestBatch(t *testing.T, w *Wallet, keys []*ecdsa.PrivateKey) {
 	t.Helper()
 	issuerKey, err := mock.GenerateKey()
@@ -217,8 +217,8 @@ func TestIssueCredentialBatchGivesEachCopyAnOwnStatusIndex(t *testing.T) {
 	w := generateTestWallet(t)
 	w.IssuerURL = "https://issuer.example"
 	statusURL := w.StatusListURL()
-	// Allocate distinct status indices even when an explicit starting index is
-	// supplied. A shared index would correlate batch copies.
+	// Batch copies get distinct status indices even with an explicit starting
+	// index. A shared index would correlate them.
 	explicit := 0
 	if _, err := w.IssueCredential(IssueOptions{
 		Format:        "sdjwt",
@@ -274,8 +274,8 @@ func TestRenewalKeepsBatchMembership(t *testing.T) {
 		t.Fatal("the batch has no group to keep")
 	}
 
-	// Keep the renewed holder credential in its batch or it would appear and rotate
-	// separately.
+	// The renewed holder credential stays in its batch. Otherwise it would show
+	// and rotate on its own.
 	issuerKey, err := mock.GenerateKey()
 	if err != nil {
 		t.Fatalf("issuer key: %v", err)
@@ -311,7 +311,7 @@ func TestPresentationCloneAdvancesRotationOnTheRealWallet(t *testing.T) {
 	storeTestBatch(t, w, keys)
 
 	// Auto-accept and ISO-transcript presentations run on a clone. The rotation
-	// must still advance on the real wallet, which is what gets saved.
+	// still advances on the real wallet because that one gets saved.
 	clone, err := cloneWalletForPresentation(w, presentationRequestOptions{AutoAccept: true})
 	if err != nil {
 		t.Fatalf("cloning for presentation: %v", err)
@@ -348,7 +348,7 @@ func TestBatchCopyHolderBindingReadsAsHeld(t *testing.T) {
 	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), testKey(t)}
 	storeTestBatch(t, w, keys)
 
-	// All batch copies must appear bound to this wallet, including copies using
+	// Every batch copy shows as bound to this wallet, including copies with
 	// separate keys.
 	for _, c := range w.GetCredentials() {
 		if c.VCT != testBatchVCT {
@@ -365,8 +365,8 @@ func TestSetCredentialStatusRevokesWholeBatch(t *testing.T) {
 	keys := []*ecdsa.PrivateKey{w.HolderKey, testKey(t), testKey(t)}
 	storeTestBatch(t, w, keys)
 
-	// Each copy carries its own status index, the way the issuer reserves one
-	// per copy so two presentations cannot be linked by a shared index.
+	// Each copy carries its own status index. A shared index would let a
+	// verifier link two presentations.
 	idx := 0
 	for _, c := range w.GetCredentials() {
 		if c.VCT == testBatchVCT {

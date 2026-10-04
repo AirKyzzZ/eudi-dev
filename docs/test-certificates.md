@@ -1,10 +1,10 @@
 # Test certificates and EUDI profiles
 
-The generated certificates identify test services. Their organization names, addresses and registration numbers are fictional. Keys are held in software. The access certificate policy describes the test profile and carries no certification claim.
+The generated certificates identify test services. Their organization names, addresses and registration numbers are fictional. All keys are software keys. The access certificate policy describes the test profile and makes no certification claim.
 
 ## Specification versions
 
-Checked on 1 October 2026 against [ARF v3.0.0](https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/releases/tag/v3.0.0), [CIR (EU) 2026/1731](https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32026R1731) and the Commission's [standards tracker](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications). The regulation's versions and adaptations take precedence over newer standalone specifications.
+Checked on 1 October 2026 against [ARF v3.0.0](https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/releases/tag/v3.0.0), [CIR (EU) 2026/1731](https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32026R1731) and the Commission's [standards tracker](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications). Where the regulation pins a version or adapts a specification, that takes precedence over newer standalone versions.
 
 | Area | Version used | Source |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ Checked on 1 October 2026 against [ARF v3.0.0](https://github.com/eu-digital-ide
 | EU PID attributes | PID Rulebook v1.7 | [Rulebook](https://github.com/eu-digital-identity-wallet/eudi-doc-attestation-rulebooks-catalog/blob/6d8f7f8422e5bf6c48186005b6835c078f762a67/rulebooks/pid/pid-rulebook.md) |
 | German PID attributes | German PID Rulebook 1.0.0 consultation draft | [Rulebook](https://bmi.usercontent.opencode.de/eudi-wallet/eidas-2.0-architekturkonzept/content/features/PID/german-pid-rulebook/) |
 
-The certificate baseline uses the versions referenced by the regulation. In particular, TS 119 412-6 V1.1.1 clauses 4.4.3 and 5.1 require the PID and wallet provider certificates' AIA to identify an intermediate CA certificate.
+The certificates follow the versions the regulation references. For example, TS 119 412-6 V1.1.1 clauses 4.4.3 and 5.1 require the PID and wallet provider certificates' AIA to identify an intermediate CA certificate.
 
 OpenID4VCI 1.0 is the baseline, with 1.1 available as an optional draft feature level. The German PID rulebook is a consultation draft, so its national attributes may change.
 
@@ -42,17 +42,17 @@ OpenID4VCI 1.0 is the baseline, with 1.1 available as an optional draft feature 
 
 The generated root CA permits one intermediate CA. PID, wallet provider and local credential signing certificates use a provider intermediate for their role and country. Access, registrar, status and trust list signing certificates are signed directly by the root. PID and local credential signer leaves carry the ISO/IEC 18013-5 document signing purpose. The credential signer's subject country matches the credential's `issuing_country`, with `NL` as the default. Its AIA and CRL URLs identify the provider intermediate and its revocation list.
 
-The provider intermediate supplies the certificate retrieval path required by TS 119 412-6 V1.1.1 clause 4.4.3. The PID Rulebook's trust anchors are notified provider keys. The generated root's path length of one differs from the direct IACA hierarchy in ISO/IEC 18013-5:2021 Annex B, whose root requires a path length of zero. The OpenID suite reports that difference as an ISO profile warning. The applicable ETSI and ISO profiles determine the certificate requirements. Certificate signatures and trust paths are checked separately.
+The provider intermediate provides the certificate retrieval path that TS 119 412-6 V1.1.1 clause 4.4.3 requires. In the PID Rulebook, the trust anchors are notified provider keys. ISO/IEC 18013-5:2021 Annex B uses a direct IACA hierarchy whose root has a path length of zero. The generated root has a path length of one, and the OpenID suite reports this as an ISO profile warning. Certificate signatures and trust paths are checked separately.
 
-A configured root with a path length of zero signs provider leaves directly. This chain has no provider intermediate for the retrieval path described above. The wallet uses the configured CA's keys and chain.
+A configured root with a path length of zero signs provider leaves directly. That chain has no provider intermediate, so it lacks the retrieval path described above. The wallet uses the configured CA's keys and chain.
 
-PID signatures include protected certificate references required by CIR (EU) 2026/1731 Annex I. SD-JWT uses `x5u` and `x5t#S256`. Mdoc uses `x5u` and SHA-256 `x5t`. Their URLs contain the certificate fingerprint and return PEM for JOSE or DER for COSE. The protected `iat` records signing time independently of the credential's issuance time. Published certificates remain available after renewal. Offline issuance has no certificate hosting endpoint.
+PID signatures include the protected certificate references that CIR (EU) 2026/1731 Annex I requires. SD-JWT uses `x5u` and `x5t#S256`. Mdoc uses `x5u` and SHA-256 `x5t`. The `x5u` URLs contain the certificate fingerprint and return PEM for JOSE or DER for COSE. The protected `iat` records the signing time, separate from the credential's issuance time. Published certificates stay available after renewal. Offline issuance has no certificate hosting endpoint.
 
-Certificates are stored in the selected storage backend. A different subject, changed issuer URL or renewal produces a certificate with a new serial number. Memory storage retains certificates for the lifetime of that store. With a seed, the wallet derives the same keys after a process restart. A fresh memory store generates certificates with new serial numbers.
+Certificates are stored in the selected storage backend. A different subject, changed issuer URL or renewal produces a certificate with a new serial number. Memory storage keeps certificates for the lifetime of that store. With a seed, the wallet derives the same keys after a restart. A fresh memory store still generates certificates with new serial numbers.
 
 ## Certificate contents
 
-The [complete certificate examples](test-certificate-examples.md) contain public PEM files and full decoded X.509 contents for the root, each provider intermediate and every signing role. The examples use `https://eudi-test.dev`, country `NL` and the default provider names. Serial numbers, validity timestamps, public keys, key identifiers and signatures are concrete values from that reference set. A separately generated wallet has its own values.
+The [complete certificate examples](test-certificate-examples.md) contain public PEM files and full decoded X.509 contents for the root, each provider intermediate and every signing role. The examples use `https://eudi-test.dev`, country `NL` and the default provider names. Serial numbers, validity timestamps, public keys, key identifiers and signatures are the values from that reference set. A separately generated wallet has its own values.
 
 ### Shared fields
 
@@ -91,7 +91,7 @@ Provider intermediates have critical key usage `keyCertSign, cRLSign` and critic
 
 ### Provider and access indicators
 
-The PID and wallet provider signers have a non-critical QCStatements extension (`1.3.6.1.5.5.7.1.3`). It contains one QcType statement (`0.4.0.1862.1.6`), with the following purpose. The encoding uses EN 319 412-5 V2.5.1 clause 4.2.3. The purpose identifiers are defined in TS 119 412-6 V1.1.1 clauses 4.5 and 5.2 and Annex A.
+The PID and wallet provider signers have a non-critical QCStatements extension (`1.3.6.1.5.5.7.1.3`). It contains one QcType statement (`0.4.0.1862.1.6`) with the purpose below. The encoding follows EN 319 412-5 V2.5.1 clause 4.2.3. TS 119 412-6 V1.1.1 clauses 4.5 and 5.2 and Annex A define the purpose identifiers.
 
 | Signer | QcType purpose | QCStatements extension value, DER hexadecimal |
 | --- | --- | --- |
@@ -124,15 +124,15 @@ The default local issuer URL is `https://localhost:8086`. The wallet's HTTP UI a
 | CRL distribution point | `https://localhost:8086/api/crl/providers/pid/NL` |
 | Subject alternative names | DNS `localhost`, URI `https://localhost:8086` |
 
-`--docker` uses `host.docker.internal` as the local hostname. An HTTPS `--base-url`, such as `https://eudi-test.dev`, sets the issuer URL directly instead of a derived local HTTPS URL. The wallet reuses its stored issuer URL unless `--base-url` or `--docker` selects another one. See [wallet server URLs](wallet/serve.md) for serving and TLS options.
+`--docker` uses `host.docker.internal` as the local hostname. An HTTPS `--base-url`, such as `https://eudi-test.dev`, sets the issuer URL directly. The wallet reuses its stored issuer URL unless `--base-url` or `--docker` selects another one. See [wallet server URLs](wallet/serve.md) for serving and TLS options.
 
-An IP-based issuer URL produces an IP subject alternative name instead of a DNS name. Offline issuance has no issuer URL, so certificates omit issuer-based AIA, CRL distribution points and subject alternative names. The fixed issuer contact URI remains present.
+An IP-based issuer URL produces an IP subject alternative name instead of a DNS name. Offline issuance has no issuer URL, so certificates omit issuer-based AIA, CRL distribution points and subject alternative names. The fixed issuer contact URI is always present.
 
 ## Discovery and trust lists
 
 Both issuer discovery endpoints serve JSON by default and signed metadata for `Accept: application/jwt`. The signed form includes the access certificate in protected `x5c`. The `issuer_info` array contains registrar data and a registration certificate signed by the test registrar. Registration certificates use the identifier, legal name and country from the access certificate.
 
-Trust lists publish issuance certificates, their provider CAs and status signing certificates. This keeps credentials verifiable across country overrides and certificate renewal. Protected `iat` and `x5t#S256` headers carry the signing time and certificate reference required by JAdES. Trust lists use English language code `en`, whole second UTC timestamps, postal addresses and a self pointer. An unchanged list keeps its signed instance until it expires. Changed content or expiry advances the sequence number. Append `/history` to a trust list URL to list its retained instances, then `/history/<sequence>` to retrieve one.
+Trust lists publish issuance certificates, their provider CAs and status signing certificates. This keeps credentials verifiable across country overrides and certificate renewal. Protected `iat` and `x5t#S256` headers carry the signing time and certificate reference that JAdES requires. Trust lists use English language code `en`, whole second UTC timestamps, postal addresses and a self pointer. An unchanged list keeps its signed instance until it expires. Changed content or expiry advances the sequence number. Append `/history` to a trust list URL to list its retained instances, then `/history/<sequence>` to retrieve one.
 
 The schema is ETSI's [published JSON binding](https://forge.etsi.org/rep/esi/x19_60201_lists_of_trusted_entities), revision `e84f427f0cde99513b574ef4b5a155ac4a38eab6` from 13 November 2025. The PID and wallet provider lists follow Annexes D and E. Their fictional provider entries are for local interoperability tests.
 
@@ -140,10 +140,10 @@ The schema is ETSI's [published JSON binding](https://forge.etsi.org/rep/esi/x19
 
 The Bundesdruckerei [demo](https://demo.pid-provider.bundesdruckerei.de/) and [preproduction](https://preprod.pid-provider.bundesdruckerei.de/) deployments publish separate credential, status and access certificate material. Their PID paths use P-521 CAs and P-256 signing leaves. Signed issuer metadata uses an access certificate.
 
-EUDI Dev implements those roles with P-256 keys. The versioned rulebooks determine generated data types and names.
+EUDI Dev uses P-256 keys for all of those roles. Generated data types and names follow the versioned rulebooks.
 
 ## Test scope
 
-The versioned specifications and their applicable regulatory adaptations define the requirements. The [OpenID Foundation conformance tests](https://openid.net/certification/) provide evidence for the selected OpenID4VP, OpenID4VCI and HAIP plans and variants. They do not establish conformance to every EUDI requirement. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements also need checks against their own sources.
+The requirements come from the versioned specifications and their regulatory adaptations. The [OpenID Foundation conformance tests](https://openid.net/certification/) cover the selected OpenID4VP, OpenID4VCI and HAIP plans and variants. They do not cover every EUDI requirement. ETSI certificate profiles, trust lists, registration information, PID rulebooks and ISO mdoc requirements must be checked against their own sources.
 
-The toolkit tests protocol exchanges, signatures, certificate structure and generated data. Registration certificates simulate provider registration. Their status and revocation lifecycle is not implemented. Official trust, certified hardware protection and physical presence checks require the corresponding ecosystem services. Configured key attestation assurance values simulate a test scenario. See [spec compliance](spec-compliance.md) and [conformance results](conformance-results.md) for implemented checks and remaining protocol limits.
+The toolkit tests protocol exchanges, signatures, certificate structure and generated data. Registration certificates simulate provider registration. Their status and revocation lifecycle is not implemented. Official trust, certified hardware protection and physical presence checks require the corresponding ecosystem services. Configured key attestation assurance values are simulated. See [spec compliance](spec-compliance.md) and [conformance results](conformance-results.md) for implemented checks and remaining protocol limits.

@@ -45,9 +45,8 @@ func TestBuildSessionTranscriptOID4VCIIAEMatchesTheDraftExample(t *testing.T) {
 	}
 }
 
-// "If the Response Mode is ia_post, the third element MUST be null", so an
-// unencrypted response produces a different transcript from an encrypted one
-// even when the request carried an encryption key.
+// OpenID4VCI 1.1 Appendix A.2.5: "If the Response Mode is ia_post, the third
+// element MUST be null". This holds even when the request carried an encryption key.
 func TestBuildSessionTranscriptOID4VCIIAEOmitsTheThumbprintForIAPost(t *testing.T) {
 	thumbprint, err := hex.DecodeString(iaeExampleThumb)
 	if err != nil {
@@ -124,8 +123,8 @@ func TestBuildSessionTranscriptOID4VCIIAERefusesAnEmptyEndpoint(t *testing.T) {
 	}
 }
 
-// Appendix A.3.5 binds an SD-JWT presentation by the Key Binding JWT audience
-// instead, and the ia: prefix is what separates it from a client_id.
+// Appendix A.3.5 binds an SD-JWT presentation through the Key Binding JWT
+// audience. The ia: prefix separates it from a client_id.
 func TestSDJWTAudienceForInteractiveAuthorization(t *testing.T) {
 	audience := sdJWTAudience(PresentationParams{
 		ResponseMode:                     "ia_post",

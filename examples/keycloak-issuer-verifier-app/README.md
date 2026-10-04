@@ -52,10 +52,10 @@ The static realm import (`realm/wallet-app-demo-realm.json`) carries the whole c
 
 - The `oid4vp` identity provider enforces HAIP (`x509_hash`, `direct_post.jwt`) and requests `credential_sets` `[[pid, membership], [pid]]`. `allowMissingSubjectCredential` accepts the PID alone, and `principalAttributes` reads the subject from `membership:sub`.
 - The first broker login flow runs `idp-username-password-form` followed by `oid4vp-subject-binding`. The authenticator binds the login to the user, entitles them to the `membership-credential` configuration, and offers it through the credential-offer required action to the client `wallet-vci`.
-- The `membership-credential` scope issues an SD-JWT credential whose `oid4vp-bound-subject-mapper` writes the opaque subject and a reference credential binding. The binding ties the credential to the PID it was issued next to (a keyed digest of the PID mandatory attributes), so the membership credential cannot sign a user in next to a different person's PID.
-- Trust is resolved per credential. The `pid-trust-list` provider (an `etsi-trust-list`) serves the PID trust anchors from the wallet, and the `keycloak-realm-issuer` provider verifies the membership credential against this realm's own signing keys.
+- The `membership-credential` scope issues an SD-JWT credential whose `oid4vp-bound-subject-mapper` writes the opaque subject and a reference credential binding. The binding is a keyed digest of the mandatory PID attributes. It ties the credential to the PID presented at issuance. A login that presents the membership credential with another person's PID fails.
+- Keycloak resolves trust per credential. The `pid-trust-list` provider (an `etsi-trust-list`) serves the PID trust anchors from the wallet, and the `keycloak-realm-issuer` provider verifies the membership credential against this realm's own signing keys.
 
-`bootstrap.sh` adds the runtime piece the import cannot carry: a CA-issued RS256 realm signing key (Keycloak refuses to issue an SD-JWT credential signed with a self-signed certificate). `docker-compose.yml` trusts the wallet CA so Keycloak can reach the wallet status list over HTTPS.
+The realm import cannot contain a CA-issued key, so `bootstrap.sh` adds a CA-issued RS256 realm signing key at runtime. Keycloak refuses to issue an SD-JWT credential signed with a self-signed certificate. `docker-compose.yml` trusts the wallet CA so Keycloak can reach the wallet status list over HTTPS.
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ If `eudi-dev` is not installed, `start.sh` installs the latest release with `go 
 
 Open the demo app at `http://127.0.0.1:8090` and choose "Sign in with your wallet". The first login asks for the `alice` / `alice` password and issues the membership credential into the wallet. Sign out and sign in again to see the passwordless login.
 
-Headless check of the same flow:
+Run the same flow headless:
 
 ```bash
 ./start.sh --smoke

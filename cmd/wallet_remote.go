@@ -315,11 +315,11 @@ func runInstancesList() error {
 	return nil
 }
 
-// managedInstanceURL resolves which of the discovered instances the
-// management commands currently target, mirroring the routing rules of
-// remoteClientIfConfigured: the --remote flag or the persisted remote target
-// first, then the auto-routed instance that serves the local wallet
-// directory. Empty means the CLI manages the local store directly.
+// managedInstanceURL returns the discovered instance that management commands
+// target. It follows the routing rules of remoteClientIfConfigured. The
+// --remote flag or the saved remote target comes first, then the instance
+// that serves the local wallet directory. Empty means the CLI manages the
+// local store directly.
 func managedInstanceURL(instances []remote.DiscoveredInstance) string {
 	if url, err := activeRemoteURL(); err == nil && url != "" {
 		return url
@@ -404,9 +404,9 @@ func matchInstance(instances []remote.DiscoveredInstance, target string) (remote
 	noMatch := fmt.Errorf("no running wallet instance matches %q (run `wallet ps`)", target)
 
 	if number, err := strconv.Atoi(target); err == nil {
-		// A port match wins: a port is what a user reads off a URL or
-		// `wallet ps`, so `kill 8085` stops the server on port 8085 rather
-		// than a process that happens to have pid 8085.
+		// A port match wins because users read ports off a URL or `wallet ps`.
+		// `kill 8085` stops the server on port 8085 even when some process has
+		// pid 8085.
 		var byPort, byPID []remote.DiscoveredInstance
 		for _, inst := range instances {
 			switch {

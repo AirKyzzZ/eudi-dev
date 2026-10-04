@@ -56,9 +56,8 @@ func TestSignVerifies(t *testing.T) {
 	}
 }
 
-// A signature whose r or s is left unpadded is shorter than P-256 requires,
-// which some verifiers accept and others reject. Small values are where that
-// shows up, so sign until one turns up rather than trusting a single run.
+// RFC 7518 §3.4 fixes r and s at 32 bytes each for P-256. Only small values
+// expose missing padding, so the test signs until it gets one.
 func TestSignatureIsAlwaysFullWidth(t *testing.T) {
 	key := testKey(t)
 	for i := range 200 {

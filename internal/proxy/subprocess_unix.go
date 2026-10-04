@@ -21,7 +21,7 @@ import (
 	"syscall"
 )
 
-// setProcAttr sets process group on Unix so we can signal the whole tree.
+// setProcAttr starts a process group on Unix, so a signal reaches the whole tree.
 func setProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }

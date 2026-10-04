@@ -33,7 +33,7 @@ Guides for using eudi-dev as a wallet, issuer, verifier and CA, grouped by task.
 
 ## Conformance
 
-- [Conformance](conformance.md): running against the OpenID Foundation test suites
+- [Conformance](conformance.md): testing against the OpenID Foundation test suites
 - [Conformance run](conformance-run.md): the harness that drives a wallet conformance run
 - [Demo issuer and verifier conformance run](conformance-run-demorp.md): the harness that tests the demo issuer and verifier
 - [Conformance results](conformance-results.md): the recorded suite results

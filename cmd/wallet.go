@@ -217,8 +217,8 @@ func warnIssuedEndpointsOffline(store *wallet.WalletStore, w *wallet.Wallet) {
 func deriveWalletIssuerURL(port int, baseURL string, docker bool) (string, error) {
 	if baseURL != "" {
 		// An https base URL means a TLS terminator already serves the wallet
-		// on that origin. Issuer metadata, status list and trust list can
-		// live there directly instead of on a second self-signed listener.
+		// on that origin. Issuer metadata, status list and trust list are
+		// served there too.
 		if u, err := url.Parse(strings.TrimSpace(baseURL)); err == nil && strings.EqualFold(u.Scheme, "https") {
 			return strings.TrimRight(strings.TrimSpace(baseURL), "/"), nil
 		}
@@ -278,8 +278,7 @@ func walletShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// A deferred issuance answers to its own id, so show where it
-			// stands instead of "credential not found".
+			// A deferred issuance has its own id. Show its state for that id.
 			deferred, derr := svc.DeferredIssuances()
 			if derr == nil {
 				for _, entry := range deferred {

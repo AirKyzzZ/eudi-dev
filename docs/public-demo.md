@@ -42,7 +42,7 @@ A reset removes visitor credentials, regenerates the protected PID baseline and 
 
 ## Browser hardening
 
-Visitors share the wallet, so the UI must safely display data supplied by other visitors. It escapes both text and HTML attributes, including status list URIs, credential types, claim names and configuration IDs. The consent event stream accepts only same-origin requests.
+Visitors share the wallet, so the UI escapes data from other visitors in both text and HTML attributes. This covers status list URIs, credential types, claim names and configuration IDs. The consent event stream accepts only same-origin requests.
 
 Every response includes these headers:
 
@@ -67,15 +67,15 @@ The verifier page has a PID format toggle. By default, a PID request accepts eit
 
 **Demo ticket + PID** asks for both in one request. **With the PID** offers the ticket together with the SD-JWT PID, or a PID alone. **Optional** asks for a PID and lets the wallet skip the ticket. Tick **multiple** to let the wallet send several credentials for each query, such as both PIDs a wallet holds.
 
-The issuer page has a status list toggle. When enabled, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable and the demo verifier rejects the next presentation once it is revoked.
+The issuer page has a status list toggle. When enabled, each ticket references a reserved index in the wallet's own status list. The wallet imports the ticket as revocable. After revocation, the demo verifier rejects the next presentation.
 
 ### PID credentials
 
-The demo starts with four PID credentials: the country-independent EUDI PID (`urn:eudi:pid:1`) and the German PID that extends it (`urn:eudi:pid:de:1`), each as an SD-JWT VC and an mdoc. The two PID types have different attributes, each following its own rulebook.
+The demo starts with four PID credentials: the country-independent EUDI PID (`urn:eudi:pid:1`) and the German PID that extends it (`urn:eudi:pid:de:1`), each as an SD-JWT VC and an mdoc. Each PID type has its own attributes, defined by its rulebook.
 
-The verifier page offers both through its credential toggle. The PID request names `urn:eudi:pid:1`, which both credentials match, and the wallet presents one of them. The German PID request names `urn:eudi:pid:de:1`, which only the German credential matches. See [credential type inheritance](wallet.md#credential-type-inheritance).
+The verifier page offers both through its credential toggle. The PID request asks for `urn:eudi:pid:1`. Both credentials match it, and the wallet presents one of them. The German PID request asks for `urn:eudi:pid:de:1`. Only the German credential matches it. See [credential type inheritance](wallet.md#credential-type-inheritance).
 
-`POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs share the doctype `eu.europa.ec.eudi.pid.1`, which does not identify the country.
+`POST /verifier/api/requests` selects the PID type through `vct`. Any type under `urn:eudi:pid:` is accepted, including `urn:eudi:pid:fr:1`. National types request SD-JWT VC only. All PID mdocs use the doctype `eu.europa.ec.eudi.pid.1`. The doctype carries no country.
 
 To include a ticket, set `ticket` in the same request:
 
@@ -104,7 +104,7 @@ Three zones return `429` with `Retry-After` when exceeded:
 | `flows_hour` | 2000 per hour | The same endpoints, to cap a long-running script between resets |
 | `site` | 1200 per minute | All requests, including the UI and the stats report |
 
-The limits allow interactive use while bounding automated traffic. An idle page makes about 14 initial requests, then receives updates through an event stream. Clients behind the same public address share the limit. Apply equivalent limits if using another reverse proxy.
+The limits allow interactive use and cap automated traffic. An idle page makes about 14 initial requests, then receives updates through an event stream. Clients behind the same public address share the limit. With another reverse proxy, set equivalent limits there.
 
 ## Base URL and issuer URL
 
@@ -147,11 +147,11 @@ The callback is matched by `state` alone, so the sign-in can happen in any brows
 
 By default, PAR and token requests both require a wallet attestation. The issuer verifies its signature and the possession proof, including `sub`, `aud`, `jti` and expiry. It accepts either a separate `OAuth-Client-Attestation-PoP` JWT or a DPoP proof signed by the attested key (`attest_jwt_client_auth_dpop`).
 
-The access token is bound to the DPoP key. The credential request must prove possession of that key again. The ticket includes the signed-in account name, making a skipped login visible in the result.
+The access token is bound to the DPoP key. The credential request must prove possession of that key again. The ticket includes the signed-in account name, so a skipped login shows in the result.
 
 ### Wallets from other providers
 
-The demo issuer trusts the shared wallet CA. It also accepts attestations from other providers when their signature verifies against the included leaf certificate. This permits interoperability testing without treating the provider as trusted.
+The demo issuer trusts the shared wallet CA. It also accepts attestations from other providers when their signature verifies against the included leaf certificate. The demo issuer can then test other wallets without trusting their provider.
 
 The ticket records the result in `wallet_attestation`: `trusted` for a chain reaching the wallet CA, `untrusted` for another signer, or `none` when authentication was optional and omitted. The wallet provider's trust list is available at `/api/trustlists/wallet-provider`.
 
@@ -161,7 +161,7 @@ To test a wallet without attestation, use `--demo-issuer-client-auth optional`. 
 
 The wallet authenticates PAR and token requests with a wallet attestation. With a separate possession proof, it sends both headers below. When the server advertises combined DPoP proof, the DPoP header replaces the separate attestation PoP header.
 
-- `OAuth-Client-Attestation`, signed by the wallet provider key (`sub` is the client id, `cnf.jwk` is the wallet's holder key, and `iss` is the wallet origin, which draft 10 permits). Its `x5c` header carries the wallet provider leaf and any intermediate certificates, with the self-signed root omitted.
+- `OAuth-Client-Attestation`, signed by the wallet provider key (`sub` is the client id, `cnf.jwk` is the wallet's holder key, and `iss` is the wallet origin, as draft 10 permits). Its `x5c` header carries the wallet provider leaf and any intermediate certificates, without the self-signed root.
 - `OAuth-Client-Attestation-PoP`, signed by that holder key. If the authorization server metadata advertises a `challenge_endpoint`, the wallet fetches a challenge first and includes it.
 
 When the configuration requires key attestations, the credential proof includes `key-attestation+jwt`. It appears in the JWT proof header or as an attestation proof, depending on the offered format. The reported storage and user authentication levels are test claims. The wallet stores keys unencrypted ([SECURITY.md](../SECURITY.md)).
@@ -179,7 +179,7 @@ Pin the CA through an out-of-band exchange. It is self-signed and persists acros
 
 Trust lists are grouped by role. The `pid` and `local` lists publish credential signing certificates and their provider CAs. The `wallet-provider` list publishes wallet provider certificates. A separate list operator signs the lists. Their sequence numbers and retained history let clients test trust updates.
 
-The issuer metadata endpoints return JSON by default and an access-certificate-signed JWT when the request accepts only `application/jwt`. They include a registrar-signed registration certificate whose identifier, legal name and country match the access certificate. Registration status and revocation remain unimplemented. See [test certificates](test-certificates.md) for the exact profiles and versions.
+The issuer metadata endpoints return JSON by default and an access-certificate-signed JWT when the request accepts only `application/jwt`. They include a registrar-signed registration certificate whose identifier, legal name and country match the access certificate. Registration status and revocation are not implemented. See [test certificates](test-certificates.md) for the exact profiles and versions.
 
 ## Imprint
 
@@ -187,7 +187,7 @@ Pass `--imprint-file` with an HTML snippet containing the operator's name, addre
 
 The demo uses the `eudi_session` cookie to associate consent requests with a browser. It is an opaque session value with `HttpOnly`, `SameSite=Lax` and, for HTTPS connections, `Secure`. The activity log remains shared.
 
-Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences and dismissed banner state use `localStorage`. They only store UI state and involve no third-party tracking. Describe this storage in the deployment's privacy notice.
+Pages opened by the CLI or URL handler keep the supplied browser ID in `sessionStorage`. Theme preferences and dismissed banner state use `localStorage`. They store only UI state. There is no third-party tracking. Describe this storage in the deployment's privacy notice.
 
 ## Deploying and updating
 
@@ -237,7 +237,7 @@ PREVIEW_URL=https://preview.demo.example
 
 The strict conformance target runs as a third wallet on a separate subdomain, `strict.eudi-test.dev` in the example. It uses strict validation, HAIP, auto-accept and the default PID baseline.
 
-Caddy permits only GET and HEAD from the public internet. This exposes protocol documents and GET `/authorize` requests, which can still start presentation flows. The harness performs other management operations through an SSH tunnel to `127.0.0.1:18086` on the host.
+Caddy permits only GET and HEAD from the public internet. This exposes protocol documents and GET `/authorize` requests. A GET `/authorize` request can start a presentation flow. The harness performs other management operations through an SSH tunnel to `127.0.0.1:18086` on the host.
 
 `STRICT_TAG` pins its release independently. Its issuance redirect URI uses the `oid4vc-dev-vci-strict` alias on the production conformance service.
 
@@ -281,7 +281,7 @@ Visitor counts are approximate because addresses are masked. Everyone sharing an
 - Terminate TLS in a reverse proxy (the example uses Caddy with automatic Let's Encrypt) and forward to the wallet's HTTP port. The wallet derives all advertised URLs from `--base-url`.
 - Mount a volume at `/home/app/.eudi-dev` and set `EUDI_DEV_STORAGE=file` and `EUDI_DEV_SEED=`. This persists credentials, keys and the shared CA. Mount the parent of `wallet/` so the CA survives restarts and verifiers can reuse their trust lists.
 - Run one replica when using file storage.
-- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the connection-time address checks only see the proxy's address, not the destination.
+- Leave `HTTP_PROXY` and `HTTPS_PROXY` unset in the container and do not pass `--http-proxy` or `--https-proxy`. With an outbound proxy, the connection-time address checks see only the proxy's address.
 - Requests to the demo's own public URL, such as a pasted offer, resolve through public DNS. This works on cloud hosts that support hairpin NAT. A compose network alias for the public hostname would resolve to a private address and be blocked.
 - Keep the rate limiting in the proxy. The compose example's Caddyfile enables the `rate_limit` zones described above.
 

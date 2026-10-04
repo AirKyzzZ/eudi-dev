@@ -29,15 +29,14 @@ import (
 // 9901 §7.1, where every MUST-reject condition is an error: "If any step
 // fails, the SD-JWT is not valid, and processing MUST be aborted."
 //
-// It covers steps 3 to 5, which turn Disclosures into claims. The
-// Issuer-signed JWT signature is not checked here (see Verify).
+// It covers steps 3 to 5, which turn Disclosures into claims. Verify checks
+// the Issuer-signed JWT signature.
 func Parse(raw string) (*Token, error) {
 	token, err := ParseLenient(raw)
 	if err != nil {
 		return nil, err
 	}
-	// A rule break that resolution tolerated and recorded is an error here.
-	// RFC 9901 §7.1 aborts processing when any step fails.
+	// RFC 9901 §7.1 aborts processing when any step fails, so every deviation is an error.
 	if len(token.Deviations) > 0 {
 		return nil, fmt.Errorf("%s", strings.Join(token.Deviations, ". "))
 	}
@@ -45,9 +44,9 @@ func Parse(raw string) (*Token, error) {
 }
 
 // ParseLenient records recoverable RFC 9901 violations in token.Deviations while
-// resolving claims. Examples include nested _sd_alg and repeated digests. Errors that
-// prevent claim resolution still fail. Use this for inspection or debug mode, and
-// Parse for strict validation.
+// resolving claims, such as a nested _sd_alg or a repeated digest. Errors that
+// prevent claim resolution still fail. Inspection and debug mode use it. Strict
+// validation uses Parse.
 func ParseLenient(raw string) (*Token, error) {
 	token, err := parseStructure(raw)
 	if err != nil {
@@ -77,8 +76,7 @@ func ParseLenient(raw string) (*Token, error) {
 // omitted."
 //
 // A single non-empty trailing component that is not a KB-JWT is read as a
-// Disclosure whose trailing tilde was dropped, and a warning names the
-// deviation.
+// Disclosure without its trailing tilde. A warning reports the deviation.
 func splitComponents(components []string) ([]string, *JWT, string, error) {
 	if len(components) == 0 {
 		return nil, nil, "", nil
@@ -94,9 +92,8 @@ func splitComponents(components []string) ([]string, *JWT, string, error) {
 		discParts = components[:len(components)-1]
 		kbJWT = jwt
 	} else {
-		// The last component is a Disclosure, so the credential ended without the
-		// final tilde. RFC 9901 §4 requires it (the slot after it, empty here when
-		// there is no KB-JWT, MUST NOT be omitted).
+		// The last component is a Disclosure, so the final tilde is missing. RFC 9901
+		// §4 requires it.
 		warning = "the SD-JWT omits the tilde that RFC 9901 requires after the last disclosure"
 	}
 
@@ -109,8 +106,8 @@ func splitComponents(components []string) ([]string, *JWT, string, error) {
 }
 
 // parseKeyBindingJWT decodes a trailing component as a Key Binding JWT.
-// RFC 9901 §4.3 requires the typ header parameter of a KB-JWT to be kb+jwt,
-// and that tells a KB-JWT apart from a Disclosure.
+// RFC 9901 §4.3 requires the typ header parameter of a KB-JWT to be kb+jwt.
+// That typ tells a KB-JWT apart from a Disclosure.
 func parseKeyBindingJWT(component string) *JWT {
 	if strings.Count(component, ".") != 2 {
 		return nil
@@ -125,7 +122,8 @@ func parseKeyBindingJWT(component string) *JWT {
 	return jwt
 }
 
-// Warn when a disclosed object or array contains only undisclosed children.
+// checkFullyUndisclosedChildren warns about a disclosed object or array whose
+// children are all undisclosed.
 func checkFullyUndisclosedChildren(disclosures []Disclosure) []string {
 	digestMap := make(map[string]bool)
 	for _, d := range disclosures {
@@ -236,7 +234,7 @@ func parseDisclosure(raw string, sdAlg string) (*Disclosure, error) {
 		disc.Name = name
 		disc.Value = arr[2]
 	case 2:
-		// [salt, value], an array element disclosure
+		// [salt, value] for an array element
 		salt, ok := arr[0].(string)
 		if !ok {
 			return nil, fmt.Errorf("salt is not a string")
@@ -256,11 +254,9 @@ func parseDisclosure(raw string, sdAlg string) (*Disclosure, error) {
 // level, a default value of sha-256 MUST be used."
 const defaultSDAlg = "sha-256"
 
-// hashForSDAlg maps an _sd_alg value to its hash. The comparison is
-// case-sensitive because RFC 9901 §4.1.1 states "This claim value is a
-// case-sensitive string with the hash algorithm identifier", and the
-// identifiers come from the "Hash Name String" column of the Named
-// Information Hash Algorithm Registry, which spells them in lower case.
+// hashForSDAlg maps an _sd_alg value to its hash. RFC 9901 §4.1.1: "This claim
+// value is a case-sensitive string with the hash algorithm identifier". The
+// Named Information Hash Algorithm Registry spells the identifiers in lower case.
 func hashForSDAlg(sdAlg string) (func() hash.Hash, error) {
 	switch sdAlg {
 	case "sha-256":
@@ -274,14 +270,13 @@ func hashForSDAlg(sdAlg string) (func() hash.Hash, error) {
 	}
 }
 
-// SDAlg returns the hash algorithm this SD-JWT uses for its digests, read from
-// the payload's _sd_alg and defaulting to sha-256 per RFC 9901 §4.1.1.
+// SDAlg returns the payload's _sd_alg. The default is sha-256 per RFC 9901 §4.1.1.
 func (t *Token) SDAlg() string {
 	return SDAlgFromPayload(t.Payload)
 }
 
-// SDAlgFromPayload returns the _sd_alg an issuer-signed JWT payload declares,
-// defaulting to sha-256 per RFC 9901 §4.1.1.
+// SDAlgFromPayload returns the _sd_alg of an issuer-signed JWT payload. The
+// default is sha-256 per RFC 9901 §4.1.1.
 func SDAlgFromPayload(payload map[string]any) string {
 	if alg, ok := payload["_sd_alg"].(string); ok && alg != "" {
 		return alg
@@ -289,9 +284,8 @@ func SDAlgFromPayload(payload map[string]any) string {
 	return defaultSDAlg
 }
 
-// SDHash returns the base64url digest of data under the named _sd_alg. It is
-// the hash a KB-JWT's sd_hash covers (RFC 9901 §4.3), computed with the same
-// algorithm the credential's disclosures use.
+// SDHash returns the base64url digest of data under sdAlg. A KB-JWT's sd_hash
+// uses the same algorithm as the credential's disclosures (RFC 9901 §4.3).
 func SDHash(data, sdAlg string) (string, error) {
 	return computeDigest(data, sdAlg)
 }
@@ -306,10 +300,9 @@ func computeDigest(raw string, sdAlg string) (string, error) {
 	return format.EncodeBase64URL(h.Sum(nil)), nil
 }
 
-// ReferencedDigests returns every digest the credential refers to: the entries
-// of its "_sd" arrays and the array elements of the form {"...": digest}. A
-// disclosure whose digest is missing from this set belongs to some other
-// credential, so it discloses nothing here.
+// ReferencedDigests returns every digest the credential refers to. These are
+// the entries of its "_sd" arrays and the array elements {"...": digest}. A
+// disclosure with a digest outside this set belongs to another credential.
 func ReferencedDigests(token *Token) map[string]bool {
 	out := make(map[string]bool)
 	if token == nil {
@@ -351,13 +344,13 @@ func collectDigests(value any, out map[string]bool) {
 }
 
 // Inspect decodes malformed credentials for display and records violations. It fails
-// only if the JWT cannot decode. Never use its result to establish validity or trust.
+// only if the JWT cannot decode. Its result never establishes validity or trust.
 func Inspect(raw string) (*Token, error) {
 	return ParseLenient(raw)
 }
 
-// Decode the SD-JWT components shared by Parse and Inspect. Apply validation
-// separately.
+// parseStructure decodes the SD-JWT components for Parse and Inspect. It does
+// no validation.
 func parseStructure(raw string) (*Token, error) {
 	raw = strings.TrimSpace(raw)
 	parts := strings.Split(raw, "~")
@@ -378,10 +371,9 @@ func parseStructure(raw string) (*Token, error) {
 		Signature: jwt.Signature,
 	}
 
-	// RFC 9901 §4.1.1: _sd_alg is a string naming the hash algorithm. A value
-	// that is not a string, or names an algorithm this build cannot compute,
-	// leaves the disclosures unmatchable, so it is recorded and the default is
-	// used to still decode them.
+	// RFC 9901 §4.1.1 makes _sd_alg a string with the hash algorithm. A
+	// non-string or unknown value leaves the disclosures unmatchable. It is
+	// recorded, and the default still decodes them.
 	sdAlg := defaultSDAlg
 	if rawAlg, present := token.Payload["_sd_alg"]; present {
 		if alg, ok := rawAlg.(string); !ok {
@@ -405,8 +397,8 @@ func parseStructure(raw string) (*Token, error) {
 	for i, d := range discParts {
 		disc, err := parseDisclosure(d, sdAlg)
 		if err != nil {
-			// A disclosure that will not parse is dropped so the rest of the
-			// credential still reads. Its digest then resolves to nothing.
+			// An unparsable disclosure is dropped, so the rest of the credential
+			// still reads.
 			token.Deviations = append(token.Deviations, fmt.Sprintf("disclosure %d could not be parsed (%s), so it is dropped", i+1, err))
 			continue
 		}
